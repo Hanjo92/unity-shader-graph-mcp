@@ -35,7 +35,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, add_property, add_node, connect_ports, save_graph."
                     );
             }
         }

@@ -1365,7 +1365,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["inputNodeId"] = requestedInputNodeId ?? string.Empty,
                 ["inputPort"] = requestedInputPort ?? string.Empty,
             };
-            data["nodeIdentifierContract"] = "ConnectPorts expects exact node objectId values from add_node or read_graph_summary; display names are not supported.";
+            data["nodeIdentifierContract"] = "ConnectPorts expects exact GraphData objectId values returned by addedNode.objectId or read_graph_summary nodes; display names are not supported.";
 
             return data;
         }
@@ -3703,7 +3703,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         {
             string role = isOutput ? "output" : "input";
             string nodeTypeName = GetTypeName(node);
-            return $"Unsupported {role} node type '{nodeTypeName}'. Supported {role} node types: {string.Join(", ", supportedNodeTypes ?? Array.Empty<string>())}.";
+            return $"Unsupported {role} node type '{nodeTypeName}'. Supported {role} node types in the current release matrix: {string.Join(", ", supportedNodeTypes ?? Array.Empty<string>())}. Use exact GraphData objectIds from add_node or read_graph_summary.";
         }
 
         private static string BuildConnectionPortFailure(
@@ -3713,7 +3713,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             string supportMessage)
         {
             string role = isOutput ? "output" : "input";
-            return $"Unsupported {role} port '{requestedPort}' on node '{GetTypeName(node)}'. {supportMessage}";
+            return $"Unsupported {role} port '{requestedPort}' on node '{GetTypeName(node)}'. {supportMessage} Ports are matched using the canonical aliases reported by read_graph_summary.";
         }
 
         private static bool TryInvokeGraphAddNode(object graphData, object node, out string failureReason)

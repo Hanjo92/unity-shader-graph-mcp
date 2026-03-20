@@ -122,6 +122,52 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankCreateGraph_EndToEndHappyPath_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankCreateGraphHappyPath", out ShaderGraphResponse createResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(createResponse.Data, "template"), Is.EqualTo("blank"));
+            Assert.That(ShaderGraphTestAssets.GetString(createResponse.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Exposure",
+                "Float/Vector1",
+                "0");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse addSourceNodeResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Happy Path Source");
+            ShaderGraphTestAssets.RequirePackageReady(addSourceNodeResponse);
+            string sourceNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSourceNodeResponse);
+            Assert.That(sourceNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse addSinkNodeResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Happy Path Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addSinkNodeResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSinkNodeResponse);
+            Assert.That(sinkNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sourceNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
+        }
+
+        [Test]
         public void BlankGraph_AddFloatAndColorProperty_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphAddProperties", out _);
@@ -148,6 +194,46 @@ namespace ShaderGraphMcp.Editor.Tests
             var properties = ShaderGraphTestAssets.GetStringList(summaryResponse.Data, "properties");
             Assert.That(properties, Has.Some.Contains("Exposure"));
             Assert.That(properties, Has.Some.Contains("Tint"));
+        }
+
+        [Test]
+        public void BlankGraph_AddUnsupportedNodeType_ReturnsSupportedNodeHint()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUnsupportedNode", out _);
+
+            ShaderGraphResponse response = ShaderGraphAssetTool.HandleAddNode(assetPath, "DefinitelyNotARealNode", "Unsupported Node");
+
+            Assert.That(response.Success, Is.False);
+            Assert.That(response.Message, Does.Contain("Unsupported Shader Graph node type"));
+            Assert.That(response.Message, Does.Contain("Supported node types"));
+            Assert.That(response.Message, Does.Contain("Float/Vector1"));
+        }
+
+        [Test]
+        public void BlankGraph_ConnectPortsUnsupportedInputPort_ReturnsCanonicalPortHint()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUnsupportedPort", out _);
+
+            ShaderGraphResponse sourceResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Source");
+            ShaderGraphTestAssets.RequirePackageReady(sourceResponse);
+            string sourceNodeId = ShaderGraphTestAssets.GetAddedNodeId(sourceResponse);
+            Assert.That(sourceNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse sinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Sink");
+            ShaderGraphTestAssets.RequirePackageReady(sinkResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(sinkResponse);
+            Assert.That(sinkNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse response = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sourceNodeId,
+                "Out",
+                sinkNodeId,
+                "Bogus");
+
+            Assert.That(response.Success, Is.False);
+            Assert.That(response.Message, Does.Contain("Unsupported input port"));
+            Assert.That(response.Message, Does.Contain("Supported input ports: 1, X."));
         }
 
         [Test]

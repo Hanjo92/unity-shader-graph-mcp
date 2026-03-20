@@ -6,6 +6,14 @@ namespace ShaderGraphMcp.Editor.Tests
 {
     public sealed class ShaderGraphRequestTests
     {
+        private sealed class UnsupportedShaderGraphRequest : ShaderGraphRequest
+        {
+            public UnsupportedShaderGraphRequest()
+                : base((ShaderGraphAction)999, "Assets/ShaderGraphs/Unsupported.shadergraph")
+            {
+            }
+        }
+
         [Test]
         public void CreateGraphRequest_AppendsShaderGraphExtension()
         {
@@ -36,5 +44,14 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(response.Message, Does.Contain("Request is required"));
         }
 
+        [Test]
+        public void Handle_UnsupportedAction_ReturnsSupportedActionList()
+        {
+            ShaderGraphResponse response = ShaderGraphAssetTool.Handle(new UnsupportedShaderGraphRequest());
+
+            Assert.That(response.Success, Is.False);
+            Assert.That(response.Message, Does.Contain("Unsupported Shader Graph action"));
+            Assert.That(response.Message, Does.Contain("Supported actions: create_graph, read_graph_summary, add_property, add_node, connect_ports, save_graph."));
+        }
     }
 }
