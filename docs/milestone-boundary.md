@@ -26,6 +26,7 @@ The goal is to keep the contract, CLI, and Unity-side file flow real enough to e
 - The current EditMode smoke coverage also locks vector fan-in continuation through downstream color/vector consumers: `CombineNode.RGBA -> AppendVectorNode.A -> LerpNode.A -> SplitNode.In` and `Vector4Node.Out -> AppendVectorNode.A -> BranchNode.True -> SplitNode.In`.
 - The first package-backed graph creation and mutation loop has been manually verified in a real Unity project: `create_graph` for `blank`, `read_graph_summary`, `add_property`, `add_node`, and `connect_ports` succeed for the current verified paths.
 - `save_graph` now has a real package-backed validate + write + refresh path that keeps the current graph asset and import state aligned.
+- The install and happy-path smoke guide is documented in [install-and-happy-path.md](/Users/song/Projects/unity-shader-graph-mcp/docs/install-and-happy-path.md).
 - The shared test metadata keeps `supportedConnectionRules` envelope-only so connection metadata can evolve without changing the response shape.
 - The compatibility probe confirms `UnityEditor.ShaderGraph.GraphData` and the `AddGraphInput`, `AddNode`, `Connect`, and `ValidateGraph` reflection surface in Unity 2022.3 with Shader Graph 17.3.0.
 

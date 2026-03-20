@@ -37,4 +37,5 @@ See `docs/parallel-work-split.md` for the current task split.
 - Release checklist: [release-checklist.md](/Users/song/Projects/unity-shader-graph-mcp/docs/release-checklist.md)
 - GitHub release draft: [github-release-1.0.0-rc.1.md](/Users/song/Projects/unity-shader-graph-mcp/docs/github-release-1.0.0-rc.1.md)
 - Final 1.0 checklist: [1.0.0-checklist.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.0.0-checklist.md)
+- Final 1.0 work split: [1.0.0-work-split.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.0.0-work-split.md)
 - Current implementation boundary: [milestone-boundary.md](/Users/song/Projects/unity-shader-graph-mcp/docs/milestone-boundary.md)

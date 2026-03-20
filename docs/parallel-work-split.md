@@ -86,3 +86,13 @@ Target:
 - add one node
 - connect compatible ports
 - save and refresh
+
+## 1.0.0 Release Split
+
+The repo is now past the narrow MVP cut. For the final `1.0.0` push, use the release split instead of the original milestone split.
+
+- Server transport stream: `server/src/` and `server/tests/`
+- Unity hardening stream: `packages/unity-shader-graph-mcp/Editor/` and `packages/unity-shader-graph-mcp/Tests/Editor/`
+- Contracts/docs stream: `contracts/` and `docs/`
+
+See [1.0.0-work-split.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.0.0-work-split.md) for the detailed ownership map.

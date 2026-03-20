@@ -1,11 +1,48 @@
 {
   "success": true,
-  "message": "Shader Graph created successfully.",
+  "message": "Blank package-backed Shader Graph created successfully.",
   "data": {
+    "operation": "create_graph",
     "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
-    "graphName": "ExampleLitGraph",
-    "template": "urp_lit",
-    "id": "graph-REPLACE_ME",
-    "status": "created"
+    "manifestPath": "",
+    "absolutePath": "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "exists": true,
+    "hasManifest": false,
+    "schema": "unity-shader-graph-mcp/package-backed-v1",
+    "assetName": "ExampleLitGraph",
+    "template": "blank",
+    "createdUtc": "2026-03-20T00:00:00.0000000Z",
+    "updatedUtc": "2026-03-20T00:00:00.0000000Z",
+    "propertyCount": 0,
+    "nodeCount": 0,
+    "connectionCount": 0,
+    "executionBackendKind": "PackageBacked",
+    "properties": [],
+    "nodes": [],
+    "connections": [],
+    "notes": [
+      "GraphData.ValidateGraph() invoked successfully after create_graph."
+    ],
+    "preview": [
+      "blank graph preview"
+    ],
+    "backendKind": "PackageReady",
+    "packageDetected": true,
+    "compatibility": {
+      "backendKind": "PackageReady",
+      "packageDetected": true,
+      "notes": [
+        "package present"
+      ]
+    },
+    "supportedCreateTemplates": [
+      "blank"
+    ],
+    "createdGraph": {
+      "name": "ExampleLitGraph",
+      "requestedTemplate": "blank",
+      "resolvedTemplate": "blank",
+      "graphPathLabel": "Shader Graphs"
+    }
   }
 }

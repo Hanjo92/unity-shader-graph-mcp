@@ -1,6 +1,6 @@
 # Contracts
 
-These examples define the shared JSON shape for the Shader Graph MCP surface.
+These examples define the shared JSON shape for the current package-backed Shader Graph MCP surface.
 
 ## Conventions
 
@@ -18,9 +18,28 @@ These examples define the shared JSON shape for the Shader Graph MCP surface.
 
 The current contract set covers:
 
-- `create_graph`
+- `create_graph` with the current blank-only path
 - `read_graph_summary`
 - `add_property`
 - `add_node`
 - `connect_ports`
 - `save_graph`
+
+## Recommended Happy Path
+
+The current supported flow is:
+
+1. `create_graph` with `template: blank`
+2. `read_graph_summary`
+3. `add_property`
+4. `add_node`
+5. `connect_ports`
+6. `save_graph`
+
+Contract examples should stay aligned to that blank-graph release path and should include the package-backed envelope fields used by the current release candidate:
+
+- `executionBackendKind`
+- `backendKind`
+- `compatibility`
+- `supportedCreateTemplates` where applicable
+- `supportedNodeTypes` and `supportedConnectionRules` where applicable
