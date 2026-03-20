@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = SERVER_ROOT / "src"
@@ -33,14 +34,18 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         )
 
     def test_handler_returns_scaffold_response(self) -> None:
-        response = handle_shadergraph_asset(
-            {
-                "action": "create_graph",
-                "name": "ExampleLitGraph",
-                "path": "Assets/ShaderGraphs",
-                "template": "urp_lit",
-            }
-        )
+        with patch(
+            "unity_shader_graph_mcp.tools.shadergraph_asset.build_unity_batchmode_bridge",
+            return_value=None,
+        ):
+            response = handle_shadergraph_asset(
+                {
+                    "action": "create_graph",
+                    "name": "ExampleLitGraph",
+                    "path": "Assets/ShaderGraphs",
+                    "template": "urp_lit",
+                }
+            )
         self.assertTrue(response["success"])
         self.assertEqual(response["data"]["request"]["action"], "create_graph")
         self.assertIn(response["data"]["status"], {"scaffold", "validated_scaffold"})
@@ -52,7 +57,11 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
 
     def test_server_registry_invokes_shadergraph_asset(self) -> None:
         server = build_server()
-        response = server.invoke("shadergraph_asset", {"action": "save_graph"})
+        with patch(
+            "unity_shader_graph_mcp.tools.shadergraph_asset.build_unity_batchmode_bridge",
+            return_value=None,
+        ):
+            response = server.invoke("shadergraph_asset", {"action": "save_graph"})
         self.assertTrue(response["success"])
         self.assertEqual(response["data"]["request"]["action"], "save_graph")
 

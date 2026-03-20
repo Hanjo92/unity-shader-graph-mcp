@@ -1,4 +1,4 @@
-"""Entry point scaffold for the Shader Graph MCP server."""
+"""Entry point for the Shader Graph MCP server."""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def build_server() -> ServerDefinition:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the server as a JSON-in/JSON-out CLI."""
+    """Run the server as a JSON-in/JSON-out CLI or live MCP stdio server."""
 
     if argv is None:
         _print_scaffold_status()
@@ -112,7 +112,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         prog="unity-shader-graph-mcp",
-        description="Shader Graph MCP server scaffold with JSON request execution.",
+        description="Shader Graph MCP server with JSON CLI and live MCP stdio transport.",
     )
     parser.add_argument(
         "--list-tools",
@@ -196,10 +196,9 @@ def _read_stdin_request() -> str | None:
 
 def _print_scaffold_status() -> None:
     server = build_server()
-    print("unity-shader-graph-mcp server scaffold is ready.")
+    print("unity-shader-graph-mcp server is ready.")
     print(f"Registered tools: {len(server.tools)}")
-    print("Use --list-tools to inspect the registry or pipe JSON into stdin.")
-    print("TODO: wire this registry into the chosen MCP transport.")
+    print("Use --list-tools to inspect the registry, --request for the JSON CLI, or --mcp for live MCP stdio.")
 
 
 def build_transport():

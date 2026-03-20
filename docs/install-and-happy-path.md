@@ -5,7 +5,7 @@ This is the shortest path from a fresh checkout to the current supported Shader 
 ## Prerequisites
 
 - Unity 2022.3 with Shader Graph installed.
-- Python 3 available on the command line.
+- Python 3.11+ available on the command line.
 
 ## Unity Package Import
 
@@ -44,6 +44,20 @@ For the live MCP transport smoke, run:
 ```bash
 python3 server/src/unity_shader_graph_mcp/__main__.py --mcp
 ```
+
+That is enough to verify transport-only behavior. To route live MCP calls into
+the real Unity Editor batchmode bridge, set these environment variables first:
+
+```bash
+export UNITY_SHADER_GRAPH_MCP_UNITY_EXE="/Applications/Unity/Hub/Editor/2022.3.xf1/Unity.app/Contents/MacOS/Unity"
+export UNITY_SHADER_GRAPH_MCP_UNITY_PROJECT="/absolute/path/to/YourUnityProject"
+```
+
+Optional overrides are also supported:
+
+- `UNITY_SHADER_GRAPH_MCP_UNITY_EXECUTE_METHOD`
+- `UNITY_SHADER_GRAPH_MCP_UNITY_REQUEST_ARG`
+- `UNITY_SHADER_GRAPH_MCP_UNITY_RESPONSE_ARG`
 
 Then use the payloads in [mcp-smoke-payloads.md](/Users/song/Projects/unity-shader-graph-mcp/docs/mcp-smoke-payloads.md).
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -14,6 +15,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from unity_shader_graph_mcp.server import build_server, main
 from unity_shader_graph_mcp.transport import build_mcp_stdio_transport, serve_mcp_stdio
+from unity_shader_graph_mcp.unity_bridge import UNITY_EXE_ENV, UNITY_PROJECT_ENV
 
 
 class McpTransportTests(unittest.TestCase):
@@ -54,7 +56,14 @@ class McpTransportTests(unittest.TestCase):
         )
         output_stream = io.BytesIO()
 
-        serve_mcp_stdio(server, stdin=input_stream, stdout=output_stream)
+        with mock.patch.dict(
+            os.environ,
+            {
+                UNITY_EXE_ENV: "",
+                UNITY_PROJECT_ENV: "",
+            },
+        ):
+            serve_mcp_stdio(server, stdin=input_stream, stdout=output_stream)
 
         responses = _decode_frames(output_stream.getvalue())
         self.assertEqual([response["id"] for response in responses], [1, 2, 3])

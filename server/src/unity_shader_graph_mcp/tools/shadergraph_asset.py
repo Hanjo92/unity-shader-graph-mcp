@@ -1,8 +1,7 @@
-"""Shader Graph asset tool scaffold.
+"""Shader Graph asset tool with an optional Unity batchmode bridge.
 
-This module intentionally avoids MCP transport imports so the server can be
-grown from a clean contract first. The real Unity-side implementation can land
-behind this shape later.
+The server keeps the JSON contract stable whether requests are handled by the
+real Unity batchmode bridge or by the scaffold fallback path.
 """
 
 from __future__ import annotations
@@ -18,6 +17,10 @@ from ..contracts import (
     coerce_mapping,
     optional_text,
     require_text,
+)
+from ..unity_bridge import (
+    UnityBridgeError,
+    build_unity_batchmode_bridge,
 )
 
 SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
@@ -126,29 +129,44 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         request.payload.setdefault("path", default_path)
 
     if request.action == "save_graph" and request.path is None:
-        # Saving the active graph is still useful in the scaffold phase.
+        # Saving the active graph is still useful in the fallback path.
         request.payload.setdefault("path", "Assets/ShaderGraphs/ActiveGraph.shadergraph")
 
 
-def handle_shadergraph_asset(payload: Mapping[str, Any]) -> dict[str, Any]:
+def handle_shadergraph_asset(
+    payload: Mapping[str, Any],
+    bridge: Any | None = None,
+) -> dict[str, Any]:
     """Dispatch the focused Shader Graph asset tool.
 
-    Milestone 1 is a scaffold, so the tool reports the intended operation and
-    returns a deterministic placeholder response instead of touching Unity.
+    The server falls back to the scaffold response when the Unity bridge is not
+    configured. When bridge configuration is present, the normalized request is
+    handed to Unity batchmode and the response file is parsed back into the same
+    response envelope.
     """
     try:
         request = normalize_shadergraph_asset_request(payload)
         summary = _request_summary(request)
-        return as_response(
-            success=True,
-            message=f"Shader Graph asset request validated for '{request.action}'.",
-            data={
-                "request": summary,
-                "status": "scaffold",
-                "validationState": "validated",
-                "next_step": "Connect this contract to the Unity Editor implementation.",
-            },
-        )
+        bridge_request = asdict(request)
+        bridge_instance = bridge if bridge is not None else build_unity_batchmode_bridge()
+        if bridge_instance is None:
+            return as_response(
+                success=True,
+                message=f"Shader Graph asset request validated for '{request.action}'.",
+                data={
+                    "request": summary,
+                    "status": "scaffold",
+                    "validationState": "validated",
+                    "next_step": "Connect this contract to the Unity Editor implementation.",
+                },
+            )
+
+        response = bridge_instance.invoke(bridge_request)
+        if not isinstance(response, Mapping):
+            raise UnityBridgeError("Unity bridge returned a non-mapping response.")
+        if "success" not in response or "message" not in response:
+            raise UnityBridgeError("Unity bridge response did not match the server envelope.")
+        return _bridge_response(response)
     except ShaderGraphRequestError as exc:
         return as_response(
             success=False,
@@ -158,6 +176,33 @@ def handle_shadergraph_asset(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "errorCode": "validation_error",
             },
         )
+    except UnityBridgeError as exc:
+        return as_response(
+            success=False,
+            message=str(exc),
+            data={
+                "request": summary if "summary" in locals() else None,
+                "status": "unity_bridge_error",
+                "errorCode": "unity_bridge_error",
+                "validationState": "validated",
+            },
+        )
+
+
+def _bridge_response(response: Mapping[str, Any]) -> dict[str, Any]:
+    data = response.get("data")
+    if isinstance(data, Mapping):
+        normalized_data = dict(data)
+    elif data is None:
+        normalized_data = {}
+    else:
+        normalized_data = {"value": data}
+
+    return as_response(
+        success=bool(response["success"]),
+        message=str(response["message"]),
+        data=normalized_data,
+    )
 
 
 def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:

@@ -72,7 +72,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         for action, payload in ACTION_FIXTURES.items():
             with self.subTest(action=action):
                 request = normalize_shadergraph_asset_request(payload)
-                response = handle_shadergraph_asset(payload)
+                with patch(
+                    "unity_shader_graph_mcp.tools.shadergraph_asset.build_unity_batchmode_bridge",
+                    return_value=None,
+                ):
+                    response = handle_shadergraph_asset(payload)
 
                 self.assertEqual(request.action, action)
                 self.assertTrue(response["success"])
@@ -111,7 +115,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "add_property", "path": "Assets/X.shadergraph"})
 
-        response = handle_shadergraph_asset({"action": "add_node", "path": "Assets/X.shadergraph"})
+        with patch(
+            "unity_shader_graph_mcp.tools.shadergraph_asset.build_unity_batchmode_bridge",
+            return_value=None,
+        ):
+            response = handle_shadergraph_asset({"action": "add_node", "path": "Assets/X.shadergraph"})
         self.assertFalse(response["success"])
         self.assertIn("Missing required field", response["message"])
         self.assertEqual(response["data"]["supportedActions"], list(SUPPORTED_SHADERGRAPH_ASSET_ACTIONS))
@@ -138,13 +146,17 @@ class ShaderGraphServerContractTests(unittest.TestCase):
     def test_in_process_transport_invokes_request(self) -> None:
         transport = build_in_process_transport()
 
-        response = transport.invoke(
-            {
-                "tool": "shadergraph_asset",
-                "action": "read_graph_summary",
-                "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
-            }
-        )
+        with patch(
+            "unity_shader_graph_mcp.tools.shadergraph_asset.build_unity_batchmode_bridge",
+            return_value=None,
+        ):
+            response = transport.invoke(
+                {
+                    "tool": "shadergraph_asset",
+                    "action": "read_graph_summary",
+                    "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                }
+            )
 
         self.assertTrue(response["success"])
         self.assertEqual(response["data"]["request"]["action"], "read_graph_summary")
@@ -169,8 +181,12 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         }
 
         with patch.object(server_module, "build_server", wraps=server_module.build_server) as build_server_mock:
-            with redirect_stdout(buffer):
-                exit_code = self._call_main_with_explicit_argv(["--request", json.dumps(request)])
+            with patch(
+                "unity_shader_graph_mcp.tools.shadergraph_asset.build_unity_batchmode_bridge",
+                return_value=None,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = self._call_main_with_explicit_argv(["--request", json.dumps(request)])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(build_server_mock.call_count, 1)

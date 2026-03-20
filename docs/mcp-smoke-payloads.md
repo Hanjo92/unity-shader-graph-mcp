@@ -5,12 +5,22 @@ Use this when you want to verify the live stdio MCP transport from an external M
 Important:
 
 - Start the server with `--mcp`.
-- These payloads verify the transport and tool dispatch path.
-- The current Python tool handler still validates and echoes the Shader Graph contract rather than driving the Unity Editor directly.
+- Without Unity bridge environment variables, these payloads verify the transport and scaffold fallback path.
+- With Unity bridge environment variables, the same payloads drive the Unity Editor batchmode bridge.
 
 ## Start The Server
 
+Transport-only smoke:
+
 ```bash
+python3 server/src/unity_shader_graph_mcp/__main__.py --mcp
+```
+
+Real Unity bridge smoke:
+
+```bash
+export UNITY_SHADER_GRAPH_MCP_UNITY_EXE="/Applications/Unity/Hub/Editor/2022.3.xf1/Unity.app/Contents/MacOS/Unity"
+export UNITY_SHADER_GRAPH_MCP_UNITY_PROJECT="/absolute/path/to/YourUnityProject"
 python3 server/src/unity_shader_graph_mcp/__main__.py --mcp
 ```
 
@@ -98,7 +108,9 @@ Expected outcome:
 - `tools/list` returns `shadergraph_asset`
 - `tools/call` returns `isError: false`
 - the first content item is JSON text containing the server response envelope
+- transport-only fallback returns `"status": "scaffold"`
+- Unity bridge mode returns the Unity-side response envelope such as `"executionBackendKind": "PackageBacked"`
 
 ## Current Limitation
 
-At the moment, a successful `tools/call` proves the live MCP transport and request normalization path, not the full Unity Editor execution path. Use Unity EditMode tests and the package debug menus for the real package-backed graph mutation confirmation.
+The bridge path depends on a real Unity Editor executable and project path. If either environment variable is missing, the server intentionally falls back to the scaffold response path instead of pretending the Unity side ran.

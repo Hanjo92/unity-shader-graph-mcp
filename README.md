@@ -14,7 +14,7 @@ This release candidate locks the first real package-backed editing loop:
 - `save_graph`
 
 The Unity-side package-backed engine is now strong enough to cut a release candidate.
-The server is still transport-agnostic JSON-in/JSON-out CLI rather than a final live MCP transport binding.
+The server now supports a live stdio MCP transport and an optional Unity batchmode bridge for real external tool calls.
 
 This repository is intentionally split into independent work areas so multiple sub-agents can work in parallel with minimal merge risk.
 
