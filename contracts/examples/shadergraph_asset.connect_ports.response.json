@@ -1,15 +1,60 @@
 {
   "success": true,
-  "message": "Ports connected successfully.",
+  "message": "Connected package-backed Shader Graph ports.",
   "data": {
+    "operation": "connect_ports",
     "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
-    "status": "ports_connected",
-    "connection": {
-      "id": "edge-001",
-      "sourceNodeId": "node-001",
-      "sourcePort": "Out",
-      "targetNodeId": "node-002",
-      "targetPort": "In"
+    "manifestPath": "",
+    "absolutePath": "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "exists": true,
+    "hasManifest": false,
+    "schema": "unity-shader-graph-mcp/package-backed-v1",
+    "assetName": "ExampleLitGraph",
+    "template": "blank",
+    "createdUtc": "2026-03-20T00:00:00.0000000Z",
+    "updatedUtc": "2026-03-20T00:00:00.0000000Z",
+    "propertyCount": 0,
+    "nodeCount": 2,
+    "connectionCount": 1,
+    "executionBackendKind": "PackageBacked",
+    "properties": [],
+    "nodes": [
+      "Source (node-001) [Vector1Node] @ (-620, 0)",
+      "Sink (node-002) [Vector1Node] @ (-260, 0)"
+    ],
+    "connections": [
+      "Source (node-001) [Vector1Node] @ (-620, 0):Out(0) -> Sink (node-002) [Vector1Node] @ (-260, 0):X(1)"
+    ],
+    "notes": [
+      "GraphData.ValidateGraph() invoked successfully."
+    ],
+    "preview": [],
+    "backendKind": "PackageReady",
+    "packageDetected": true,
+    "compatibility": {
+      "backendKind": "PackageReady",
+      "packageDetected": true
+    },
+    "supportedConnectionRules": [
+      "Vector1Node output slot 0 / Out is supported when the input node is a different Vector1Node input slot 1 / X.",
+      "ColorNode output slot 0 / Out is supported only when the input node is SplitNode input slot 0 / In."
+    ],
+    "requestedConnection": {
+      "outputNodeId": "node-001",
+      "outputPort": "Out",
+      "inputNodeId": "node-002",
+      "inputPort": "X"
+    },
+    "resolvedConnection": {
+      "outputNodeId": "node-001",
+      "outputNodeType": "UnityEditor.ShaderGraph.Vector1Node",
+      "outputSlotId": 0,
+      "outputPort": "Out",
+      "inputNodeId": "node-002",
+      "inputNodeType": "UnityEditor.ShaderGraph.Vector1Node",
+      "inputSlotId": 1,
+      "inputPort": "X",
+      "connectedEdgeType": "UnityEditor.ShaderGraph.Edge"
     }
   }
 }

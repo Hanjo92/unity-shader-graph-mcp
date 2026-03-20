@@ -1,14 +1,39 @@
 {
   "success": true,
-  "message": "Graph summary loaded.",
+  "message": "Loaded package-backed Shader Graph summary from 'Assets/ShaderGraphs/ExampleLitGraph.shadergraph'.",
   "data": {
+    "operation": "read_graph_summary",
     "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
-    "graphName": "ExampleLitGraph",
-    "summary": {
-      "properties": [],
-      "nodes": [],
-      "edges": []
-    },
-    "status": "loaded"
+    "manifestPath": "",
+    "absolutePath": "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "exists": true,
+    "hasManifest": false,
+    "schema": "unity-shader-graph-mcp/package-backed-v1",
+    "assetName": "ExampleLitGraph",
+    "template": "blank",
+    "createdUtc": "2026-03-20T00:00:00.0000000Z",
+    "updatedUtc": "2026-03-20T00:00:00.0000000Z",
+    "propertyCount": 0,
+    "nodeCount": 0,
+    "connectionCount": 0,
+    "executionBackendKind": "PackageBacked",
+    "properties": [],
+    "nodes": [],
+    "connections": [],
+    "notes": [
+      "Loaded GraphData via FileUtilities.TryReadGraphDataFromDisk().",
+      "GraphData.ValidateGraph() invoked successfully."
+    ],
+    "preview": [
+      "graphType=UnityEditor.ShaderGraph.GraphData",
+      "assetGuid=REPLACE_ME",
+      "isSubGraph=False"
+    ],
+    "backendKind": "PackageReady",
+    "packageDetected": true,
+    "compatibility": {
+      "backendKind": "PackageReady",
+      "packageDetected": true
+    }
   }
 }

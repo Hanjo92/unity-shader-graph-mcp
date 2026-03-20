@@ -1,15 +1,53 @@
 {
   "success": true,
-  "message": "Property added successfully.",
+  "message": "Added Float/Vector1 property 'BaseColor' to 'Assets/ShaderGraphs/ExampleLitGraph.shadergraph'.",
   "data": {
+    "operation": "add_property",
     "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
-    "status": "property_added",
-    "property": {
-      "id": "property-REPLACE_ME",
-      "name": "BaseColor",
+    "manifestPath": "",
+    "absolutePath": "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "exists": true,
+    "hasManifest": false,
+    "schema": "unity-shader-graph-mcp/package-backed-v1",
+    "assetName": "ExampleLitGraph",
+    "template": "blank",
+    "createdUtc": "2026-03-20T00:00:00.0000000Z",
+    "updatedUtc": "2026-03-20T00:00:00.0000000Z",
+    "propertyCount": 1,
+    "nodeCount": 0,
+    "connectionCount": 0,
+    "executionBackendKind": "PackageBacked",
+    "properties": [
+      "Color: BaseColor"
+    ],
+    "nodes": [],
+    "connections": [],
+    "notes": [
+      "GraphData.ValidateGraph() invoked successfully."
+    ],
+    "preview": [],
+    "backendKind": "PackageReady",
+    "packageDetected": true,
+    "compatibility": {
+      "backendKind": "PackageReady",
+      "packageDetected": true
+    },
+    "supportedPropertyTypes": [
+      "Color",
+      "Float/Vector1"
+    ],
+    "addedProperty": {
+      "displayName": "BaseColor",
       "referenceName": "_BaseColor",
-      "propertyType": "Color",
-      "exposed": true
+      "requestedPropertyType": "Color",
+      "resolvedPropertyType": "Color",
+      "resolvedShaderInputType": "UnityEditor.ShaderGraph.Internal.ColorShaderProperty",
+      "defaultValue": [
+        1,
+        1,
+        1,
+        1
+      ]
     }
   }
 }

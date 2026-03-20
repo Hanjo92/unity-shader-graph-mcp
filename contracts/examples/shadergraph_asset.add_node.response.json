@@ -1,14 +1,52 @@
 {
   "success": true,
-  "message": "Node added successfully.",
+  "message": "Added Color node 'Base Color' to 'Assets/ShaderGraphs/ExampleLitGraph.shadergraph'.",
   "data": {
+    "operation": "add_node",
     "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
-    "status": "node_added",
-    "node": {
-      "id": "node-001",
-      "nodeType": "UnityEditor.ShaderGraph.ColorNode",
-      "nodeName": "Base Color",
-      "position": [240, 120]
+    "manifestPath": "",
+    "absolutePath": "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "exists": true,
+    "hasManifest": false,
+    "schema": "unity-shader-graph-mcp/package-backed-v1",
+    "assetName": "ExampleLitGraph",
+    "template": "blank",
+    "createdUtc": "2026-03-20T00:00:00.0000000Z",
+    "updatedUtc": "2026-03-20T00:00:00.0000000Z",
+    "propertyCount": 0,
+    "nodeCount": 1,
+    "connectionCount": 0,
+    "executionBackendKind": "PackageBacked",
+    "properties": [],
+    "nodes": [
+      "Base Color (node-001) [ColorNode] @ (240, 120)"
+    ],
+    "connections": [],
+    "notes": [
+      "GraphData.ValidateGraph() invoked successfully."
+    ],
+    "preview": [],
+    "backendKind": "PackageReady",
+    "packageDetected": true,
+    "compatibility": {
+      "backendKind": "PackageReady",
+      "packageDetected": true
+    },
+    "supportedNodeTypes": [
+      "Color (UnityEditor.ShaderGraph.ColorNode)",
+      "Split (UnityEditor.ShaderGraph.SplitNode)",
+      "Float/Vector1 (UnityEditor.ShaderGraph.Vector1Node)"
+    ],
+    "addedNode": {
+      "requestedNodeType": "Color",
+      "resolvedNodeType": "Color",
+      "resolvedNodeClass": "UnityEditor.ShaderGraph.ColorNode",
+      "displayName": "Base Color",
+      "objectId": "node-001",
+      "position": {
+        "x": 240,
+        "y": 120
+      }
     }
   }
 }

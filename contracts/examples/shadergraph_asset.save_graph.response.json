@@ -1,10 +1,49 @@
 {
   "success": true,
-  "message": "Graph saved successfully.",
+  "message": "Saved package-backed Shader Graph at 'Assets/ShaderGraphs/ExampleLitGraph.shadergraph'.",
   "data": {
+    "operation": "save_graph",
     "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
-    "status": "saved",
-    "saved": true,
-    "dirty": false
+    "manifestPath": "",
+    "absolutePath": "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "exists": true,
+    "hasManifest": false,
+    "schema": "unity-shader-graph-mcp/package-backed-v1",
+    "assetName": "ExampleLitGraph",
+    "template": "blank",
+    "createdUtc": "2026-03-20T00:00:00.0000000Z",
+    "updatedUtc": "2026-03-20T00:00:00.0000000Z",
+    "propertyCount": 1,
+    "nodeCount": 2,
+    "connectionCount": 1,
+    "executionBackendKind": "PackageBacked",
+    "properties": [
+      "Color: BaseColor"
+    ],
+    "nodes": [
+      "Source (node-001) [Vector1Node] @ (-620, 0)",
+      "Sink (node-002) [Vector1Node] @ (-260, 0)"
+    ],
+    "connections": [
+      "Source (node-001) [Vector1Node] @ (-620, 0):Out(0) -> Sink (node-002) [Vector1Node] @ (-260, 0):X(1)"
+    ],
+    "notes": [
+      "GraphData.ValidateGraph() invoked successfully.",
+      "AssetDatabase.SaveAssets() completed successfully."
+    ],
+    "preview": [],
+    "backendKind": "PackageReady",
+    "packageDetected": true,
+    "compatibility": {
+      "backendKind": "PackageReady",
+      "packageDetected": true
+    },
+    "saveGraphStrategy": [
+      "GraphData.ValidateGraph()",
+      "FileUtilities.WriteShaderGraphToDisk(string, GraphData)",
+      "AssetDatabase.SaveAssets()",
+      "AssetDatabase.ImportAsset(..., ForceSynchronousImport | ForceUpdate)",
+      "AssetDatabase.Refresh(ForceSynchronousImport)"
+    ]
   }
 }
