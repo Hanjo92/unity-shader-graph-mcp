@@ -1,10 +1,10 @@
-# GitHub Release Body - 1.0.0-rc.1
+# GitHub Release Body - 1.0.0
 
 ## Summary
 
-`1.0.0-rc.1` is the first release candidate for the real package-backed Unity Shader Graph editing engine in this repository.
+`1.0.0` is the first stable release of the real package-backed Unity Shader Graph editing engine in this repository.
 
-This cut proves that the Unity-side graph mutation loop is no longer scaffold-only. The current release candidate supports package-backed:
+This cut proves that the Unity-side graph mutation loop is no longer scaffold-only and that the Python MCP server can drive the Unity batchmode bridge. The current stable release supports package-backed:
 
 - `create_graph` for blank graphs
 - `read_graph_summary`
@@ -16,6 +16,7 @@ This cut proves that the Unity-side graph mutation loop is no longer scaffold-on
 ## Highlights
 
 - Real package-backed graph mutation engine for Unity Shader Graph.
+- Live stdio MCP transport with an optional Unity batchmode bridge for external clients.
 - Catalog-driven node addition instead of a tiny fixed node list.
 - Verified connection matrix for:
   - scalar arithmetic chains
@@ -28,10 +29,11 @@ This cut proves that the Unity-side graph mutation loop is no longer scaffold-on
   - vector fan-in continuation paths such as `Combine -> Append -> Lerp -> Split`
 - Unity Editor debug menus for manual smoke checks.
 - EditMode smoke tests covering the verified package-backed mutation matrix.
+- Real MCP smoke helper for one-shot bridge verification against a Unity project.
 
 ## Release Scope
 
-This release candidate is intended to freeze the current package-backed editing engine so the next iteration can focus on transport and productization work with a stable core.
+This stable cut freezes the current package-backed editing engine and the first real external MCP bridge path so the next iteration can focus on broader node coverage and ergonomics with a stable core.
 
 Relevant docs:
 
@@ -45,8 +47,7 @@ Relevant docs:
 - Blank graph creation is package-backed, but template-backed graph creation is not finalized.
 - Blackboard property coverage is still limited to `Color` and `Float/Vector1`.
 - Connection support is intentionally verified-path-only, not universal across all nodes and ports.
-- The Python server is still a transport-agnostic CLI/in-process layer rather than the final live MCP transport surface.
 
 ## Recommended Next Step
 
-Treat `1.0.0-rc.1` as the stable engine cut, gather real usage feedback, and use the next milestone to finish transport binding and final 1.0 packaging.
+Treat `1.0.0` as the stable engine and bridge baseline, gather real usage feedback, and use the next milestone to expand node/port coverage and authoring ergonomics.

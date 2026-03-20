@@ -1,6 +1,6 @@
 {
   "name": "com.song.shadergraph-mcp",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0",
   "displayName": "Shader Graph MCP",
   "description": "Focused MCP bridge for Unity Shader Graph workflows.",
   "unity": "2022.3",

@@ -2,9 +2,9 @@
 
 Shader Graph focused MCP for Unity.
 
-Current release target: `1.0.0-rc.1`
+Current release target: `1.0.0`
 
-This release candidate locks the first real package-backed editing loop:
+`1.0.0` locks the first real package-backed editing loop:
 
 - `create_graph` for blank graphs
 - `read_graph_summary`
@@ -13,7 +13,7 @@ This release candidate locks the first real package-backed editing loop:
 - `connect_ports` for the currently verified scalar, vector-builder, logic, and early color-routing paths
 - `save_graph`
 
-The Unity-side package-backed engine is now strong enough to cut a release candidate.
+The Unity-side package-backed engine and Unity batchmode MCP bridge are now stable enough for the first `1.0.0` cut.
 The server now supports a live stdio MCP transport and an optional Unity batchmode bridge for real external tool calls.
 
 This repository is intentionally split into independent work areas so multiple sub-agents can work in parallel with minimal merge risk.
@@ -35,7 +35,7 @@ See `docs/parallel-work-split.md` for the current task split.
 
 - Changelog: [CHANGELOG.md](/Users/song/Projects/unity-shader-graph-mcp/CHANGELOG.md)
 - Release checklist: [release-checklist.md](/Users/song/Projects/unity-shader-graph-mcp/docs/release-checklist.md)
-- GitHub release draft: [github-release-1.0.0-rc.1.md](/Users/song/Projects/unity-shader-graph-mcp/docs/github-release-1.0.0-rc.1.md)
+- GitHub release draft: [github-release-1.0.0.md](/Users/song/Projects/unity-shader-graph-mcp/docs/github-release-1.0.0.md)
 - Final 1.0 checklist: [1.0.0-checklist.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.0.0-checklist.md)
 - Final 1.0 work split: [1.0.0-work-split.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.0.0-work-split.md)
 - Current implementation boundary: [milestone-boundary.md](/Users/song/Projects/unity-shader-graph-mcp/docs/milestone-boundary.md)

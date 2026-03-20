@@ -2,9 +2,9 @@
 
 ## Target
 
-- Repo release: `1.0.0-rc.1`
-- Unity package: `1.0.0-rc.1`
-- Python package metadata: `1.0.0rc1`
+- Repo release: `1.0.0`
+- Unity package: `1.0.0`
+- Python package metadata: `1.0.0`
 
 ## Before Tagging
 
@@ -28,7 +28,7 @@
 
 ## Release Message
 
-- Describe this cut as the first package-backed Shader Graph editing release candidate.
+- Describe this cut as the first stable package-backed Shader Graph editing release.
 - Call out that the core graph mutation engine is real and EditMode-tested.
 - Call out whether the release was verified with scaffold fallback only or with the real Unity batchmode bridge enabled.
 

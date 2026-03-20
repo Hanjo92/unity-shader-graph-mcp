@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.0 - 2026-03-21
+
+First stable release of the package-backed Unity Shader Graph MCP stack.
+
+### Added
+
+- Live stdio MCP transport backed by the Python server registry.
+- Optional Unity batchmode bridge for real external tool calls.
+- Unity batchmode request/response bridge entrypoint and EditMode tests.
+- Real MCP smoke helper for one-shot external bridge verification.
+- End-to-end smoke coverage for:
+  - live MCP stdio transport
+  - fake Unity bridge subprocess verification
+  - real Unity bridge manual verification guidance
+
+### Changed
+
+- Promoted the Unity package version to `1.0.0`.
+- Promoted the Python package metadata to `1.0.0`.
+- Promoted the MCP server version handshake to `1.0.0`.
+- Updated install, smoke, and release docs to describe the real Unity batchmode bridge path.
+
+### Verified
+
+- Unity EditMode tests passed for the package-backed engine and batchmode bridge contract.
+- Python server tests passed for transport, bridge fallback, and subprocess smoke coverage.
+- Real MCP client flow succeeded through `initialize -> tools/list -> tools/call(read_graph_summary)` against a real Unity project with the Unity batchmode bridge enabled.
+
 ## 1.0.0-rc.1 - 2026-03-20
 
 Release candidate for the first package-backed Shader Graph editing engine.

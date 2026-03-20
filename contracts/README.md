@@ -36,7 +36,7 @@ The current supported flow is:
 5. `connect_ports`
 6. `save_graph`
 
-Contract examples should stay aligned to that blank-graph release path and should include the package-backed envelope fields used by the current release candidate:
+Contract examples should stay aligned to that blank-graph release path and should include the package-backed envelope fields used by the current stable release:
 
 - `executionBackendKind`
 - `backendKind`
