@@ -10,7 +10,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .contracts import as_response
 from .tools import handle_shadergraph_asset
-from .transport import build_in_process_transport
+from .transport import build_in_process_transport, serve_mcp_stdio
 
 
 JSONType = dict[str, Any]
@@ -123,7 +123,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--request",
         help="JSON request payload. If omitted, read a single JSON object from stdin.",
     )
+    parser.add_argument(
+        "--mcp",
+        action="store_true",
+        help="Run the live MCP stdio transport instead of the JSON CLI.",
+    )
     args = parser.parse_args(argv_list)
+
+    if args.mcp:
+        if args.request is not None or args.list_tools:
+            print("--mcp cannot be combined with --request or --list-tools.", file=sys.stderr)
+            return 2
+        serve_mcp_stdio(build_server())
+        return 0
 
     transport = build_transport()
 
