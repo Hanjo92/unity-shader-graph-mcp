@@ -20,7 +20,12 @@ If you prefer a manifest entry, add the local package path as a file dependency 
 
 ## Server Startup
 
-The current server entrypoint accepts JSON requests directly. For a quick smoke test, run:
+The server currently supports two startup styles:
+
+- JSON request CLI
+- live stdio MCP transport
+
+For the existing JSON request CLI smoke, run:
 
 ```bash
 python3 server/src/unity_shader_graph_mcp/__main__.py --request '{
@@ -33,6 +38,14 @@ python3 server/src/unity_shader_graph_mcp/__main__.py --request '{
 ```
 
 You can also pipe JSON to stdin if you prefer to automate the call flow.
+
+For the live MCP transport smoke, run:
+
+```bash
+python3 server/src/unity_shader_graph_mcp/__main__.py --mcp
+```
+
+Then use the payloads in [mcp-smoke-payloads.md](/Users/song/Projects/unity-shader-graph-mcp/docs/mcp-smoke-payloads.md).
 
 ## Recommended Happy Path
 
