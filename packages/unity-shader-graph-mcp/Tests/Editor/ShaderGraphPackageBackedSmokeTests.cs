@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using ShaderGraphMcp.Editor.Adapters;
+using ShaderGraphMcp.Editor.Diagnostics;
 using ShaderGraphMcp.Editor.Models;
 using ShaderGraphMcp.Editor.Tools;
 using UnityEditor;
@@ -165,6 +166,27 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
             Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
             Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
+        }
+
+        [Test]
+        public void BlankGraph_RunBlankGraphHappyPathHelper_StaysPackageBacked()
+        {
+            string graphName = "BlankGraphReleaseSmoke";
+            ShaderGraphResponse response = ShaderGraphDebugMenu.RunBlankGraphHappyPath(
+                temporaryFolder.AssetPath,
+                graphName,
+                false);
+
+            ShaderGraphTestAssets.RequirePackageReady(response);
+
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "operation"), Is.EqualTo("read_graph_summary"));
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "propertyCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "nodeCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "connectionCount"), Is.EqualTo(1));
+
+            var createdGraphPath = ShaderGraphTestAssets.GetString(response.Data, "assetPath");
+            Assert.That(createdGraphPath, Does.Contain(graphName));
         }
 
         [Test]

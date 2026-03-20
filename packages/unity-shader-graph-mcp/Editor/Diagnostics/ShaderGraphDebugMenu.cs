@@ -1522,6 +1522,17 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             );
         }
 
+        [MenuItem("Tools/Shader Graph MCP/Debug/Run Blank Graph Happy Path")]
+        public static void RunBlankGraphHappyPathMenu()
+        {
+            string targetDirectory = ResolveTargetDirectory();
+            string graphName = $"ReleaseSmokeGraph {DateTime.Now:HHmmss}";
+
+            ShaderGraphResponse response = RunBlankGraphHappyPath(targetDirectory, graphName, true);
+            string assetPath = $"{targetDirectory.TrimEnd('/')}/{graphName}.shadergraph";
+            LogResponse("release_happy_path", assetPath, response);
+        }
+
         [MenuItem("Tools/Shader Graph MCP/Debug/Add Float Vector1 Property")]
         public static void AddFloatVector1Property()
         {
@@ -2033,6 +2044,93 @@ namespace ShaderGraphMcp.Editor.Diagnostics
                 assetPath,
                 ShaderGraphAssetTool.HandleReadGraphSummary(assetPath)
             );
+        }
+
+        internal static ShaderGraphResponse RunBlankGraphHappyPath(string targetDirectory, string graphName, bool selectCreatedAsset)
+        {
+            string normalizedDirectory = string.IsNullOrWhiteSpace(targetDirectory)
+                ? "Assets/ShaderGraphs"
+                : targetDirectory.TrimEnd('/');
+            string assetPath = $"{normalizedDirectory}/{graphName}.shadergraph";
+
+            ShaderGraphResponse createResponse = ShaderGraphAssetTool.HandleCreateGraph(
+                graphName,
+                normalizedDirectory,
+                "blank"
+            );
+            LogResponse("create_graph", assetPath, createResponse);
+            if (!createResponse.Success)
+            {
+                return createResponse;
+            }
+
+            if (selectCreatedAsset)
+            {
+                UnityEngine.Object createdAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+                if (createdAsset != null)
+                {
+                    Selection.activeObject = createdAsset;
+                    EditorGUIUtility.PingObject(createdAsset);
+                }
+            }
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                $"Exposure {DateTime.Now:HHmmss}",
+                "Float/Vector1",
+                "0");
+            LogResponse("add_property", assetPath, addPropertyResponse);
+            if (!addPropertyResponse.Success)
+            {
+                return addPropertyResponse;
+            }
+
+            ShaderGraphResponse addSourceNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                $"Happy Path Source {DateTime.Now:HHmmss}");
+            LogResponse("add_node", assetPath, addSourceNodeResponse);
+            if (!TryExtractAddedNodeId(addSourceNodeResponse, out string sourceNodeId))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Could not extract the source node id for the blank graph happy path."
+                );
+            }
+
+            ShaderGraphResponse addSinkNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                $"Happy Path Sink {DateTime.Now:HHmmss}");
+            LogResponse("add_node", assetPath, addSinkNodeResponse);
+            if (!TryExtractAddedNodeId(addSinkNodeResponse, out string sinkNodeId))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Could not extract the sink node id for the blank graph happy path."
+                );
+            }
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sourceNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+            LogResponse("connect_ports", assetPath, connectResponse);
+            if (!connectResponse.Success)
+            {
+                return connectResponse;
+            }
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            LogResponse("save_graph", assetPath, saveResponse);
+            if (!saveResponse.Success)
+            {
+                return saveResponse;
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            LogResponse("read_graph_summary", assetPath, summaryResponse);
+            return summaryResponse;
         }
 
         private static void LogResponse(string action, string assetPath, ShaderGraphResponse response)
