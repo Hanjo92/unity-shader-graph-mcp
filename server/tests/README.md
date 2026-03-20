@@ -7,3 +7,4 @@ Current focus:
 - request normalization
 - tool dispatch
 - server registry wiring
+- live `--mcp` subprocess smoke coverage
