@@ -58,4 +58,8 @@ Use the current verified package-backed flow in this order:
 5. `connect_ports` using the verified package-backed matrix
 6. `save_graph`
 
+For the shortest Unity-side release smoke, run:
+
+- `Tools > Shader Graph MCP > Debug > Run Blank Graph Happy Path`
+
 The supported boundary is intentionally narrow. Template-backed graph creation, universal node coverage, and universal port coverage are not part of the 1.0.0 release contract.
