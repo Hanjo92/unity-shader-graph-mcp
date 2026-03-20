@@ -1,0 +1,7 @@
+{
+  "tool": "shadergraph_asset",
+  "action": "create_graph",
+  "name": "ExampleLitGraph",
+  "path": "Assets/ShaderGraphs",
+  "template": "urp_lit"
+}

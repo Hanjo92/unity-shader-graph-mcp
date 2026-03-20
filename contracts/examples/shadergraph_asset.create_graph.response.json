@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "message": "Shader Graph created successfully.",
+  "data": {
+    "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "graphName": "ExampleLitGraph",
+    "template": "urp_lit",
+    "id": "graph-REPLACE_ME",
+    "status": "created"
+  }
+}

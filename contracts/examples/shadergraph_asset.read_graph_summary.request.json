@@ -1,0 +1,5 @@
+{
+  "tool": "shadergraph_asset",
+  "action": "read_graph_summary",
+  "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph"
+}

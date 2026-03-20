@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "message": "Graph summary loaded.",
+  "data": {
+    "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "graphName": "ExampleLitGraph",
+    "summary": {
+      "properties": [],
+      "nodes": [],
+      "edges": []
+    },
+    "status": "loaded"
+  }
+}

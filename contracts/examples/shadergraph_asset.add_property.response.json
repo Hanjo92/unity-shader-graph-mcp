@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "message": "Property added successfully.",
+  "data": {
+    "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "status": "property_added",
+    "property": {
+      "id": "property-REPLACE_ME",
+      "name": "BaseColor",
+      "referenceName": "_BaseColor",
+      "propertyType": "Color",
+      "exposed": true
+    }
+  }
+}

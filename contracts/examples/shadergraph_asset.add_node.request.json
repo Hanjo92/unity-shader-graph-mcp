@@ -1,0 +1,8 @@
+{
+  "tool": "shadergraph_asset",
+  "action": "add_node",
+  "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+  "nodeType": "UnityEditor.ShaderGraph.ColorNode",
+  "nodeName": "Base Color",
+  "position": [240, 120]
+}

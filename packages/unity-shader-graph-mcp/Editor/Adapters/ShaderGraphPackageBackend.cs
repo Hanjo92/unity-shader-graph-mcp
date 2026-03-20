@@ -1,0 +1,4663 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Globalization;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using ShaderGraphMcp.Editor.Compatibility;
+using ShaderGraphMcp.Editor.Models;
+using UnityEditor;
+using UnityEngine;
+
+namespace ShaderGraphMcp.Editor.Adapters
+{
+    internal sealed class ShaderGraphPackageBackend : IShaderGraphBackend
+    {
+        private readonly ShaderGraphCompatibilitySnapshot compatibility;
+
+        public ShaderGraphPackageBackend(ShaderGraphCompatibilitySnapshot compatibility)
+        {
+            this.compatibility = compatibility ?? ShaderGraphPackageCompatibility.Capture();
+        }
+
+        public ShaderGraphExecutionKind ExecutionKind => ShaderGraphExecutionKind.PackageBacked;
+
+        public ShaderGraphResponse CreateGraph(CreateGraphRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.CreateGraph(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
+        public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ReadGraphSummary(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
+        public ShaderGraphResponse AddProperty(AddPropertyRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.AddProperty(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
+        public ShaderGraphResponse AddNode(AddNodeRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.AddNode(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
+        public ShaderGraphResponse ConnectPorts(ConnectPortsRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ConnectPorts(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
+        public ShaderGraphResponse SaveGraph(SaveGraphRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.SaveGraph(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
+        private ShaderGraphResponse Fail(string action, string assetPath, string operationTitle, string note = null)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = action,
+                ["assetPath"] = assetPath,
+                ["executionBackendKind"] = ExecutionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["requiredNextSpike"] = new[]
+                {
+                    "Replace the package-backed placeholder with real Shader Graph API calls.",
+                    "Use the compatibility snapshot to confirm the exact graph, node, property, and slot types in the target Unity version.",
+                },
+                ["notes"] = new[]
+                {
+                    note ?? $"{operationTitle} is still a placeholder.",
+                },
+            };
+
+            return ShaderGraphResponse.Fail(
+                $"Shader Graph package backend placeholder cannot yet execute '{action}' for '{assetPath}'.",
+                data
+            );
+        }
+    }
+
+    internal static class ShaderGraphPackageGraphInspector
+    {
+        private const string GraphDataTypeName = "UnityEditor.ShaderGraph.GraphData";
+        private const string CategoryDataTypeName = "UnityEditor.ShaderGraph.CategoryData";
+        private const string FileUtilitiesTypeName = "UnityEditor.ShaderGraph.FileUtilities";
+        private const string MultiJsonTypeName = "UnityEditor.ShaderGraph.Serialization.MultiJson";
+        private const string MessageManagerTypeName = "UnityEditor.Graphing.Util.MessageManager";
+        private const string DrawStateTypeName = "UnityEditor.Graphing.DrawState";
+        private const string PackageSchema = "unity-shader-graph-mcp/package-backed-v1";
+        private const string DefaultGraphPathLabel = "Shader Graphs";
+
+        private static readonly BindingFlags InstanceFlags =
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        private static readonly BindingFlags StaticFlags =
+            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+
+        private sealed class ShaderGraphNodeDescriptor
+        {
+            public ShaderGraphNodeDescriptor(
+                string canonicalName,
+                Type nodeClassType,
+                IReadOnlyList<string> aliases,
+                string catalogStatus,
+                string catalogNote)
+            {
+                CanonicalName = canonicalName ?? string.Empty;
+                NodeClassType = nodeClassType;
+                FullTypeName = nodeClassType?.FullName ?? nodeClassType?.Name ?? string.Empty;
+                Label = string.IsNullOrWhiteSpace(FullTypeName)
+                    ? CanonicalName
+                    : $"{CanonicalName} ({FullTypeName})";
+                Aliases = aliases ?? Array.Empty<string>();
+                CatalogStatus = string.IsNullOrWhiteSpace(catalogStatus)
+                    ? "discoverable"
+                    : catalogStatus;
+                CatalogNote = catalogNote ?? string.Empty;
+            }
+
+            public string CanonicalName { get; }
+
+            public Type NodeClassType { get; }
+
+            public string FullTypeName { get; }
+
+            public string Label { get; }
+
+            public IReadOnlyList<string> Aliases { get; }
+
+            public string CatalogStatus { get; }
+
+            public string CatalogNote { get; }
+
+            public bool IsGraphAddable =>
+                string.Equals(CatalogStatus, "graph-addable", StringComparison.Ordinal);
+        }
+
+        private static readonly Lazy<IReadOnlyList<ShaderGraphNodeDescriptor>> DiscoveredNodeCatalog =
+            new Lazy<IReadOnlyList<ShaderGraphNodeDescriptor>>(DiscoverSupportedNodeCatalog);
+
+        private static readonly Lazy<IReadOnlyList<ShaderGraphNodeDescriptor>> SupportedNodeCatalog =
+            new Lazy<IReadOnlyList<ShaderGraphNodeDescriptor>>(FilterSupportedNodeCatalog);
+
+        public static ShaderGraphResponse CreateGraph(
+            CreateGraphRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Create graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset already exists at '{assetPath}'.",
+                    BuildUnsupportedCreateGraphData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>(),
+                        request.Template
+                    )
+                );
+            }
+
+            string requestedTemplate = string.IsNullOrWhiteSpace(request.Template)
+                ? "blank"
+                : request.Template.Trim();
+            if (!string.Equals(requestedTemplate, "blank", StringComparison.OrdinalIgnoreCase))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unsupported create_graph template '{requestedTemplate}'. Only 'blank' is currently package-backed.",
+                    BuildUnsupportedCreateGraphData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>(),
+                        requestedTemplate
+                    )
+                );
+            }
+
+            string parentDirectory = Path.GetDirectoryName(absolutePath);
+            if (!string.IsNullOrWhiteSpace(parentDirectory))
+            {
+                Directory.CreateDirectory(parentDirectory);
+            }
+
+            var creationNotes = new List<string>();
+            if (!TryCreateBlankGraphData(assetPath, out object graphData, creationNotes, out string creationFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to create blank Shader Graph data for '{assetPath}': {creationFailure}",
+                    BuildUnsupportedCreateGraphData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        creationNotes,
+                        requestedTemplate
+                    )
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to write blank Shader Graph to '{assetPath}': {writeFailure}",
+                    BuildUnsupportedCreateGraphData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        creationNotes,
+                        requestedTemplate
+                    )
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+
+            object loadedGraphData = graphData;
+            if (TryLoadGraphData(assetPath, absolutePath, out object reloadedGraphData, creationNotes, out string reloadFailure))
+            {
+                loadedGraphData = reloadedGraphData;
+
+                if (TryInvokeInstanceMethod(loadedGraphData, "OnEnable", out string onEnableFailure))
+                {
+                    creationNotes.Add("GraphData.OnEnable() invoked successfully after create_graph.");
+                }
+                else
+                {
+                    creationNotes.Add($"GraphData.OnEnable() could not be invoked after create_graph: {onEnableFailure}");
+                }
+
+                if (TryInvokeInstanceMethod(loadedGraphData, "ValidateGraph", out string validateFailure))
+                {
+                    creationNotes.Add("GraphData.ValidateGraph() invoked successfully after create_graph.");
+                }
+                else
+                {
+                    creationNotes.Add($"GraphData.ValidateGraph() could not be invoked after create_graph: {validateFailure}");
+                }
+            }
+            else
+            {
+                creationNotes.Add($"Reload after create_graph fell back to the in-memory graph: {reloadFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                loadedGraphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                creationNotes,
+                "create_graph"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["template"] = "blank",
+                ["supportedCreateTemplates"] = SupportedCreateTemplates.ToArray(),
+                ["createdGraph"] = new Dictionary<string, object>
+                {
+                    ["name"] = request.Name,
+                    ["requestedTemplate"] = requestedTemplate,
+                    ["resolvedTemplate"] = "blank",
+                    ["graphPathLabel"] = DefaultGraphPathLabel,
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Created blank package-backed Shader Graph at '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse ReadGraphSummary(
+            ReadGraphSummaryRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Read graph summary request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.ValidateGraph() could not be invoked: {validateFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "read_graph_summary"
+            );
+            return ShaderGraphResponse.Ok(
+                $"Loaded package-backed Shader Graph summary from '{assetPath}'.",
+                new Dictionary<string, object>(snapshot.ToDictionary())
+            );
+        }
+
+        public static ShaderGraphResponse AddProperty(
+            AddPropertyRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Add property request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.PropertyName))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Property name is required.",
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        request.PropertyType
+                    )
+                );
+            }
+
+            string propertyTypeInput = request.PropertyType?.Trim();
+            if (!TryResolveSupportedPropertyType(propertyTypeInput, out string canonicalPropertyType, out Type shaderInputType, out string propertyTypeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    propertyTypeFailure,
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        propertyTypeInput
+                    )
+                );
+            }
+
+            if (!TryCreateShaderInput(
+                    shaderInputType,
+                    request.PropertyName.Trim(),
+                    request.DefaultValue,
+                    out object shaderInput,
+                    out object parsedDefaultValue,
+                    out string parseNote,
+                    out string creationFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    creationFailure,
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        propertyTypeInput
+                    )
+                );
+            }
+
+            if (!string.IsNullOrWhiteSpace(parseNote))
+            {
+                loadNotes.Add(parseNote);
+            }
+
+            if (!TryInvokeGraphAddInput(graphData, shaderInput, out string addInputFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to add Shader Graph property '{request.PropertyName.Trim()}' to '{assetPath}': {addInputFailure}",
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        propertyTypeInput
+                    )
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after adding property '{request.PropertyName.Trim()}': {validateFailure}",
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        propertyTypeInput
+                    )
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after adding property '{request.PropertyName.Trim()}': {writeFailure}",
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        propertyTypeInput
+                    )
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "add_property"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["supportedPropertyTypes"] = SupportedPropertyTypes.ToArray(),
+                ["addedProperty"] = new Dictionary<string, object>
+                {
+                    ["displayName"] = GetStringProperty(shaderInput, "displayName"),
+                    ["referenceName"] = GetStringProperty(shaderInput, "referenceName"),
+                    ["requestedPropertyType"] = propertyTypeInput,
+                    ["resolvedPropertyType"] = canonicalPropertyType,
+                    ["resolvedShaderInputType"] = shaderInputType.FullName ?? shaderInputType.Name,
+                    ["defaultValue"] = parsedDefaultValue?.ToString() ?? string.Empty,
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Added {canonicalPropertyType} property '{request.PropertyName.Trim()}' to '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse AddNode(
+            AddNodeRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Add node request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            string nodeTypeInput = request.NodeType?.Trim();
+            if (!TryResolveSupportedNodeType(
+                    nodeTypeInput,
+                    out string canonicalNodeType,
+                    out Type nodeType,
+                    out string nodeTypeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    nodeTypeFailure,
+                    BuildUnsupportedNodeData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        nodeTypeInput,
+                        request.DisplayName
+                    )
+                );
+            }
+
+            if (!TryCreateShaderNode(
+                    nodeType,
+                    request.DisplayName,
+                    out object shaderNode,
+                    out string nodeCreationFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    nodeCreationFailure,
+                    BuildUnsupportedNodeData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        nodeTypeInput,
+                        request.DisplayName
+                    )
+                );
+            }
+
+            string displayName = request.DisplayName?.Trim();
+            if (!string.IsNullOrWhiteSpace(displayName))
+            {
+                SetMemberValue(shaderNode, "name", displayName);
+                loadNotes.Add($"Node display name set to '{displayName}'.");
+            }
+
+            Rect assignedNodePosition = default;
+            if (TryAssignVisibleNodeLayout(
+                    graphData,
+                    shaderNode,
+                    canonicalNodeType,
+                    out assignedNodePosition,
+                    out string layoutFailure))
+            {
+                loadNotes.Add(
+                    $"Assigned node draw position to ({assignedNodePosition.x:0}, {assignedNodePosition.y:0})."
+                );
+            }
+            else
+            {
+                loadNotes.Add($"Node draw position could not be assigned: {layoutFailure}");
+            }
+
+            if (!TryInvokeGraphAddNode(graphData, shaderNode, out string addNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to add Shader Graph node '{nodeTypeInput}' to '{assetPath}': {addNodeFailure}",
+                    BuildUnsupportedNodeData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        nodeTypeInput,
+                        request.DisplayName
+                    )
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after adding node '{nodeTypeInput}': {validateFailure}",
+                    BuildUnsupportedNodeData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        nodeTypeInput,
+                        request.DisplayName
+                    )
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after adding node '{nodeTypeInput}': {writeFailure}",
+                    BuildUnsupportedNodeData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        nodeTypeInput,
+                        request.DisplayName
+                    )
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "add_node"
+            );
+
+            string addedNodeDisplayName = GetStringProperty(shaderNode, "displayName", "name");
+            string addedNodeObjectId = GetStringProperty(shaderNode, "objectId");
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["supportedNodeTypes"] = GetSupportedNodeTypeLabels(),
+                ["supportedNodeCount"] = GetGraphAddableNodeCatalog().Count,
+                ["discoveredNodeTypes"] = GetDiscoveredNodeTypeLabels(),
+                ["discoveredNodeCount"] = GetDiscoveredNodeCatalog().Count,
+                ["nodeCatalogSemantics"] = "supported=graph-addable",
+                ["addedNode"] = new Dictionary<string, object>
+                {
+                    ["requestedNodeType"] = nodeTypeInput,
+                    ["resolvedNodeType"] = canonicalNodeType,
+                    ["resolvedNodeClass"] = nodeType.FullName ?? nodeType.Name,
+                    ["displayName"] = addedNodeDisplayName,
+                    ["objectId"] = addedNodeObjectId,
+                    ["position"] = new Dictionary<string, object>
+                    {
+                        ["x"] = assignedNodePosition.x,
+                        ["y"] = assignedNodePosition.y,
+                    },
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Added {canonicalNodeType} node '{addedNodeDisplayName}' to '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse ConnectPorts(
+            ConnectPortsRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Connect ports request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "connect_ports"
+            );
+
+            string requestedOutputNodeId = request.OutputNodeId?.Trim();
+            string requestedOutputPort = request.OutputPort?.Trim();
+            string requestedInputNodeId = request.InputNodeId?.Trim();
+            string requestedInputPort = request.InputPort?.Trim();
+
+            if (string.IsNullOrWhiteSpace(requestedOutputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedOutputPort) ||
+                string.IsNullOrWhiteSpace(requestedInputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedInputPort))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Connect ports request requires output node id, output port, input node id, and input port.",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedOutputNodeId,
+                    out object outputNode,
+                    out string outputNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    outputNodeFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedInputNodeId,
+                    out object inputNode,
+                    out string inputNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    inputNodeFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            string outputNodeId = GetStringProperty(outputNode, "objectId");
+            string inputNodeId = GetStringProperty(inputNode, "objectId");
+            if (string.IsNullOrWhiteSpace(outputNodeId) || string.IsNullOrWhiteSpace(inputNodeId))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Resolved graph nodes do not expose stable object ids. Use read_graph_summary node ids instead of display names.",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (string.Equals(outputNodeId, inputNodeId, StringComparison.Ordinal))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Connect ports requires two distinct nodes. Self-connections are not supported in the first package-backed path.",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    outputNode,
+                    requestedOutputPort,
+                    true,
+                    out int outputSlotId,
+                    out string canonicalOutputPort,
+                    out string outputPortFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    outputPortFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    inputNode,
+                    requestedInputPort,
+                    false,
+                    out int inputSlotId,
+                    out string canonicalInputPort,
+                    out string inputPortFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    inputPortFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (!TryValidateSupportedConnectionPair(
+                    outputNode,
+                    inputNode,
+                    canonicalOutputPort,
+                    canonicalInputPort,
+                    out string pairFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    pairFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (!TryCreateSlotReference(outputNode, outputSlotId, out object outputSlotRef, out string outputSlotFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    outputSlotFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (!TryCreateSlotReference(inputNode, inputSlotId, out object inputSlotRef, out string inputSlotFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    inputSlotFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (!TryInvokeGraphConnect(graphData, outputSlotRef, inputSlotRef, out object connectedEdge, out string connectFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to connect the resolved Shader Graph slots: {connectFailure}",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after connecting ports: {writeFailure}",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort
+                    )
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            var refreshedSnapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "connect_ports"
+            );
+
+            var data = new Dictionary<string, object>(refreshedSnapshot.ToDictionary())
+            {
+                ["supportedConnectionRules"] = SupportedConnectionRules.ToArray(),
+                ["requestedConnection"] = new Dictionary<string, object>
+                {
+                    ["outputNodeId"] = requestedOutputNodeId,
+                    ["outputPort"] = requestedOutputPort,
+                    ["inputNodeId"] = requestedInputNodeId,
+                    ["inputPort"] = requestedInputPort,
+                },
+                ["resolvedConnection"] = new Dictionary<string, object>
+                {
+                    ["outputNodeId"] = outputNodeId,
+                    ["outputNodeType"] = GetTypeName(outputNode),
+                    ["outputSlotId"] = outputSlotId,
+                    ["outputPort"] = canonicalOutputPort,
+                    ["inputNodeId"] = inputNodeId,
+                    ["inputNodeType"] = GetTypeName(inputNode),
+                    ["inputSlotId"] = inputSlotId,
+                    ["inputPort"] = canonicalInputPort,
+                    ["connectedEdgeType"] = connectedEdge?.GetType().FullName ?? string.Empty,
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Connected {GetTypeName(outputNode)}.{canonicalOutputPort} -> {GetTypeName(inputNode)}.{canonicalInputPort} in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse SaveGraph(
+            SaveGraphRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Save graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed while saving '{assetPath}': {validateFailure}",
+                    BuildUnsupportedSaveGraphData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes
+                    )
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph at '{assetPath}': {writeFailure}",
+                    BuildUnsupportedSaveGraphData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes
+                    )
+                );
+            }
+
+            loadNotes.Add("FileUtilities.WriteShaderGraphToDisk(...) invoked successfully.");
+
+            AssetDatabase.SaveAssets();
+            loadNotes.Add("AssetDatabase.SaveAssets() invoked successfully.");
+
+            AssetDatabase.ImportAsset(
+                assetPath,
+                ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
+            );
+            loadNotes.Add("AssetDatabase.ImportAsset(..., ForceSynchronousImport | ForceUpdate) invoked successfully.");
+
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            loadNotes.Add("AssetDatabase.Refresh(ForceSynchronousImport) invoked successfully.");
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "save_graph"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["saveGraphStrategy"] = new[]
+                {
+                    "GraphData.ValidateGraph()",
+                    "FileUtilities.WriteShaderGraphToDisk(string, GraphData)",
+                    "AssetDatabase.SaveAssets()",
+                    "AssetDatabase.ImportAsset(..., ForceSynchronousImport | ForceUpdate)",
+                    "AssetDatabase.Refresh(ForceSynchronousImport)",
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Saved package-backed Shader Graph at '{assetPath}'.",
+                data
+            );
+        }
+
+        private static ShaderGraphAssetSnapshot BuildSnapshot(
+            object graphData,
+            string assetPath,
+            string absolutePath,
+            ShaderGraphExecutionKind executionKind,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            IReadOnlyList<string> loadNotes,
+            string operation)
+        {
+            var fileInfo = new FileInfo(absolutePath);
+            Type graphType = graphData.GetType();
+
+            IReadOnlyList<string> properties = DescribeProperties(graphData);
+            IReadOnlyList<string> nodes = DescribeNodes(graphData);
+            IReadOnlyList<string> connections = DescribeConnections(graphData);
+            IReadOnlyList<string> preview = BuildPreview(graphData, properties, nodes, connections);
+
+            string assetName = Path.GetFileNameWithoutExtension(assetPath);
+            string graphPath = GetStringProperty(graphData, "path");
+            string graphGuid = GetStringProperty(graphData, "assetGuid");
+            bool isSubGraph = GetBoolProperty(graphData, "isSubGraph");
+            int categoryCount = CountEnumerableProperty(graphData, "categories");
+
+            var notes = new List<string>();
+            if (loadNotes != null)
+            {
+                notes.AddRange(loadNotes);
+            }
+
+            if (!string.IsNullOrWhiteSpace(graphPath))
+            {
+                notes.Add($"GraphData.path = '{graphPath}'.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(graphGuid))
+            {
+                notes.Add($"GraphData.assetGuid = '{graphGuid}'.");
+            }
+
+            notes.Add(isSubGraph
+                ? "GraphData represents a sub graph."
+                : "GraphData represents a shader graph.");
+
+            notes.Add($"GraphData categories observed: {categoryCount}.");
+
+            if (graphType != null)
+            {
+                notes.Add($"Resolved graph type: {graphType.FullName ?? graphType.Name}.");
+            }
+
+            return new ShaderGraphAssetSnapshot(
+                operation,
+                assetPath,
+                string.Empty,
+                absolutePath,
+                true,
+                false,
+                PackageSchema,
+                assetName,
+                string.Empty,
+                fileInfo.CreationTimeUtc.ToString("O"),
+                fileInfo.LastWriteTimeUtc.ToString("O"),
+                properties.Count,
+                nodes.Count,
+                connections.Count,
+                executionKind,
+                properties,
+                nodes,
+                connections,
+                notes,
+                preview,
+                compatibility
+            );
+        }
+
+        private static readonly string[] SupportedPropertyTypes =
+        {
+            "Color",
+            "Float/Vector1",
+        };
+
+        private static readonly string[] SupportedCreateTemplates =
+        {
+            "blank",
+        };
+
+        private static readonly string[] SupportedConnectionRules =
+        {
+            "Node ids must be exact GraphData objectId values reported by add_node or read_graph_summary.",
+            "This first path only supports Vector1Node output slot 0 / Out into a different Vector1Node input slot 1 / X.",
+            "ColorNode output slot 0 / Out is supported only when the input node is SplitNode input slot 0 / In.",
+            "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",
+            "Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In.",
+            "Vector1Node output slot 0 / Out is also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
+            "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are supported when the input node is a different Vector1Node input slot 1 / X.",
+            "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
+            "Vector1Node and scalar arithmetic output slot Out are supported when the input node is ComparisonNode input slot 0 / A or 1 / B.",
+            "ComparisonNode output slot 2 / Out is supported only when the input node is BranchNode input slot 0 / Predicate.",
+            "Vector1Node and scalar arithmetic output slot Out are supported when the input node is BranchNode input slot 1 / True or 2 / False.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B.",
+            "BranchNode output slot 3 / Out is supported when the input node is a different Vector1Node input slot 1 / X or scalar arithmetic input ports.",
+            "Self-connections are rejected.",
+        };
+
+        private static Dictionary<string, object> BuildUnsupportedPropertyData(
+            string assetPath,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind,
+            IReadOnlyList<string> loadNotes,
+            string requestedPropertyType)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = "add_property",
+                ["assetPath"] = assetPath,
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["supportedPropertyTypes"] = SupportedPropertyTypes.ToArray(),
+                ["requestedPropertyType"] = requestedPropertyType ?? string.Empty,
+                ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
+            };
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedCreateGraphData(
+            string assetPath,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind,
+            IReadOnlyList<string> loadNotes,
+            string requestedTemplate)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = "create_graph",
+                ["assetPath"] = assetPath,
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["supportedCreateTemplates"] = SupportedCreateTemplates.ToArray(),
+                ["requestedTemplate"] = requestedTemplate ?? string.Empty,
+                ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
+            };
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedNodeData(
+            string assetPath,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind,
+            IReadOnlyList<string> loadNotes,
+            string requestedNodeType,
+            string requestedDisplayName)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = "add_node",
+                ["assetPath"] = assetPath,
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["supportedNodeTypes"] = GetSupportedNodeTypeLabels(),
+                ["requestedNodeType"] = requestedNodeType ?? string.Empty,
+                ["requestedDisplayName"] = requestedDisplayName ?? string.Empty,
+                ["supportedNodeCount"] = GetGraphAddableNodeCatalog().Count,
+                ["discoveredNodeTypes"] = GetDiscoveredNodeTypeLabels(),
+                ["discoveredNodeCount"] = GetDiscoveredNodeCatalog().Count,
+                ["nodeCatalogSemantics"] = "supported=graph-addable",
+                ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
+            };
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedConnectionData(
+            ShaderGraphAssetSnapshot snapshot,
+            string requestedOutputNodeId,
+            string requestedOutputPort,
+            string requestedInputNodeId,
+            string requestedInputPort)
+        {
+            var data = snapshot == null
+                ? new Dictionary<string, object>()
+                : new Dictionary<string, object>(snapshot.ToDictionary());
+
+            data["action"] = "connect_ports";
+            data["supportedConnectionRules"] = SupportedConnectionRules.ToArray();
+            data["requestedConnection"] = new Dictionary<string, object>
+            {
+                ["outputNodeId"] = requestedOutputNodeId ?? string.Empty,
+                ["outputPort"] = requestedOutputPort ?? string.Empty,
+                ["inputNodeId"] = requestedInputNodeId ?? string.Empty,
+                ["inputPort"] = requestedInputPort ?? string.Empty,
+            };
+            data["nodeIdentifierContract"] = "ConnectPorts expects exact node objectId values from add_node or read_graph_summary; display names are not supported.";
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedSaveGraphData(
+            string assetPath,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind,
+            IReadOnlyList<string> loadNotes)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = "save_graph",
+                ["assetPath"] = assetPath,
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["saveGraphStrategy"] = new[]
+                {
+                    "GraphData.ValidateGraph()",
+                    "FileUtilities.WriteShaderGraphToDisk(string, GraphData)",
+                    "AssetDatabase.SaveAssets()",
+                    "AssetDatabase.ImportAsset(..., ForceSynchronousImport | ForceUpdate)",
+                    "AssetDatabase.Refresh(ForceSynchronousImport)",
+                },
+                ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
+            };
+
+            return data;
+        }
+
+        private static bool TryResolveSupportedNodeType(
+            string nodeType,
+            out string canonicalNodeType,
+            out Type nodeClassType,
+            out string failureReason)
+        {
+            canonicalNodeType = string.Empty;
+            nodeClassType = null;
+            failureReason = null;
+
+            string normalized = (nodeType ?? string.Empty).Trim();
+            string[] supportedNodeTypes = GetSupportedNodeTypeLabels();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                failureReason =
+                    $"Node type is required. Supported node types: {string.Join(", ", supportedNodeTypes)}.";
+                return false;
+            }
+
+            string normalizedToken = NormalizeNodeToken(normalized);
+            foreach (ShaderGraphNodeDescriptor descriptor in GetGraphAddableNodeCatalog())
+            {
+                for (int i = 0; i < descriptor.Aliases.Count; i += 1)
+                {
+                    if (!string.Equals(NormalizeNodeToken(descriptor.Aliases[i]), normalizedToken, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    canonicalNodeType = descriptor.CanonicalName;
+                    nodeClassType = descriptor.NodeClassType;
+                    return true;
+                }
+            }
+
+            failureReason =
+                $"Unsupported Shader Graph node type '{nodeType}'. Supported node types: {string.Join(", ", supportedNodeTypes)}.";
+            return false;
+        }
+
+        private static bool TryCreateShaderNode(
+            Type nodeClassType,
+            string displayName,
+            out object node,
+            out string failureReason)
+        {
+            node = null;
+            failureReason = null;
+
+            if (nodeClassType == null)
+            {
+                failureReason = "Node class type is required.";
+                return false;
+            }
+
+            try
+            {
+                node = Activator.CreateInstance(nodeClassType, true);
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to instantiate {nodeClassType.FullName}: {GetRootMessage(ex)}";
+                return false;
+            }
+
+            string normalizedDisplayName = displayName?.Trim();
+            if (!string.IsNullOrWhiteSpace(normalizedDisplayName))
+            {
+                SetMemberValue(node, "name", normalizedDisplayName);
+            }
+
+            return true;
+        }
+
+        private static bool TryAssignVisibleNodeLayout(
+            object graphData,
+            object node,
+            string canonicalNodeType,
+            out Rect assignedPosition,
+            out string failureReason)
+        {
+            assignedPosition = default;
+            failureReason = null;
+
+            if (node == null)
+            {
+                failureReason = "Node instance is null.";
+                return false;
+            }
+
+            Type drawStateType = ResolveType(DrawStateTypeName);
+            if (drawStateType == null)
+            {
+                failureReason = $"Could not resolve {DrawStateTypeName}.";
+                return false;
+            }
+
+            Vector2 origin = BuildSuggestedNodeOrigin(graphData, canonicalNodeType);
+            assignedPosition = new Rect(origin, Vector2.zero);
+
+            try
+            {
+                object drawState = Activator.CreateInstance(drawStateType, true);
+                SetMemberValue(drawState, "expanded", true);
+                SetMemberValue(drawState, "position", assignedPosition);
+                SetMemberValue(node, "drawState", drawState);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to assign node draw state: {GetRootMessage(ex)}";
+                return false;
+            }
+        }
+
+        private static IReadOnlyList<ShaderGraphNodeDescriptor> GetSupportedNodeCatalog()
+        {
+            return SupportedNodeCatalog.Value;
+        }
+
+        private static IReadOnlyList<ShaderGraphNodeDescriptor> GetDiscoveredNodeCatalog()
+        {
+            return DiscoveredNodeCatalog.Value;
+        }
+
+        private static IReadOnlyList<ShaderGraphNodeDescriptor> GetGraphAddableNodeCatalog()
+        {
+            return SupportedNodeCatalog.Value;
+        }
+
+        private static string[] GetSupportedNodeTypeLabels()
+        {
+            return GetGraphAddableNodeCatalog()
+                .Select(descriptor => descriptor.Label)
+                .OrderBy(label => label, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        internal static IReadOnlyList<string> GetSupportedNodeCanonicalNames()
+        {
+            return GetGraphAddableNodeCatalog()
+                .Select(descriptor => descriptor.CanonicalName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string[] GetDiscoveredNodeTypeLabels()
+        {
+            return GetDiscoveredNodeCatalog()
+                .Select(descriptor => descriptor.Label)
+                .OrderBy(label => label, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static IReadOnlyList<ShaderGraphNodeDescriptor> DiscoverSupportedNodeCatalog()
+        {
+            Type abstractMaterialNodeType = ResolveType("UnityEditor.ShaderGraph.AbstractMaterialNode");
+            if (abstractMaterialNodeType == null)
+            {
+                return Array.Empty<ShaderGraphNodeDescriptor>();
+            }
+
+            var descriptors = new List<ShaderGraphNodeDescriptor>();
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                foreach (Type type in GetLoadableTypes(assembly))
+                {
+                    if (type == null ||
+                        type.IsAbstract ||
+                        type.ContainsGenericParameters ||
+                        !abstractMaterialNodeType.IsAssignableFrom(type) ||
+                        !IsSupportedNodeNamespace(type) ||
+                        !HasParameterlessConstructor(type))
+                    {
+                        continue;
+                    }
+
+                    string canonicalName = BuildCanonicalNodeName(type);
+                    IReadOnlyList<string> aliases = BuildNodeAliases(type, canonicalName);
+                    if (TryGetNodeCatalogExclusionReason(type, out string exclusionReason))
+                    {
+                        descriptors.Add(new ShaderGraphNodeDescriptor(
+                            canonicalName,
+                            type,
+                            aliases,
+                            "filtered",
+                            exclusionReason));
+                        continue;
+                    }
+
+                    if (TryProbeGraphAddableNode(type, canonicalName, out string probeNote))
+                    {
+                        descriptors.Add(new ShaderGraphNodeDescriptor(
+                            canonicalName,
+                            type,
+                            aliases,
+                            "graph-addable",
+                            probeNote));
+                        continue;
+                    }
+
+                    descriptors.Add(new ShaderGraphNodeDescriptor(
+                        canonicalName,
+                        type,
+                        aliases,
+                        "probe-failed",
+                        probeNote));
+                }
+            }
+
+            return descriptors
+                .OrderBy(descriptor => descriptor.CanonicalName, StringComparer.Ordinal)
+                .ThenBy(descriptor => descriptor.FullTypeName, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static IReadOnlyList<ShaderGraphNodeDescriptor> FilterSupportedNodeCatalog()
+        {
+            return GetDiscoveredNodeCatalog()
+                .Where(descriptor => descriptor.IsGraphAddable)
+                .OrderBy(descriptor => descriptor.CanonicalName, StringComparer.Ordinal)
+                .ThenBy(descriptor => descriptor.FullTypeName, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+        {
+            if (assembly == null)
+            {
+                return Array.Empty<Type>();
+            }
+
+            try
+            {
+                return assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                return ex.Types.Where(type => type != null);
+            }
+            catch
+            {
+                return Array.Empty<Type>();
+            }
+        }
+
+        private static bool IsSupportedNodeNamespace(Type type)
+        {
+            string namespaceName = type?.Namespace ?? string.Empty;
+            return namespaceName.StartsWith("UnityEditor.ShaderGraph", StringComparison.Ordinal);
+        }
+
+        private static bool HasParameterlessConstructor(Type type)
+        {
+            if (type == null)
+            {
+                return false;
+            }
+
+            return type.GetConstructor(
+                InstanceFlags,
+                null,
+                Type.EmptyTypes,
+                null) != null;
+        }
+
+        private static string BuildCanonicalNodeName(Type type)
+        {
+            if (type == null)
+            {
+                return string.Empty;
+            }
+
+            string fullTypeName = type.FullName ?? type.Name;
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
+            {
+                return "Float/Vector1";
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.ColorNode", StringComparison.Ordinal))
+            {
+                return "Color";
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal))
+            {
+                return "Split";
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.AppendVectorNode", StringComparison.Ordinal))
+            {
+                return "Append";
+            }
+
+            string shortName = type.Name ?? string.Empty;
+            if (shortName.EndsWith("Node", StringComparison.Ordinal) && shortName.Length > "Node".Length)
+            {
+                return shortName.Substring(0, shortName.Length - "Node".Length);
+            }
+
+            return shortName;
+        }
+
+        private static IReadOnlyList<string> BuildNodeAliases(Type type, string canonicalName)
+        {
+            var aliases = new List<string>();
+
+            void AddAlias(string alias)
+            {
+                if (string.IsNullOrWhiteSpace(alias))
+                {
+                    return;
+                }
+
+                if (aliases.Any(existing => string.Equals(existing, alias, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return;
+                }
+
+                aliases.Add(alias);
+            }
+
+            AddAlias(canonicalName);
+            AddAlias(type?.Name);
+            AddAlias(type?.FullName);
+
+            string shortName = type?.Name ?? string.Empty;
+            if (shortName.EndsWith("Node", StringComparison.Ordinal) && shortName.Length > "Node".Length)
+            {
+                AddAlias(shortName.Substring(0, shortName.Length - "Node".Length));
+            }
+
+            string fullTypeName = type?.FullName ?? string.Empty;
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
+            {
+                AddAlias("Float");
+                AddAlias("Vector1");
+                AddAlias("Float/Vector1");
+            }
+            else if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.ColorNode", StringComparison.Ordinal))
+            {
+                AddAlias("Color");
+            }
+            else if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal))
+            {
+                AddAlias("Split");
+            }
+            else if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.AppendVectorNode", StringComparison.Ordinal))
+            {
+                AddAlias("Append");
+            }
+
+            return aliases;
+        }
+
+        private static string NormalizeNodeToken(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var builder = new StringBuilder(value.Length);
+            foreach (char character in value)
+            {
+                if (char.IsLetterOrDigit(character))
+                {
+                    builder.Append(char.ToUpperInvariant(character));
+                }
+            }
+
+            return builder.ToString();
+        }
+
+        private static bool TryGetNodeCatalogExclusionReason(Type nodeClassType, out string exclusionReason)
+        {
+            exclusionReason = null;
+            if (nodeClassType == null)
+            {
+                exclusionReason = "Node type is null.";
+                return true;
+            }
+
+            string fullTypeName = nodeClassType.FullName ?? nodeClassType.Name ?? string.Empty;
+            string shortTypeName = nodeClassType.Name ?? string.Empty;
+
+            if (nodeClassType.IsNested)
+            {
+                exclusionReason = "Nested internal node types are excluded from the initial graph-addable catalog.";
+                return true;
+            }
+
+            if (fullTypeName.Contains(".Legacy.", StringComparison.Ordinal) ||
+                shortTypeName.EndsWith("MasterNode1", StringComparison.Ordinal))
+            {
+                exclusionReason = "Legacy master node types are excluded from the safe addable catalog.";
+                return true;
+            }
+
+            if (!shortTypeName.EndsWith("Node", StringComparison.Ordinal))
+            {
+                exclusionReason = "Types that do not follow the public *Node shape stay discoverable-only until explicitly validated.";
+                return true;
+            }
+
+            if (string.Equals(shortTypeName, "PreviewNode", StringComparison.Ordinal) ||
+                string.Equals(shortTypeName, "BlockNode", StringComparison.Ordinal) ||
+                string.Equals(shortTypeName, "SubGraphOutputNode", StringComparison.Ordinal))
+            {
+                exclusionReason = "Preview, block-only, and output-only node types are excluded from the safe addable catalog.";
+                return true;
+            }
+
+            if (string.Equals(shortTypeName, "RedirectNodeData", StringComparison.Ordinal) ||
+                string.Equals(shortTypeName, "UnknownNodeType", StringComparison.Ordinal) ||
+                fullTypeName.Contains("MultiJsonInternal+", StringComparison.Ordinal))
+            {
+                exclusionReason = "Serialization and redirect placeholder node types are excluded from the safe addable catalog.";
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryProbeGraphAddableNode(
+            Type nodeClassType,
+            string canonicalNodeType,
+            out string probeNote)
+        {
+            probeNote = null;
+
+            if (nodeClassType == null)
+            {
+                probeNote = "Node type is null.";
+                return false;
+            }
+
+            if (!TryCreateBlankGraphData(
+                    "Assets/ShaderGraphMcpProbe/NodeCatalogProbe.shadergraph",
+                    out object graphData,
+                    null,
+                    out string graphFailure))
+            {
+                probeNote = $"Probe graph creation failed: {graphFailure}";
+                return false;
+            }
+
+            if (!TryCreateShaderNode(
+                    nodeClassType,
+                    canonicalNodeType,
+                    out object shaderNode,
+                    out string nodeFailure))
+            {
+                probeNote = $"Node instantiation failed: {nodeFailure}";
+                return false;
+            }
+
+            if (!TryAssignVisibleNodeLayout(
+                    graphData,
+                    shaderNode,
+                    canonicalNodeType,
+                    out _,
+                    out string layoutFailure))
+            {
+                probeNote = $"Node layout assignment failed: {layoutFailure}";
+                return false;
+            }
+
+            if (!TryInvokeGraphAddNode(graphData, shaderNode, out string addNodeFailure))
+            {
+                probeNote = $"GraphData.AddNode(...) failed: {addNodeFailure}";
+                return false;
+            }
+
+            if (!TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                probeNote = $"GraphData.ValidateGraph() failed: {validateFailure}";
+                return false;
+            }
+
+            probeNote = "Activator -> AddNode -> ValidateGraph succeeded.";
+            return true;
+        }
+
+        internal static IReadOnlyList<string> GetSupportedNodeCatalogReportLines()
+        {
+            return GetSupportedNodeCatalog()
+                .Select(descriptor =>
+                    $"{descriptor.Label} | status: {descriptor.CatalogStatus} | aliases: {string.Join(", ", descriptor.Aliases)} | note: {descriptor.CatalogNote}")
+                .ToArray();
+        }
+
+        internal static int GetDiscoveredNodeCatalogCount()
+        {
+            return GetDiscoveredNodeCatalog().Count;
+        }
+
+        internal static int GetSupportedNodeCatalogCount()
+        {
+            return GetSupportedNodeCatalog().Count;
+        }
+
+        internal static int GetProbeRejectedNodeCatalogCount()
+        {
+            return GetDiscoveredNodeCatalog().Count(descriptor =>
+                string.Equals(descriptor.CatalogStatus, "probe-failed", StringComparison.Ordinal));
+        }
+
+        internal static int GetExcludedNodeCatalogBucketCount()
+        {
+            return GetExcludedNodeCatalogBucketReportLines().Count;
+        }
+
+        internal static int GetProbeRejectedNodeCatalogBucketCount()
+        {
+            return GetProbeRejectedNodeCatalogBucketReportLines().Count;
+        }
+
+        internal static IReadOnlyList<string> GetDiscoveredNodeCatalogReportLines()
+        {
+            return GetDiscoveredNodeCatalog()
+                .Select(descriptor =>
+                    $"{descriptor.Label} | status: {descriptor.CatalogStatus} | aliases: {string.Join(", ", descriptor.Aliases)} | note: {descriptor.CatalogNote}")
+                .ToArray();
+        }
+
+        internal static IReadOnlyList<string> GetExcludedNodeCatalogReportLines()
+        {
+            return GetDiscoveredNodeCatalog()
+                .Where(descriptor => string.Equals(descriptor.CatalogStatus, "filtered", StringComparison.Ordinal))
+                .Select(descriptor => $"{descriptor.Label} | excluded: {descriptor.CatalogNote}")
+                .OrderBy(line => line, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        internal static IReadOnlyList<string> GetExcludedNodeCatalogBucketReportLines()
+        {
+            return GetNodeCatalogBucketReportLines("filtered");
+        }
+
+        internal static IReadOnlyList<string> GetProbeRejectedNodeCatalogReportLines()
+        {
+            return GetDiscoveredNodeCatalog()
+                .Where(descriptor => string.Equals(descriptor.CatalogStatus, "probe-failed", StringComparison.Ordinal))
+                .Select(descriptor => $"{descriptor.Label} | rejected: {descriptor.CatalogNote}")
+                .OrderBy(line => line, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        internal static IReadOnlyList<string> GetProbeRejectedNodeCatalogBucketReportLines()
+        {
+            return GetNodeCatalogBucketReportLines("probe-failed");
+        }
+
+        internal static string ClassifyNodeCatalogDiagnosticBucket(string catalogStatus, string catalogNote)
+        {
+            string status = catalogStatus?.Trim() ?? string.Empty;
+            string note = catalogNote?.Trim() ?? string.Empty;
+            if (string.Equals(status, "filtered", StringComparison.Ordinal))
+            {
+                if (note.StartsWith("Nested internal node types", StringComparison.Ordinal))
+                {
+                    return "filtered:nested-internal";
+                }
+
+                if (note.StartsWith("Legacy master node types", StringComparison.Ordinal))
+                {
+                    return "filtered:legacy-master";
+                }
+
+                if (note.StartsWith("Types that do not follow the public *Node shape", StringComparison.Ordinal))
+                {
+                    return "filtered:non-public-node-shape";
+                }
+
+                if (note.StartsWith("Preview, block-only, and output-only node types", StringComparison.Ordinal))
+                {
+                    return "filtered:preview-block-output";
+                }
+
+                if (note.StartsWith("Serialization and redirect placeholder node types", StringComparison.Ordinal))
+                {
+                    return "filtered:serialization-placeholder";
+                }
+
+                return "filtered:other";
+            }
+
+            if (string.Equals(status, "probe-failed", StringComparison.Ordinal))
+            {
+                if (note.StartsWith("Probe graph creation failed:", StringComparison.Ordinal))
+                {
+                    return "probe:graph-create";
+                }
+
+                if (note.StartsWith("Node instantiation failed:", StringComparison.Ordinal))
+                {
+                    return "probe:instantiation";
+                }
+
+                if (note.StartsWith("Node layout assignment failed:", StringComparison.Ordinal))
+                {
+                    return "probe:layout";
+                }
+
+                if (note.StartsWith("GraphData.AddNode(...) failed:", StringComparison.Ordinal))
+                {
+                    return "probe:add-node";
+                }
+
+                if (note.StartsWith("GraphData.ValidateGraph() failed:", StringComparison.Ordinal))
+                {
+                    return "probe:validate-graph";
+                }
+
+                if (note.StartsWith("Node type is null.", StringComparison.Ordinal))
+                {
+                    return "probe:null-type";
+                }
+
+                return "probe:other";
+            }
+
+            if (string.Equals(status, "graph-addable", StringComparison.Ordinal))
+            {
+                return "supported:graph-addable";
+            }
+
+            return "status:unknown";
+        }
+
+        private static IReadOnlyList<string> GetNodeCatalogBucketReportLines(string catalogStatus)
+        {
+            return GetDiscoveredNodeCatalog()
+                .Where(descriptor => string.Equals(descriptor.CatalogStatus, catalogStatus, StringComparison.Ordinal))
+                .GroupBy(descriptor => ClassifyNodeCatalogDiagnosticBucket(descriptor.CatalogStatus, descriptor.CatalogNote))
+                .OrderByDescending(group => group.Count())
+                .ThenBy(group => group.Key, StringComparer.Ordinal)
+                .Select(group => $"{group.Key} | count: {group.Count()}")
+                .ToArray();
+        }
+
+        private static Vector2 BuildSuggestedNodeOrigin(object graphData, string canonicalNodeType)
+        {
+            IReadOnlyList<object> nodes = EnumerateMember(graphData, "nodes");
+            string canonicalType = canonicalNodeType?.Trim() ?? string.Empty;
+
+            float baseX;
+            float baseY;
+            float stepX = 280f;
+            float stepY = 180f;
+
+            if (string.Equals(canonicalType, "Color", StringComparison.OrdinalIgnoreCase))
+            {
+                int typeIndex = CountNodesOfType(nodes, "UnityEditor.ShaderGraph.ColorNode");
+                baseX = -620f;
+                baseY = -120f;
+                return new Vector2(baseX + (typeIndex * stepX), baseY);
+            }
+
+            if (string.Equals(canonicalType, "Split", StringComparison.OrdinalIgnoreCase))
+            {
+                int typeIndex = CountNodesOfType(nodes, "UnityEditor.ShaderGraph.SplitNode");
+                baseX = -260f;
+                baseY = -120f;
+                return new Vector2(baseX + (typeIndex * stepX), baseY);
+            }
+
+            if (string.Equals(canonicalType, "Float/Vector1", StringComparison.OrdinalIgnoreCase))
+            {
+                int typeIndex = CountNodesOfType(nodes, "UnityEditor.ShaderGraph.Vector1Node");
+                baseX = -620f;
+                baseY = 140f;
+                return new Vector2(baseX + (typeIndex * stepX), baseY);
+            }
+
+            int totalIndex = nodes.Count;
+            return new Vector2(-620f + ((totalIndex % 3) * stepX), -120f + ((totalIndex / 3) * stepY));
+        }
+
+        private static int CountNodesOfType(IReadOnlyList<object> nodes, string typeName)
+        {
+            if (nodes == null || string.IsNullOrWhiteSpace(typeName))
+            {
+                return 0;
+            }
+
+            int count = 0;
+            for (int i = 0; i < nodes.Count; i += 1)
+            {
+                object node = nodes[i];
+                if (node == null)
+                {
+                    continue;
+                }
+
+                string currentTypeName = node.GetType().FullName ?? node.GetType().Name;
+                if (string.Equals(currentTypeName, typeName, StringComparison.Ordinal))
+                {
+                    count += 1;
+                }
+            }
+
+            return count;
+        }
+
+        private static bool TryResolveGraphNodeByObjectId(
+            object graphData,
+            string requestedNodeId,
+            out object resolvedNode,
+            out string failureReason)
+        {
+            resolvedNode = null;
+            failureReason = null;
+
+            string normalizedNodeId = (requestedNodeId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedNodeId))
+            {
+                failureReason =
+                    "Node id is required. ConnectPorts expects exact GraphData objectId values from add_node or read_graph_summary.";
+                return false;
+            }
+
+            IReadOnlyList<object> nodes = EnumerateMember(graphData, "nodes");
+            foreach (object node in nodes)
+            {
+                string nodeId = GetStringProperty(node, "objectId");
+                if (string.Equals(nodeId, normalizedNodeId, StringComparison.Ordinal))
+                {
+                    resolvedNode = node;
+                    return true;
+                }
+            }
+
+            failureReason =
+                $"Could not find a graph node with objectId '{normalizedNodeId}'. ConnectPorts requires exact node ids from add_node or read_graph_summary, not display names.";
+            return false;
+        }
+
+        private static bool TryResolveSupportedConnectionEndpoint(
+            object node,
+            string requestedPort,
+            bool isOutput,
+            out int slotId,
+            out string canonicalPort,
+            out string failureReason)
+        {
+            slotId = -1;
+            canonicalPort = string.Empty;
+            failureReason = null;
+
+            if (node == null)
+            {
+                failureReason = "Resolved graph node is null.";
+                return false;
+            }
+
+            string nodeTypeName = node.GetType().FullName ?? node.GetType().Name;
+            string normalizedPort = (requestedPort ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedPort))
+            {
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Port value is required."
+                );
+                return false;
+            }
+
+            if (isOutput)
+            {
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "0", "Out"))
+                    {
+                        slotId = 0;
+                        canonicalPort = "Out";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 0, Out on Vector1Node."
+                    );
+                    return false;
+                }
+
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.ColorNode", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "0", "Out"))
+                    {
+                        slotId = 0;
+                        canonicalPort = "Out";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 0, Out on ColorNode."
+                    );
+                    return false;
+                }
+
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "0", "Out"))
+                    {
+                        slotId = 0;
+                        canonicalPort = "Out";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 0, Out on Vector2Node."
+                    );
+                    return false;
+                }
+
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector3Node", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "0", "Out"))
+                    {
+                        slotId = 0;
+                        canonicalPort = "Out";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 0, Out on Vector3Node."
+                    );
+                    return false;
+                }
+
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector4Node", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "0", "Out"))
+                    {
+                        slotId = 0;
+                        canonicalPort = "Out";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 0, Out on Vector4Node."
+                    );
+                    return false;
+                }
+
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "1", "R"))
+                    {
+                        slotId = 1;
+                        canonicalPort = "R";
+                        return true;
+                    }
+
+                    if (IsPortAlias(normalizedPort, "2", "G"))
+                    {
+                        slotId = 2;
+                        canonicalPort = "G";
+                        return true;
+                    }
+
+                    if (IsPortAlias(normalizedPort, "3", "B"))
+                    {
+                        slotId = 3;
+                        canonicalPort = "B";
+                        return true;
+                    }
+
+                    if (IsPortAlias(normalizedPort, "4", "A"))
+                    {
+                        slotId = 4;
+                        canonicalPort = "A";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 1/R, 2/G, 3/B, 4/A on SplitNode."
+                    );
+                    return false;
+                }
+
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.CombineNode", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "4", "RGBA"))
+                    {
+                        slotId = 4;
+                        canonicalPort = "RGBA";
+                        return true;
+                    }
+
+                    if (IsPortAlias(normalizedPort, "5", "RGB"))
+                    {
+                        slotId = 5;
+                        canonicalPort = "RGB";
+                        return true;
+                    }
+
+                    if (IsPortAlias(normalizedPort, "6", "RG"))
+                    {
+                        slotId = 6;
+                        canonicalPort = "RG";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 4/RGBA, 5/RGB, 6/RG on CombineNode."
+                    );
+                    return false;
+                }
+
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.AppendVectorNode", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "2", "Out"))
+                    {
+                        slotId = 2;
+                        canonicalPort = "Out";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 2, Out on AppendVectorNode."
+                    );
+                    return false;
+                }
+
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.ComparisonNode", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "2", "Out"))
+                    {
+                        slotId = 2;
+                        canonicalPort = "Out";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 2, Out on ComparisonNode."
+                    );
+                    return false;
+                }
+
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal))
+                {
+                    if (IsPortAlias(normalizedPort, "3", "Out"))
+                    {
+                        slotId = 3;
+                        canonicalPort = "Out";
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: 3, Out on BranchNode."
+                    );
+                    return false;
+                }
+
+                if (TryResolveArithmeticConnectionPort(
+                        nodeTypeName,
+                        normalizedPort,
+                        isOutput,
+                        out slotId,
+                        out canonicalPort,
+                        out string arithmeticSupportMessage))
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(arithmeticSupportMessage))
+                {
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        arithmeticSupportMessage
+                    );
+                    return false;
+                }
+
+                if (TryResolveLogicConnectionPort(
+                        nodeTypeName,
+                        normalizedPort,
+                        isOutput,
+                        out slotId,
+                        out canonicalPort,
+                        out string logicOutputSupportMessage))
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(logicOutputSupportMessage))
+                {
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        logicOutputSupportMessage
+                    );
+                    return false;
+                }
+
+                failureReason = BuildConnectionNodeFailure(
+                    node,
+                    isOutput,
+                    "UnityEditor.ShaderGraph.Vector1Node",
+                    "UnityEditor.ShaderGraph.ColorNode",
+                    "UnityEditor.ShaderGraph.Vector2Node",
+                    "UnityEditor.ShaderGraph.Vector3Node",
+                    "UnityEditor.ShaderGraph.Vector4Node",
+                    "UnityEditor.ShaderGraph.SplitNode",
+                    "UnityEditor.ShaderGraph.CombineNode",
+                    "UnityEditor.ShaderGraph.AppendVectorNode",
+                    "UnityEditor.ShaderGraph.AddNode",
+                    "UnityEditor.ShaderGraph.SubtractNode",
+                    "UnityEditor.ShaderGraph.MultiplyNode",
+                    "UnityEditor.ShaderGraph.DivideNode",
+                    "UnityEditor.ShaderGraph.PowerNode",
+                    "UnityEditor.ShaderGraph.MinimumNode",
+                    "UnityEditor.ShaderGraph.MaximumNode",
+                    "UnityEditor.ShaderGraph.ModuloNode",
+                    "UnityEditor.ShaderGraph.LerpNode",
+                    "UnityEditor.ShaderGraph.SmoothstepNode",
+                    "UnityEditor.ShaderGraph.ClampNode",
+                    "UnityEditor.ShaderGraph.StepNode",
+                    "UnityEditor.ShaderGraph.AbsoluteNode",
+                    "UnityEditor.ShaderGraph.FloorNode",
+                    "UnityEditor.ShaderGraph.CeilingNode",
+                    "UnityEditor.ShaderGraph.RoundNode",
+                    "UnityEditor.ShaderGraph.SignNode",
+                    "UnityEditor.ShaderGraph.SineNode",
+                    "UnityEditor.ShaderGraph.CosineNode",
+                    "UnityEditor.ShaderGraph.TangentNode",
+                    "UnityEditor.ShaderGraph.NegateNode",
+                    "UnityEditor.ShaderGraph.ReciprocalNode",
+                    "UnityEditor.ShaderGraph.SquareRootNode",
+                    "UnityEditor.ShaderGraph.FractionNode",
+                    "UnityEditor.ShaderGraph.TruncateNode",
+                    "UnityEditor.ShaderGraph.SaturateNode",
+                    "UnityEditor.ShaderGraph.OneMinusNode",
+                    "UnityEditor.ShaderGraph.ComparisonNode",
+                    "UnityEditor.ShaderGraph.BranchNode"
+                );
+                return false;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.ComparisonNode", StringComparison.Ordinal))
+            {
+                if (IsPortAlias(normalizedPort, "0", "A"))
+                {
+                    slotId = 0;
+                    canonicalPort = "A";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "1", "B"))
+                {
+                    slotId = 1;
+                    canonicalPort = "B";
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports: 0/A, 1/B on ComparisonNode."
+                );
+                return false;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal))
+            {
+                if (IsPortAlias(normalizedPort, "0", "Predicate"))
+                {
+                    slotId = 0;
+                    canonicalPort = "Predicate";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "1", "True"))
+                {
+                    slotId = 1;
+                    canonicalPort = "True";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "2", "False"))
+                {
+                    slotId = 2;
+                    canonicalPort = "False";
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports: 0/Predicate, 1/True, 2/False on BranchNode."
+                );
+                return false;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
+            {
+                if (IsPortAlias(normalizedPort, "1", "X"))
+                {
+                    slotId = 1;
+                    canonicalPort = "X";
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports: 1, X."
+                );
+                return false;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal))
+            {
+                if (IsPortAlias(normalizedPort, "1", "X"))
+                {
+                    slotId = 1;
+                    canonicalPort = "X";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "2", "Y"))
+                {
+                    slotId = 2;
+                    canonicalPort = "Y";
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports: 1/X, 2/Y on Vector2Node."
+                );
+                return false;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector3Node", StringComparison.Ordinal))
+            {
+                if (IsPortAlias(normalizedPort, "1", "X"))
+                {
+                    slotId = 1;
+                    canonicalPort = "X";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "2", "Y"))
+                {
+                    slotId = 2;
+                    canonicalPort = "Y";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "3", "Z"))
+                {
+                    slotId = 3;
+                    canonicalPort = "Z";
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports: 1/X, 2/Y, 3/Z on Vector3Node."
+                );
+                return false;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector4Node", StringComparison.Ordinal))
+            {
+                if (IsPortAlias(normalizedPort, "1", "X"))
+                {
+                    slotId = 1;
+                    canonicalPort = "X";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "2", "Y"))
+                {
+                    slotId = 2;
+                    canonicalPort = "Y";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "3", "Z"))
+                {
+                    slotId = 3;
+                    canonicalPort = "Z";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "4", "W"))
+                {
+                    slotId = 4;
+                    canonicalPort = "W";
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports: 1/X, 2/Y, 3/Z, 4/W on Vector4Node."
+                );
+                return false;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal))
+            {
+                if (IsPortAlias(normalizedPort, "0", "In"))
+                {
+                    slotId = 0;
+                    canonicalPort = "In";
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports: 0, In on SplitNode."
+                );
+                return false;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.CombineNode", StringComparison.Ordinal))
+            {
+                if (IsPortAlias(normalizedPort, "0", "R"))
+                {
+                    slotId = 0;
+                    canonicalPort = "R";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "1", "G"))
+                {
+                    slotId = 1;
+                    canonicalPort = "G";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "2", "B"))
+                {
+                    slotId = 2;
+                    canonicalPort = "B";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "3", "A"))
+                {
+                    slotId = 3;
+                    canonicalPort = "A";
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports: 0/R, 1/G, 2/B, 3/A on CombineNode."
+                );
+                return false;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.AppendVectorNode", StringComparison.Ordinal))
+            {
+                if (IsPortAlias(normalizedPort, "0", "A"))
+                {
+                    slotId = 0;
+                    canonicalPort = "A";
+                    return true;
+                }
+
+                if (IsPortAlias(normalizedPort, "1", "B"))
+                {
+                    slotId = 1;
+                    canonicalPort = "B";
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports: 0/A, 1/B on AppendVectorNode."
+                );
+                return false;
+            }
+
+            if (TryResolveArithmeticConnectionPort(
+                    nodeTypeName,
+                    normalizedPort,
+                    isOutput,
+                    out slotId,
+                    out canonicalPort,
+                    out string arithmeticInputSupportMessage))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(arithmeticInputSupportMessage))
+            {
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    arithmeticInputSupportMessage
+                );
+                return false;
+            }
+
+            if (TryResolveLogicConnectionPort(
+                    nodeTypeName,
+                    normalizedPort,
+                    isOutput,
+                    out slotId,
+                    out canonicalPort,
+                    out string logicInputSupportMessage))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(logicInputSupportMessage))
+            {
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    logicInputSupportMessage
+                );
+                return false;
+            }
+
+            failureReason = BuildConnectionNodeFailure(
+                node,
+                isOutput,
+                "UnityEditor.ShaderGraph.Vector1Node",
+                "UnityEditor.ShaderGraph.Vector2Node",
+                "UnityEditor.ShaderGraph.Vector3Node",
+                "UnityEditor.ShaderGraph.Vector4Node",
+                "UnityEditor.ShaderGraph.SplitNode",
+                "UnityEditor.ShaderGraph.CombineNode",
+                "UnityEditor.ShaderGraph.AppendVectorNode",
+                "UnityEditor.ShaderGraph.AddNode",
+                "UnityEditor.ShaderGraph.SubtractNode",
+                "UnityEditor.ShaderGraph.MultiplyNode",
+                "UnityEditor.ShaderGraph.DivideNode",
+                "UnityEditor.ShaderGraph.PowerNode",
+                "UnityEditor.ShaderGraph.MinimumNode",
+                "UnityEditor.ShaderGraph.MaximumNode",
+                "UnityEditor.ShaderGraph.ModuloNode",
+                "UnityEditor.ShaderGraph.LerpNode",
+                "UnityEditor.ShaderGraph.SmoothstepNode",
+                "UnityEditor.ShaderGraph.ClampNode",
+                "UnityEditor.ShaderGraph.StepNode",
+                "UnityEditor.ShaderGraph.AbsoluteNode",
+                "UnityEditor.ShaderGraph.FloorNode",
+                "UnityEditor.ShaderGraph.CeilingNode",
+                "UnityEditor.ShaderGraph.RoundNode",
+                "UnityEditor.ShaderGraph.SignNode",
+                "UnityEditor.ShaderGraph.SineNode",
+                "UnityEditor.ShaderGraph.CosineNode",
+                "UnityEditor.ShaderGraph.TangentNode",
+                "UnityEditor.ShaderGraph.NegateNode",
+                "UnityEditor.ShaderGraph.ReciprocalNode",
+                "UnityEditor.ShaderGraph.SquareRootNode",
+                "UnityEditor.ShaderGraph.FractionNode",
+                "UnityEditor.ShaderGraph.TruncateNode",
+                "UnityEditor.ShaderGraph.SaturateNode",
+                "UnityEditor.ShaderGraph.OneMinusNode",
+                "UnityEditor.ShaderGraph.ComparisonNode",
+                "UnityEditor.ShaderGraph.BranchNode"
+            );
+            return false;
+        }
+
+        private static bool TryResolveArithmeticConnectionPort(
+            string nodeTypeName,
+            string requestedPort,
+            bool isOutput,
+            out int slotId,
+            out string canonicalPort,
+            out string supportMessage)
+        {
+            slotId = -1;
+            canonicalPort = string.Empty;
+            supportMessage = null;
+
+            switch (nodeTypeName)
+            {
+                case "UnityEditor.ShaderGraph.AddNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on AddNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B on AddNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"));
+
+                case "UnityEditor.ShaderGraph.SubtractNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on SubtractNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B on SubtractNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"));
+
+                case "UnityEditor.ShaderGraph.MultiplyNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on MultiplyNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B on MultiplyNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"));
+
+                case "UnityEditor.ShaderGraph.DivideNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on DivideNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B on DivideNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"));
+
+                case "UnityEditor.ShaderGraph.PowerNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on PowerNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B on PowerNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"));
+
+                case "UnityEditor.ShaderGraph.MinimumNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on MinimumNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B on MinimumNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"));
+
+                case "UnityEditor.ShaderGraph.MaximumNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on MaximumNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B on MaximumNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"));
+
+                case "UnityEditor.ShaderGraph.ModuloNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on ModuloNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B on ModuloNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"));
+
+                case "UnityEditor.ShaderGraph.LerpNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 3, Out on LerpNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (3, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B, 2/T on LerpNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"), (2, "T"));
+
+                case "UnityEditor.ShaderGraph.SmoothstepNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 3, Out on SmoothstepNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (3, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/Edge1, 1/Edge2, 2/In on SmoothstepNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "Edge1"), (1, "Edge2"), (2, "In"));
+
+                case "UnityEditor.ShaderGraph.ClampNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 3, Out on ClampNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (3, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In, 1/Min, 2/Max on ClampNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"), (1, "Min"), (2, "Max"));
+
+                case "UnityEditor.ShaderGraph.StepNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on StepNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/Edge, 1/In on StepNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "Edge"), (1, "In"));
+
+                case "UnityEditor.ShaderGraph.AbsoluteNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on AbsoluteNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on AbsoluteNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.FloorNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on FloorNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on FloorNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.CeilingNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on CeilingNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on CeilingNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.RoundNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on RoundNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on RoundNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.SignNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on SignNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on SignNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.SineNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on SineNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on SineNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.CosineNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on CosineNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on CosineNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.TangentNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on TangentNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on TangentNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.NegateNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on NegateNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on NegateNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.ReciprocalNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on ReciprocalNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on ReciprocalNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.SquareRootNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on SquareRootNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on SquareRootNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.FractionNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on FractionNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on FractionNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.TruncateNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on TruncateNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on TruncateNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.SaturateNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on SaturateNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on SaturateNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                case "UnityEditor.ShaderGraph.OneMinusNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 1, Out on OneMinusNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (1, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/In on OneMinusNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "In"));
+
+                default:
+                    supportMessage = null;
+                    return false;
+            }
+        }
+
+        private static bool TryResolveLogicConnectionPort(
+            string nodeTypeName,
+            string requestedPort,
+            bool isOutput,
+            out int slotId,
+            out string canonicalPort,
+            out string supportMessage)
+        {
+            slotId = -1;
+            canonicalPort = string.Empty;
+            supportMessage = null;
+
+            switch (nodeTypeName)
+            {
+                case "UnityEditor.ShaderGraph.ComparisonNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 2, Out on ComparisonNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (2, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/A, 1/B on ComparisonNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "A"), (1, "B"));
+
+                case "UnityEditor.ShaderGraph.BranchNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: 3, Out on BranchNode.";
+                        return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (3, "Out"));
+                    }
+
+                    supportMessage = "Supported input ports: 0/Predicate, 1/True, 2/False on BranchNode.";
+                    return TryResolvePortAlias(requestedPort, out slotId, out canonicalPort, (0, "Predicate"), (1, "True"), (2, "False"));
+
+                default:
+                    supportMessage = null;
+                    return false;
+            }
+        }
+
+        private static bool TryResolvePortAlias(
+            string requestedPort,
+            out int slotId,
+            out string canonicalPort,
+            params (int SlotId, string DisplayPort)[] aliases)
+        {
+            slotId = -1;
+            canonicalPort = string.Empty;
+
+            if (aliases == null)
+            {
+                return false;
+            }
+
+            for (int index = 0; index < aliases.Length; index += 1)
+            {
+                (int aliasSlotId, string aliasDisplayPort) = aliases[index];
+                if (!IsPortAlias(requestedPort, aliasSlotId.ToString(CultureInfo.InvariantCulture), aliasDisplayPort))
+                {
+                    continue;
+                }
+
+                slotId = aliasSlotId;
+                canonicalPort = aliasDisplayPort;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryValidateSupportedConnectionPair(
+            object outputNode,
+            object inputNode,
+            string canonicalOutputPort,
+            string canonicalInputPort,
+            out string failureReason)
+        {
+            failureReason = null;
+
+            string outputNodeTypeName = GetTypeName(outputNode);
+            string inputNodeTypeName = GetTypeName(inputNode);
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.ColorNode", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (IsSupportedSplitVectorSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "In", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "In", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (IsSupportedScalarBuilderSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+                IsSupportedVectorBuilderInputPort(inputNodeTypeName, canonicalInputPort))
+            {
+                return true;
+            }
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) &&
+                IsSupportedArithmeticConnectionNodeType(inputNodeTypeName))
+            {
+                return true;
+            }
+
+            if (IsSupportedArithmeticConnectionNodeType(outputNodeTypeName) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (IsSupportedArithmeticConnectionNodeType(outputNodeTypeName) &&
+                IsSupportedArithmeticConnectionNodeType(inputNodeTypeName))
+            {
+                return true;
+            }
+
+            if (IsSupportedScalarValueSourceNodeType(outputNodeTypeName) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.ComparisonNode", StringComparison.Ordinal) &&
+                (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
+                 string.Equals(canonicalInputPort, "B", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.ComparisonNode", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "Predicate", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (IsSupportedScalarValueSourceNodeType(outputNodeTypeName) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
+                (string.Equals(canonicalInputPort, "True", StringComparison.Ordinal) ||
+                 string.Equals(canonicalInputPort, "False", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+
+            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
+                (string.Equals(canonicalInputPort, "True", StringComparison.Ordinal) ||
+                 string.Equals(canonicalInputPort, "False", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+
+            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.MultiplyNode", StringComparison.Ordinal) &&
+                (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
+                 string.Equals(canonicalInputPort, "B", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+
+            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.LerpNode", StringComparison.Ordinal) &&
+                (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
+                 string.Equals(canonicalInputPort, "B", StringComparison.Ordinal) ||
+                 string.Equals(canonicalInputPort, "T", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+
+            if (string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.AppendVectorNode", StringComparison.Ordinal) &&
+                IsSupportedAppendInputPort(canonicalInputPort) &&
+                (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) ||
+                 IsSupportedScalarBuilderSourceOutput(outputNodeTypeName, canonicalOutputPort)))
+            {
+                return true;
+            }
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
+                IsSupportedArithmeticConnectionNodeType(inputNodeTypeName))
+            {
+                return true;
+            }
+
+            failureReason =
+                $"Unsupported connection pair '{outputNodeTypeName}.{canonicalOutputPort}' -> '{inputNodeTypeName}.{canonicalInputPort}'. " +
+                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append -> Split, Split -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1 -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out -> Branch Predicate, scalar outputs -> Branch True/False, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append -> Multiply A/B, Branch True/False, or Lerp A/B/T, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append plus Vector1/Split/scalar arithmetic -> Append A/B, and Branch Out -> Vector1 or arithmetic inputs.";
+            return false;
+        }
+
+        private static bool IsSupportedArithmeticConnectionNodeType(string nodeTypeName)
+        {
+            return string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.AddNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SubtractNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.MultiplyNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.DivideNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.PowerNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.MinimumNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.MaximumNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.ModuloNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.LerpNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SmoothstepNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.ClampNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.StepNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.AbsoluteNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.FloorNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.CeilingNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.RoundNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SignNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SineNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.CosineNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.TangentNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.NegateNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.ReciprocalNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SquareRootNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.FractionNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.TruncateNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SaturateNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.OneMinusNode", StringComparison.Ordinal);
+        }
+
+        private static bool IsSupportedScalarValueSourceNodeType(string nodeTypeName)
+        {
+            return string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) ||
+                   IsSupportedArithmeticConnectionNodeType(nodeTypeName);
+        }
+
+        private static bool IsSupportedScalarBuilderSourceOutput(string nodeTypeName, string canonicalOutputPort)
+        {
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (IsSupportedArithmeticConnectionNodeType(nodeTypeName) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
+                   (string.Equals(canonicalOutputPort, "R", StringComparison.Ordinal) ||
+                    string.Equals(canonicalOutputPort, "G", StringComparison.Ordinal) ||
+                    string.Equals(canonicalOutputPort, "B", StringComparison.Ordinal) ||
+                    string.Equals(canonicalOutputPort, "A", StringComparison.Ordinal));
+        }
+
+        private static bool IsSupportedVectorBuilderInputPort(string nodeTypeName, string canonicalInputPort)
+        {
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.CombineNode", StringComparison.Ordinal))
+            {
+                return string.Equals(canonicalInputPort, "R", StringComparison.Ordinal) ||
+                       string.Equals(canonicalInputPort, "G", StringComparison.Ordinal) ||
+                       string.Equals(canonicalInputPort, "B", StringComparison.Ordinal) ||
+                       string.Equals(canonicalInputPort, "A", StringComparison.Ordinal);
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal))
+            {
+                return string.Equals(canonicalInputPort, "X", StringComparison.Ordinal) ||
+                       string.Equals(canonicalInputPort, "Y", StringComparison.Ordinal);
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector3Node", StringComparison.Ordinal))
+            {
+                return string.Equals(canonicalInputPort, "X", StringComparison.Ordinal) ||
+                       string.Equals(canonicalInputPort, "Y", StringComparison.Ordinal) ||
+                       string.Equals(canonicalInputPort, "Z", StringComparison.Ordinal);
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector4Node", StringComparison.Ordinal))
+            {
+                return string.Equals(canonicalInputPort, "X", StringComparison.Ordinal) ||
+                       string.Equals(canonicalInputPort, "Y", StringComparison.Ordinal) ||
+                       string.Equals(canonicalInputPort, "Z", StringComparison.Ordinal) ||
+                       string.Equals(canonicalInputPort, "W", StringComparison.Ordinal);
+            }
+
+            return false;
+        }
+
+        private static bool IsSupportedAppendInputPort(string canonicalInputPort)
+        {
+            return string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
+                   string.Equals(canonicalInputPort, "B", StringComparison.Ordinal);
+        }
+
+        private static bool IsSupportedSplitVectorSourceOutput(string nodeTypeName, string canonicalOutputPort)
+        {
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.ColorNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector4Node", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.CombineNode", StringComparison.Ordinal) &&
+                   string.Equals(canonicalOutputPort, "RGBA", StringComparison.Ordinal);
+        }
+
+        private static bool IsSupportedColorValueSourceOutput(string nodeTypeName, string canonicalOutputPort)
+        {
+            if (IsSupportedSplitVectorSourceOutput(nodeTypeName, canonicalOutputPort))
+            {
+                return true;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.MultiplyNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.LerpNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.AppendVectorNode", StringComparison.Ordinal) &&
+                   string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal);
+        }
+
+        private static bool TryCreateSlotReference(
+            object node,
+            int slotId,
+            out object slotReference,
+            out string failureReason)
+        {
+            slotReference = null;
+            failureReason = null;
+
+            if (node == null)
+            {
+                failureReason = "Node is null.";
+                return false;
+            }
+
+            Type slotReferenceType = ResolveType("UnityEditor.Graphing.SlotReference");
+            if (slotReferenceType == null)
+            {
+                failureReason = "Could not resolve UnityEditor.Graphing.SlotReference.";
+                return false;
+            }
+
+            try
+            {
+                slotReference = Activator.CreateInstance(
+                    slotReferenceType,
+                    InstanceFlags,
+                    null,
+                    new object[] { node, slotId },
+                    CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to create SlotReference for slot {slotId}: {GetRootMessage(ex)}";
+                return false;
+            }
+        }
+
+        private static bool TryInvokeGraphConnect(
+            object graphData,
+            object outputSlotRef,
+            object inputSlotRef,
+            out object connectedEdge,
+            out string failureReason)
+        {
+            connectedEdge = null;
+            failureReason = null;
+
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            if (outputSlotRef == null || inputSlotRef == null)
+            {
+                failureReason = "Both slot references are required.";
+                return false;
+            }
+
+            MethodInfo connectMethod = FindMethod(graphData.GetType(), "Connect", 2);
+            if (connectMethod == null)
+            {
+                failureReason = $"Method 'Connect' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                connectedEdge = connectMethod.Invoke(graphData, new[] { outputSlotRef, inputSlotRef });
+                if (connectedEdge == null)
+                {
+                    failureReason =
+                        "GraphData.Connect returned null. The selected nodes and ports may be incompatible or the connection would create a cycle.";
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryCreateBlankGraphData(
+            string assetPath,
+            out object graphData,
+            IList<string> notes,
+            out string failureReason)
+        {
+            graphData = null;
+            failureReason = null;
+
+            Type graphType = ResolveType(GraphDataTypeName);
+            if (graphType == null)
+            {
+                failureReason = $"Could not resolve {GraphDataTypeName}.";
+                return false;
+            }
+
+            try
+            {
+                graphData = Activator.CreateInstance(graphType, true);
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to create {GraphDataTypeName}: {GetRootMessage(ex)}";
+                return false;
+            }
+
+            SetMemberValue(graphData, "messageManager", CreateMessageManagerInstance());
+            SetMemberValue(graphData, "path", DefaultGraphPathLabel);
+            notes?.Add($"GraphData.path set to '{DefaultGraphPathLabel}'.");
+
+            if (!TryInvokeInstanceMethod(graphData, "AddContexts", out string addContextsFailure))
+            {
+                failureReason = $"Unable to invoke GraphData.AddContexts(): {addContextsFailure}";
+                return false;
+            }
+
+            notes?.Add("GraphData.AddContexts() invoked successfully.");
+
+            if (!TryInvokeGraphInitializeOutputs(graphData, out string initializeOutputsFailure))
+            {
+                failureReason = $"Unable to invoke GraphData.InitializeOutputs(null, null): {initializeOutputsFailure}";
+                return false;
+            }
+
+            notes?.Add("GraphData.InitializeOutputs(null, null) invoked successfully.");
+
+            if (!TryInvokeGraphAddDefaultCategory(graphData, out string addCategoryFailure))
+            {
+                failureReason = $"Unable to add the default Shader Graph category: {addCategoryFailure}";
+                return false;
+            }
+
+            notes?.Add("GraphData.AddCategory(CategoryData.DefaultCategory()) invoked successfully.");
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                notes?.Add("GraphData.ValidateGraph() invoked successfully during create_graph.");
+            }
+            else
+            {
+                notes?.Add($"GraphData.ValidateGraph() could not be invoked during create_graph: {validateFailure}");
+            }
+
+            return true;
+        }
+
+        private static bool TryInvokeGraphInitializeOutputs(object graphData, out string failureReason)
+        {
+            failureReason = null;
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            MethodInfo initializeOutputsMethod = FindMethod(graphData.GetType(), "InitializeOutputs", 2);
+            if (initializeOutputsMethod == null)
+            {
+                failureReason = $"Method 'InitializeOutputs' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                initializeOutputsMethod.Invoke(graphData, new object[] { null, null });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryInvokeGraphAddDefaultCategory(object graphData, out string failureReason)
+        {
+            failureReason = null;
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            Type categoryDataType = ResolveType(CategoryDataTypeName);
+            if (categoryDataType == null)
+            {
+                failureReason = $"Could not resolve {CategoryDataTypeName}.";
+                return false;
+            }
+
+            MethodInfo defaultCategoryMethod = FindMethod(categoryDataType, "DefaultCategory", 1)
+                ?? FindMethod(categoryDataType, "DefaultCategory", 0);
+            if (defaultCategoryMethod == null)
+            {
+                failureReason = $"{CategoryDataTypeName}.DefaultCategory(...) was not found.";
+                return false;
+            }
+
+            MethodInfo addCategoryMethod = FindMethod(graphData.GetType(), "AddCategory", 1);
+            if (addCategoryMethod == null)
+            {
+                failureReason = $"Method 'AddCategory' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                object defaultCategory = defaultCategoryMethod.GetParameters().Length == 0
+                    ? defaultCategoryMethod.Invoke(null, Array.Empty<object>())
+                    : defaultCategoryMethod.Invoke(null, new object[] { null });
+                addCategoryMethod.Invoke(graphData, new[] { defaultCategory });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool IsPortAlias(string requestedPort, string numericPort, string displayPort)
+        {
+            return string.Equals(requestedPort, numericPort, StringComparison.Ordinal) ||
+                   string.Equals(requestedPort, displayPort, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string BuildConnectionNodeFailure(
+            object node,
+            bool isOutput,
+            params string[] supportedNodeTypes)
+        {
+            string role = isOutput ? "output" : "input";
+            string nodeTypeName = GetTypeName(node);
+            return $"Unsupported {role} node type '{nodeTypeName}'. Supported {role} node types: {string.Join(", ", supportedNodeTypes ?? Array.Empty<string>())}.";
+        }
+
+        private static string BuildConnectionPortFailure(
+            object node,
+            bool isOutput,
+            string requestedPort,
+            string supportMessage)
+        {
+            string role = isOutput ? "output" : "input";
+            return $"Unsupported {role} port '{requestedPort}' on node '{GetTypeName(node)}'. {supportMessage}";
+        }
+
+        private static bool TryInvokeGraphAddNode(object graphData, object node, out string failureReason)
+        {
+            failureReason = null;
+
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            if (node == null)
+            {
+                failureReason = "Node instance is null.";
+                return false;
+            }
+
+            MethodInfo addNodeMethod = FindMethod(graphData.GetType(), "AddNode", 1);
+            if (addNodeMethod == null)
+            {
+                failureReason = $"Method 'AddNode' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                addNodeMethod.Invoke(graphData, new[] { node });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryResolveSupportedPropertyType(
+            string propertyType,
+            out string canonicalPropertyType,
+            out Type shaderInputType,
+            out string failureReason)
+        {
+            canonicalPropertyType = string.Empty;
+            shaderInputType = null;
+            failureReason = null;
+
+            string normalized = (propertyType ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                failureReason =
+                    "Property type is required. Supported types: Color, Float/Vector1.";
+                return false;
+            }
+
+            if (string.Equals(normalized, "Color", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Color";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.ColorShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.ColorShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Float", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "Vector1", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "Float/Vector1", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Float/Vector1";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            failureReason =
+                $"Unsupported Shader Graph property type '{propertyType}'. Supported types: Color, Float/Vector1.";
+            return false;
+        }
+
+        private static bool TryCreateShaderInput(
+            Type shaderInputType,
+            string displayName,
+            string defaultValue,
+            out object shaderInput,
+            out object parsedDefaultValue,
+            out string parseNote,
+            out string failureReason)
+        {
+            shaderInput = null;
+            parsedDefaultValue = null;
+            parseNote = null;
+            failureReason = null;
+
+            if (shaderInputType == null)
+            {
+                failureReason = "Shader input type is required.";
+                return false;
+            }
+
+            try
+            {
+                shaderInput = Activator.CreateInstance(shaderInputType, true);
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to instantiate {shaderInputType.FullName}: {GetRootMessage(ex)}";
+                return false;
+            }
+
+            SetMemberValue(shaderInput, "displayName", displayName);
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.ColorShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseColorDefault(defaultValue, out Color parsedColor, out string colorNote, out string colorFailure))
+                {
+                    failureReason = colorFailure;
+                    return false;
+                }
+
+                SetMemberValue(shaderInput, "value", parsedColor);
+                parsedDefaultValue = parsedColor;
+                parseNote = colorNote;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseFloatDefault(defaultValue, out float parsedFloat, out string floatNote, out string floatFailure))
+                {
+                    failureReason = floatFailure;
+                    return false;
+                }
+
+                SetMemberValue(shaderInput, "value", parsedFloat);
+                parsedDefaultValue = parsedFloat;
+                parseNote = floatNote;
+                return true;
+            }
+
+            failureReason = $"Unsupported shader input type '{shaderInputType.FullName ?? shaderInputType.Name}'.";
+            return false;
+        }
+
+        private static bool TryParseFloatDefault(
+            string defaultValue,
+            out float parsedFloat,
+            out string note,
+            out string failureReason)
+        {
+            parsedFloat = 0f;
+            note = null;
+            failureReason = null;
+
+            if (string.IsNullOrWhiteSpace(defaultValue))
+            {
+                note = "No default value was provided; used 0.";
+                return true;
+            }
+
+            if (float.TryParse(defaultValue.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out parsedFloat))
+            {
+                return true;
+            }
+
+            failureReason =
+                $"Unable to parse float default value '{defaultValue}'. Expected an invariant-culture float such as '0' or '0.5'.";
+            return false;
+        }
+
+        private static bool TryParseColorDefault(
+            string defaultValue,
+            out Color parsedColor,
+            out string note,
+            out string failureReason)
+        {
+            parsedColor = Color.black;
+            note = null;
+            failureReason = null;
+
+            if (string.IsNullOrWhiteSpace(defaultValue))
+            {
+                note = "No default value was provided; used Color.black.";
+                return true;
+            }
+
+            string trimmed = defaultValue.Trim();
+            if (TryParseColorCsv(trimmed, out parsedColor))
+            {
+                return true;
+            }
+
+            if (ColorUtility.TryParseHtmlString(trimmed, out parsedColor))
+            {
+                return true;
+            }
+
+            failureReason =
+                $"Unable to parse color default value '{defaultValue}'. Expected an HTML color string like '#RRGGBB' or comma-separated floats like '1, 0, 0, 1'.";
+            return false;
+        }
+
+        private static bool TryParseColorCsv(string text, out Color parsedColor)
+        {
+            parsedColor = Color.black;
+            string[] parts = text.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 3 || parts.Length > 4)
+            {
+                return false;
+            }
+
+            if (!TryParseFloatInvariant(parts[0], out float r) ||
+                !TryParseFloatInvariant(parts[1], out float g) ||
+                !TryParseFloatInvariant(parts[2], out float b))
+            {
+                return false;
+            }
+
+            float a = 1f;
+            if (parts.Length == 4 && !TryParseFloatInvariant(parts[3], out a))
+            {
+                return false;
+            }
+
+            parsedColor = new Color(r, g, b, a);
+            return true;
+        }
+
+        private static bool TryParseFloatInvariant(string text, out float value)
+        {
+            return float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        }
+
+        private static bool TryInvokeGraphAddInput(object graphData, object shaderInput, out string failureReason)
+        {
+            failureReason = null;
+
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            if (shaderInput == null)
+            {
+                failureReason = "Shader input instance is null.";
+                return false;
+            }
+
+            MethodInfo addInputMethod = FindMethod(graphData.GetType(), "AddGraphInput", 2);
+            if (addInputMethod == null)
+            {
+                failureReason = $"Method 'AddGraphInput' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                addInputMethod.Invoke(graphData, new[] { shaderInput, -1 });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryWriteGraphDataToDisk(
+            string assetPath,
+            object graphData,
+            out string failureReason)
+        {
+            failureReason = null;
+
+            Type fileUtilitiesType = ResolveType(FileUtilitiesTypeName);
+            if (fileUtilitiesType == null)
+            {
+                failureReason = $"Could not resolve {FileUtilitiesTypeName}.";
+                return false;
+            }
+
+            MethodInfo writeMethod = FindMethod(fileUtilitiesType, "WriteShaderGraphToDisk", 2);
+            if (writeMethod == null)
+            {
+                failureReason = $"{FileUtilitiesTypeName}.WriteShaderGraphToDisk(string, GraphData) was not found.";
+                return false;
+            }
+
+            try
+            {
+                object writtenText = writeMethod.Invoke(null, new[] { (object)assetPath, graphData });
+                if (writtenText is string text && !string.IsNullOrWhiteSpace(text))
+                {
+                    return true;
+                }
+
+                failureReason = $"FileUtilities.WriteShaderGraphToDisk returned null for '{assetPath}'.";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"FileUtilities.WriteShaderGraphToDisk threw: {GetRootMessage(ex)}";
+                return false;
+            }
+        }
+
+        private static bool TryLoadGraphData(
+            string assetPath,
+            string absolutePath,
+            out object graphData,
+            IList<string> notes,
+            out string failureReason)
+        {
+            graphData = null;
+            failureReason = null;
+
+            if (TryReadGraphDataWithFileUtilities(assetPath, out graphData, out failureReason))
+            {
+                notes?.Add("Loaded GraphData via FileUtilities.TryReadGraphDataFromDisk().");
+                return true;
+            }
+
+            if (TryReadGraphDataWithMultiJson(assetPath, absolutePath, out graphData, out failureReason))
+            {
+                notes?.Add("Loaded GraphData via MultiJson.Deserialize() fallback.");
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryReadGraphDataWithFileUtilities(
+            string assetPath,
+            out object graphData,
+            out string failureReason)
+        {
+            graphData = null;
+            failureReason = null;
+
+            Type fileUtilitiesType = ResolveType(FileUtilitiesTypeName);
+            if (fileUtilitiesType == null)
+            {
+                failureReason = $"Could not resolve {FileUtilitiesTypeName}.";
+                return false;
+            }
+
+            MethodInfo readMethod = FindMethod(fileUtilitiesType, "TryReadGraphDataFromDisk", 2);
+            if (readMethod == null)
+            {
+                failureReason = $"{FileUtilitiesTypeName}.TryReadGraphDataFromDisk(string, out GraphData) was not found.";
+                return false;
+            }
+
+            var args = new object[] { assetPath, null };
+            try
+            {
+                object result = readMethod.Invoke(null, args);
+                if (result is bool success && success && args.Length > 1 && args[1] != null)
+                {
+                    graphData = args[1];
+                    return true;
+                }
+
+                failureReason = $"FileUtilities.TryReadGraphDataFromDisk returned false for '{assetPath}'.";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"FileUtilities.TryReadGraphDataFromDisk threw: {GetRootMessage(ex)}";
+                return false;
+            }
+        }
+
+        private static bool TryReadGraphDataWithMultiJson(
+            string assetPath,
+            string absolutePath,
+            out object graphData,
+            out string failureReason)
+        {
+            graphData = null;
+            failureReason = null;
+
+            Type graphType = ResolveType(GraphDataTypeName);
+            if (graphType == null)
+            {
+                failureReason = $"Could not resolve {GraphDataTypeName}.";
+                return false;
+            }
+
+            Type multiJsonType = ResolveType(MultiJsonTypeName);
+            if (multiJsonType == null)
+            {
+                failureReason = $"Could not resolve {MultiJsonTypeName}.";
+                return false;
+            }
+
+            string textGraph;
+            try
+            {
+                textGraph = File.ReadAllText(absolutePath, Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to read '{absolutePath}': {GetRootMessage(ex)}";
+                return false;
+            }
+
+            try
+            {
+                graphData = Activator.CreateInstance(graphType, true);
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to create {GraphDataTypeName}: {GetRootMessage(ex)}";
+                return false;
+            }
+
+            SetMemberValue(graphData, "messageManager", CreateMessageManagerInstance());
+            SetMemberValue(graphData, "assetGuid", AssetDatabase.AssetPathToGUID(assetPath));
+
+            MethodInfo deserializeMethod = FindGenericMethod(multiJsonType, "Deserialize", 4);
+            if (deserializeMethod == null)
+            {
+                failureReason = $"{MultiJsonTypeName}.Deserialize<T>(T, string, JsonObject, bool) was not found.";
+                graphData = null;
+                return false;
+            }
+
+            try
+            {
+                MethodInfo closedDeserialize = deserializeMethod.MakeGenericMethod(graphType);
+                closedDeserialize.Invoke(null, new object[] { graphData, textGraph, null, false });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"MultiJson.Deserialize failed: {GetRootMessage(ex)}";
+                graphData = null;
+                return false;
+            }
+        }
+
+        private static IReadOnlyList<string> DescribeProperties(object graphData)
+        {
+            return EnumerateMember(graphData, "properties")
+                .Select(DescribeProperty)
+                .ToArray();
+        }
+
+        private static IReadOnlyList<string> DescribeNodes(object graphData)
+        {
+            return EnumerateMember(graphData, "nodes")
+                .Select(DescribeNode)
+                .ToArray();
+        }
+
+        private static IReadOnlyList<string> DescribeConnections(object graphData)
+        {
+            return EnumerateMember(graphData, "edges")
+                .Select(DescribeEdge)
+                .ToArray();
+        }
+
+        private static IReadOnlyList<string> BuildPreview(
+            object graphData,
+            IReadOnlyList<string> properties,
+            IReadOnlyList<string> nodes,
+            IReadOnlyList<string> connections)
+        {
+            var preview = new List<string>
+            {
+                $"graphType={graphData.GetType().FullName ?? graphData.GetType().Name}",
+                $"graphBaseType={graphData.GetType().BaseType?.FullName ?? string.Empty}",
+                $"graphPath={GetStringProperty(graphData, "path")}",
+                $"assetGuid={GetStringProperty(graphData, "assetGuid")}",
+                $"isSubGraph={GetBoolProperty(graphData, "isSubGraph")}",
+                $"propertyCount={properties.Count}",
+                $"nodeCount={nodes.Count}",
+                $"connectionCount={connections.Count}",
+                $"categoryCount={CountEnumerableProperty(graphData, "categories")}"
+            };
+
+            string outputNode = DescribeNode(GetMemberValue(graphData, "outputNode"));
+            if (!string.IsNullOrWhiteSpace(outputNode))
+            {
+                preview.Add($"outputNode={outputNode}");
+            }
+
+            return preview;
+        }
+
+        private static string DescribeProperty(object property)
+        {
+            if (property == null)
+            {
+                return string.Empty;
+            }
+
+            string displayName = GetStringProperty(property, "displayName", "name", "referenceName");
+            string referenceName = GetStringProperty(property, "referenceName");
+            string typeName = property.GetType().Name;
+
+            string label = string.IsNullOrWhiteSpace(displayName) ? typeName : displayName;
+            if (!string.IsNullOrWhiteSpace(referenceName) &&
+                !string.Equals(referenceName, label, StringComparison.Ordinal))
+            {
+                label = $"{label} ({referenceName})";
+            }
+
+            return $"{label} [{typeName}]";
+        }
+
+        private static string DescribeNode(object node)
+        {
+            if (node == null)
+            {
+                return string.Empty;
+            }
+
+            string displayName = GetStringProperty(node, "displayName", "name");
+            string objectId = GetStringProperty(node, "objectId");
+            string typeName = node.GetType().Name;
+            string label = string.IsNullOrWhiteSpace(displayName) ? typeName : displayName;
+            string positionSuffix = TryDescribeNodePosition(node, out string positionDescription)
+                ? $" @ {positionDescription}"
+                : string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(objectId))
+            {
+                return $"{label} ({objectId}) [{typeName}]{positionSuffix}";
+            }
+
+            return $"{label} [{typeName}]{positionSuffix}";
+        }
+
+        private static bool TryDescribeNodePosition(object node, out string positionDescription)
+        {
+            positionDescription = string.Empty;
+            if (node == null)
+            {
+                return false;
+            }
+
+            object drawState = GetMemberValue(node, "drawState");
+            if (drawState == null)
+            {
+                return false;
+            }
+
+            object position = GetMemberValue(drawState, "position");
+            if (position is not Rect rect)
+            {
+                return false;
+            }
+
+            positionDescription = $"({Mathf.RoundToInt(rect.x)}, {Mathf.RoundToInt(rect.y)})";
+            return true;
+        }
+
+        private static string DescribeEdge(object edge)
+        {
+            if (edge == null)
+            {
+                return string.Empty;
+            }
+
+            object outputSlotRef = GetMemberValue(edge, "outputSlot");
+            object inputSlotRef = GetMemberValue(edge, "inputSlot");
+            if (outputSlotRef == null || inputSlotRef == null)
+            {
+                return edge.GetType().Name;
+            }
+
+            return $"{DescribeSlotReference(outputSlotRef)} -> {DescribeSlotReference(inputSlotRef)}";
+        }
+
+        private static string DescribeSlotReference(object slotReference)
+        {
+            if (slotReference == null)
+            {
+                return string.Empty;
+            }
+
+            object node = GetMemberValue(slotReference, "node");
+            object slot = GetMemberValue(slotReference, "slot");
+            int slotId = GetIntProperty(slotReference, "slotId");
+
+            string nodeLabel = DescribeNode(node);
+            if (string.IsNullOrWhiteSpace(nodeLabel))
+            {
+                nodeLabel = node?.GetType().Name ?? "unknown-node";
+            }
+
+            string slotLabel = GetStringProperty(slot, "displayName", "name");
+            if (string.IsNullOrWhiteSpace(slotLabel))
+            {
+                slotLabel = slotId >= 0 ? $"slot-{slotId}" : "slot";
+            }
+
+            return $"{nodeLabel}:{slotLabel}";
+        }
+
+        private static string GetTypeName(object target)
+        {
+            if (target == null)
+            {
+                return string.Empty;
+            }
+
+            Type type = target.GetType();
+            return type.FullName ?? type.Name;
+        }
+
+        private static int CountEnumerableProperty(object target, string memberName)
+        {
+            return EnumerateMember(target, memberName).Count;
+        }
+
+        private static IReadOnlyList<object> EnumerateMember(object target, string memberName)
+        {
+            object value = GetMemberValue(target, memberName);
+            if (value is IEnumerable enumerable)
+            {
+                return enumerable.Cast<object>().Where(item => item != null).ToArray();
+            }
+
+            if (TryInvokeEnumerableFallback(target, memberName, out IReadOnlyList<object> fallbackItems))
+            {
+                return fallbackItems;
+            }
+
+            return Array.Empty<object>();
+        }
+
+        private static bool TryInvokeEnumerableFallback(
+            object target,
+            string memberName,
+            out IReadOnlyList<object> items)
+        {
+            items = Array.Empty<object>();
+            if (target == null || string.IsNullOrWhiteSpace(memberName))
+            {
+                return false;
+            }
+
+            string fallbackMethodName = memberName switch
+            {
+                "nodes" => "GetNodes",
+                _ => string.Empty,
+            };
+
+            if (string.IsNullOrWhiteSpace(fallbackMethodName))
+            {
+                return false;
+            }
+
+            MethodInfo method = FindMethod(target.GetType(), fallbackMethodName, 0);
+            if (method == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (method.IsGenericMethodDefinition)
+                {
+                    Type genericArgument = memberName switch
+                    {
+                        "nodes" => ResolveType("UnityEditor.ShaderGraph.AbstractMaterialNode"),
+                        _ => null,
+                    };
+
+                    if (genericArgument == null)
+                    {
+                        return false;
+                    }
+
+                    method = method.MakeGenericMethod(genericArgument);
+                }
+
+                object value = method.Invoke(target, Array.Empty<object>());
+                if (value is IEnumerable enumerable)
+                {
+                    items = enumerable.Cast<object>().Where(item => item != null).ToArray();
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        private static object GetMemberValue(object target, string memberName)
+        {
+            if (target == null || string.IsNullOrWhiteSpace(memberName))
+            {
+                return null;
+            }
+
+            Type type = target.GetType();
+            PropertyInfo property = type.GetProperty(memberName, InstanceFlags);
+            if (property != null)
+            {
+                try
+                {
+                    return property.GetValue(target, null);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            FieldInfo field = type.GetField(memberName, InstanceFlags);
+            if (field != null)
+            {
+                try
+                {
+                    return field.GetValue(target);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool GetBoolProperty(object target, string memberName)
+        {
+            object value = GetMemberValue(target, memberName);
+            return value is bool flag && flag;
+        }
+
+        private static int GetIntProperty(object target, string memberName)
+        {
+            object value = GetMemberValue(target, memberName);
+            if (value is int intValue)
+            {
+                return intValue;
+            }
+
+            return -1;
+        }
+
+        private static string GetStringProperty(object target, params string[] memberNames)
+        {
+            if (target == null || memberNames == null)
+            {
+                return string.Empty;
+            }
+
+            foreach (string memberName in memberNames)
+            {
+                object value = GetMemberValue(target, memberName);
+                if (value == null)
+                {
+                    continue;
+                }
+
+                string text = value as string ?? value.ToString();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static void SetMemberValue(object target, string memberName, object value)
+        {
+            if (target == null || string.IsNullOrWhiteSpace(memberName))
+            {
+                return;
+            }
+
+            Type type = target.GetType();
+            PropertyInfo property = type.GetProperty(memberName, InstanceFlags);
+            if (property != null && property.CanWrite)
+            {
+                property.SetValue(target, value, null);
+                return;
+            }
+
+            FieldInfo field = type.GetField(memberName, InstanceFlags);
+            if (field != null)
+            {
+                field.SetValue(target, value);
+            }
+        }
+
+        private static object CreateMessageManagerInstance()
+        {
+            Type messageManagerType = ResolveType(MessageManagerTypeName);
+            if (messageManagerType == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return Activator.CreateInstance(messageManagerType, true);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool TryInvokeInstanceMethod(object target, string methodName, out string failureReason)
+        {
+            failureReason = null;
+
+            if (target == null)
+            {
+                failureReason = "Target object is null.";
+                return false;
+            }
+
+            MethodInfo method = FindMethod(target.GetType(), methodName, 0);
+            if (method == null)
+            {
+                failureReason = $"Method '{methodName}' was not found on {target.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                method.Invoke(target, Array.Empty<object>());
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static MethodInfo FindMethod(Type type, string methodName, int parameterCount)
+        {
+            if (type == null || string.IsNullOrWhiteSpace(methodName))
+            {
+                return null;
+            }
+
+            return type
+                .GetMethods(InstanceFlags | StaticFlags)
+                .FirstOrDefault(method =>
+                    string.Equals(method.Name, methodName, StringComparison.Ordinal) &&
+                    method.GetParameters().Length == parameterCount);
+        }
+
+        private static MethodInfo FindGenericMethod(Type type, string methodName, int parameterCount)
+        {
+            if (type == null || string.IsNullOrWhiteSpace(methodName))
+            {
+                return null;
+            }
+
+            return type
+                .GetMethods(StaticFlags)
+                .FirstOrDefault(method =>
+                    string.Equals(method.Name, methodName, StringComparison.Ordinal) &&
+                    method.IsGenericMethodDefinition &&
+                    method.GetParameters().Length == parameterCount);
+        }
+
+        private static Type ResolveType(string typeName)
+        {
+            if (string.IsNullOrWhiteSpace(typeName))
+            {
+                return null;
+            }
+
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type resolved = assembly.GetType(typeName, false);
+                if (resolved != null)
+                {
+                    return resolved;
+                }
+            }
+
+            return Type.GetType(typeName, false);
+        }
+
+        private static string NormalizeAssetPath(string assetPath)
+        {
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return string.Empty;
+            }
+
+            string normalized = assetPath.Replace('\\', '/').Trim();
+            return normalized.TrimStart('/');
+        }
+
+        private static string ToAbsolutePath(string assetPath)
+        {
+            string normalized = NormalizeAssetPath(assetPath);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return string.Empty;
+            }
+
+            if (!normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.GetFullPath(normalized);
+            }
+
+            string relative = normalized.Substring("Assets/".Length).Replace('/', Path.DirectorySeparatorChar);
+            return Path.Combine(Application.dataPath, relative);
+        }
+
+        private static string GetRootMessage(Exception exception)
+        {
+            if (exception == null)
+            {
+                return string.Empty;
+            }
+
+            Exception root = exception;
+            while (root.GetBaseException() != null && root.GetBaseException() != root)
+            {
+                root = root.GetBaseException();
+            }
+
+            return root.Message;
+        }
+    }
+}

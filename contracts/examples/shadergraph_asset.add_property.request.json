@@ -1,0 +1,10 @@
+{
+  "tool": "shadergraph_asset",
+  "action": "add_property",
+  "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+  "name": "BaseColor",
+  "propertyType": "Color",
+  "defaultValue": [1, 1, 1, 1],
+  "referenceName": "_BaseColor",
+  "exposed": true
+}

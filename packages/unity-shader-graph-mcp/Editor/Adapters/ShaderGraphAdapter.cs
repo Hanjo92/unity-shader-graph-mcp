@@ -1,0 +1,59 @@
+using ShaderGraphMcp.Editor.Models;
+
+namespace ShaderGraphMcp.Editor.Adapters
+{
+    public interface IShaderGraphAdapter
+    {
+        ShaderGraphResponse CreateGraph(CreateGraphRequest request);
+        ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
+        ShaderGraphResponse AddProperty(AddPropertyRequest request);
+        ShaderGraphResponse AddNode(AddNodeRequest request);
+        ShaderGraphResponse ConnectPorts(ConnectPortsRequest request);
+        ShaderGraphResponse SaveGraph(SaveGraphRequest request);
+    }
+
+    public sealed class ShaderGraphAdapter : IShaderGraphAdapter
+    {
+        private readonly IShaderGraphBackend backend;
+
+        public ShaderGraphAdapter()
+            : this(ShaderGraphBackendFactory.CreateDefault())
+        {
+        }
+
+        internal ShaderGraphAdapter(IShaderGraphBackend backend)
+        {
+            this.backend = backend;
+        }
+
+        public ShaderGraphResponse CreateGraph(CreateGraphRequest request)
+        {
+            return backend.CreateGraph(request);
+        }
+
+        public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
+        {
+            return backend.ReadGraphSummary(request);
+        }
+
+        public ShaderGraphResponse AddProperty(AddPropertyRequest request)
+        {
+            return backend.AddProperty(request);
+        }
+
+        public ShaderGraphResponse AddNode(AddNodeRequest request)
+        {
+            return backend.AddNode(request);
+        }
+
+        public ShaderGraphResponse ConnectPorts(ConnectPortsRequest request)
+        {
+            return backend.ConnectPorts(request);
+        }
+
+        public ShaderGraphResponse SaveGraph(SaveGraphRequest request)
+        {
+            return backend.SaveGraph(request);
+        }
+    }
+}

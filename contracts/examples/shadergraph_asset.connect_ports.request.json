@@ -1,0 +1,9 @@
+{
+  "tool": "shadergraph_asset",
+  "action": "connect_ports",
+  "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+  "sourceNodeId": "node-001",
+  "sourcePort": "Out",
+  "targetNodeId": "node-002",
+  "targetPort": "In"
+}

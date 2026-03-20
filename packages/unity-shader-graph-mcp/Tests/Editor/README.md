@@ -1,0 +1,23 @@
+# Editor Tests
+
+This folder is reserved for Unity Editor tests for the Shader Graph MCP package.
+
+Suggested first tests:
+
+- request routing returns the expected action response
+- null or empty asset paths are rejected where required
+- response models serialize cleanly in the Unity test environment
+- compatibility reports mention `GraphData` and `AddGraphInput`
+- `create_graph` should regress the blank-only package-backed path
+- `read_graph_summary`, `add_node`, and `connect_ports` should regress the current package-backed paths for `Vector1Node.Out -> Vector1Node.X`, `ColorNode.Out -> SplitNode.In`, `SplitNode.R/G/B/A -> Vector1Node.X`, `Vector1/Split/arithmetic -> CombineNode.R/G/B/A`, `Vector1/Split/arithmetic -> Vector2/Vector3/Vector4` scalar inputs, `CombineNode.RGBA -> SplitNode.In`, `Vector4Node.Out -> SplitNode.In`, the scalar arithmetic `Vector1Node.Out -> Add/Subtract/Multiply/Divide/Power/Minimum/Maximum/Modulo/Lerp/Smoothstep/Clamp/Step/Absolute/Floor/Ceiling/Round/Sign/Sine/Cosine/Tangent/Negate/Reciprocal/SquareRoot/Fraction/Truncate/Saturate/OneMinus` inputs, arithmetic `Out -> Vector1Node.X`, arithmetic `Out -> arithmetic` inputs, `Vector1/arithmetic -> Comparison.A/B`, `Comparison.Out -> Branch.Predicate`, `Vector1/arithmetic -> Branch.True/False`, `Branch.Out -> Vector1/arithmetic`, `Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append -> Multiply.A/B`, `Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append -> Branch.True/False`, `Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append -> Lerp.A/B/T`, `Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append plus Vector1/Split/arithmetic -> Append.A/B`, `Multiply.Out -> SplitNode.In`, `Branch.Out -> SplitNode.In`, `Lerp.Out -> SplitNode.In`, and `AppendVectorNode.Out -> SplitNode.In`
+- `add_property` should still start with `Color` and `Float`/`Vector1` coverage
+- `save_graph` should regress the package-backed validate + write + refresh path
+- `supportedNodeTypes` should be treated as the current graph-addable subset, while `discoverableNodeTypes` can remain broader for diagnostics
+- probe-rejected diagnostics should stay grouped by stable failure-reason buckets so catalog triage can distinguish reflection filters from runtime graph-creation, instantiation, layout, `AddNode`, and `ValidateGraph` failures
+- preferred common graph-addable nodes such as `Add`, `Multiply`, `Lerp`, and `Clamp` should be exercised through asset-backed smoke tests whenever they remain present in the supported catalog
+- connection-rule metadata should stay envelope-only so the runtime can publish `supportedConnectionRules` without changing the response shape, while ColorNode inputs remain unsupported and broader Color connections beyond the current `Multiply` / `Branch` / `Lerp` / `Append` vector routes stay out of scope
+
+Current smoke coverage:
+
+- [`ShaderGraphPackageBackedSmokeTests.cs`](/Users/song/Projects/unity-shader-graph-mcp/packages/unity-shader-graph-mcp/Tests/Editor/ShaderGraphPackageBackedSmokeTests.cs) exercises the current real package-backed loop for blank `create_graph`, `read_graph_summary`, `add_property`, `add_node`, `save_graph`, and the current `connect_ports` paths across scalar, vector-builder, logic, early Color-routing coverage, mixed Append chaining into `Multiply`, `Lerp`, and `Branch`, the reverse mixed chains `Multiply/Lerp/Branch -> Append -> Split`, vector fan-in chains `Combine/Vector4 -> Append -> Split`, and fan-in continuation chains `Combine -> Append -> Lerp -> Split` plus `Vector4 -> Append -> Branch -> Split`.
+- [`ShaderGraphTestAssets.cs`](/Users/song/Projects/unity-shader-graph-mcp/packages/unity-shader-graph-mcp/Tests/Editor/ShaderGraphTestAssets.cs) owns the temporary asset folder scope, package-ready guard, and small response readers used by the editor smoke tests.

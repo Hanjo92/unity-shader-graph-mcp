@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "message": "Graph saved successfully.",
+  "data": {
+    "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "status": "saved",
+    "saved": true,
+    "dirty": false
+  }
+}

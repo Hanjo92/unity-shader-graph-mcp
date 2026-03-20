@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "message": "Node added successfully.",
+  "data": {
+    "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "status": "node_added",
+    "node": {
+      "id": "node-001",
+      "nodeType": "UnityEditor.ShaderGraph.ColorNode",
+      "nodeName": "Base Color",
+      "position": [240, 120]
+    }
+  }
+}

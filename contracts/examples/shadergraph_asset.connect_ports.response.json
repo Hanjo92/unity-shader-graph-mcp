@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "message": "Ports connected successfully.",
+  "data": {
+    "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    "status": "ports_connected",
+    "connection": {
+      "id": "edge-001",
+      "sourceNodeId": "node-001",
+      "sourcePort": "Out",
+      "targetNodeId": "node-002",
+      "targetPort": "In"
+    }
+  }
+}
