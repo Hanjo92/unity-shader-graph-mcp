@@ -395,6 +395,62 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse MoveNode(
+            MoveNodeRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Move node request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "move_node",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.NodeId))
+                    {
+                        return "Node id is required.";
+                    }
+
+                    string nodeId = request.NodeId.Trim();
+                    ShaderGraphScaffoldNode existing = manifest.nodes.FirstOrDefault(
+                        node => string.Equals(node.id, nodeId, StringComparison.Ordinal));
+                    if (existing == null)
+                    {
+                        return $"Node '{nodeId}' does not exist in the scaffold manifest.";
+                    }
+
+                    existing.x = request.X;
+                    existing.y = request.Y;
+                    existing.updatedUtc = UtcNow();
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "move_node",
+                        new[] { $"Node '{request.NodeId}' moved in scaffold manifest." },
+                        null
+                    );
+
+                    ShaderGraphScaffoldNode existing = manifest.nodes.First(
+                        node => string.Equals(node.id, request.NodeId, StringComparison.Ordinal));
+                    data["query"] = BuildNodeQuery(request.NodeId, null, null);
+                    data["matchCount"] = 1;
+                    data["movedNode"] = BuildScaffoldNodeData(existing);
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse AddNode(
             AddNodeRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -428,6 +484,8 @@ namespace ShaderGraphMcp.Editor.Helpers
                         id = nodeId,
                         nodeType = nodeType,
                         displayName = displayName,
+                        x = 0f,
+                        y = 0f,
                         updatedUtc = UtcNow(),
                     });
 
@@ -860,14 +918,29 @@ namespace ShaderGraphMcp.Editor.Helpers
 
         private static Dictionary<string, object> BuildScaffoldNodeData(ShaderGraphScaffoldNode node)
         {
+            string positionDescription = FormatScaffoldNodePosition(node);
             return new Dictionary<string, object>
             {
                 ["objectId"] = node?.id ?? string.Empty,
                 ["nodeId"] = node?.id ?? string.Empty,
                 ["displayName"] = node?.displayName ?? string.Empty,
                 ["nodeType"] = node?.nodeType ?? string.Empty,
-                ["summary"] = $"{node?.displayName ?? string.Empty} ({node?.id ?? string.Empty}) [{node?.nodeType ?? string.Empty}]",
+                ["position"] = new Dictionary<string, object>
+                {
+                    ["x"] = node?.x ?? 0f,
+                    ["y"] = node?.y ?? 0f,
+                },
+                ["summary"] = $"{node?.displayName ?? string.Empty} ({node?.id ?? string.Empty}) [{node?.nodeType ?? string.Empty}] @ {positionDescription}",
             };
+        }
+
+        private static string FormatScaffoldNodePosition(ShaderGraphScaffoldNode node)
+        {
+            return string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "({0:0}, {1:0})",
+                node?.x ?? 0f,
+                node?.y ?? 0f);
         }
 
         private static string NormalizeNodeToken(string value)
@@ -1050,6 +1123,8 @@ namespace ShaderGraphMcp.Editor.Helpers
         public string id;
         public string nodeType;
         public string displayName;
+        public float x;
+        public float y;
         public string updatedUtc;
     }
 

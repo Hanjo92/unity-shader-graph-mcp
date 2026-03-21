@@ -249,6 +249,48 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_MoveNode_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphMoveNode", out _);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Move Source");
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            string nodeId = ShaderGraphTestAssets.GetAddedNodeId(addNodeResponse);
+            Assert.That(nodeId, Is.Not.Empty);
+
+            ShaderGraphResponse moveNodeResponse = ShaderGraphAssetTool.HandleMoveNode(
+                assetPath,
+                nodeId,
+                -420f,
+                180f);
+            ShaderGraphTestAssets.RequirePackageReady(moveNodeResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(moveNodeResponse.Data, "operation"), Is.EqualTo("move_node"));
+            Assert.That(ShaderGraphTestAssets.GetInt(moveNodeResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var movedNode = ShaderGraphTestAssets.RequireDictionary(moveNodeResponse.Data, "movedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(movedNode, "objectId"), Is.EqualTo(nodeId));
+            var position = ShaderGraphTestAssets.RequireDictionary(movedNode, "position");
+            Assert.That(position["x"], Is.EqualTo(-420f));
+            Assert.That(position["y"], Is.EqualTo(180f));
+
+            ShaderGraphResponse findNodeResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                nodeId,
+                null,
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(findNodeResponse);
+
+            var foundNode = ShaderGraphTestAssets.RequireDictionary(findNodeResponse.Data, "foundNode");
+            Assert.That(ShaderGraphTestAssets.GetString(foundNode, "objectId"), Is.EqualTo(nodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(foundNode, "summary"), Does.Contain("(-420, 180)"));
+        }
+
+        [Test]
         public void BlankGraph_FindNode_ByIdAndDisplayName_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphFindNode", out _);

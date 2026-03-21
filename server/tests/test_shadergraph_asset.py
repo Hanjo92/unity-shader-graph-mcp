@@ -29,6 +29,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "find_node",
                 "list_supported_nodes",
                 "update_property",
+                "move_node",
                 "add_property",
                 "add_node",
                 "connect_ports",
@@ -70,6 +71,23 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.action, "find_node")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["displayName"], "Base Color")
+
+    def test_request_normalization_accepts_move_node_with_numeric_coordinates(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "move_node",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "objectId": "node-17",
+                "x": -420,
+                "y": 180.5,
+            }
+        )
+
+        self.assertEqual(request.action, "move_node")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["objectId"], "node-17")
+        self.assertEqual(request.payload["x"], "-420")
+        self.assertEqual(request.payload["y"], "180.5")
 
     def test_server_registry_invokes_shadergraph_asset(self) -> None:
         server = build_server()

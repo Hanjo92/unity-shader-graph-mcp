@@ -158,6 +158,31 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsMoveNodeRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""move_node"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""objectId"": ""node-17"",
+                ""x"": ""-420"",
+                ""y"": ""180.5""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var moveNodeRequest = request as MoveNodeRequest;
+            Assert.That(moveNodeRequest, Is.Not.Null);
+            Assert.That(moveNodeRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(moveNodeRequest.NodeId, Is.EqualTo("node-17"));
+            Assert.That(moveNodeRequest.X, Is.EqualTo(-420f));
+            Assert.That(moveNodeRequest.Y, Is.EqualTo(180.5f));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsConnectPortsRequest_FromAliasFields()
         {
             string json = @"{

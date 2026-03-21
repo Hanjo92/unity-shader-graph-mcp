@@ -29,6 +29,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "find_node",
     "list_supported_nodes",
     "update_property",
+    "move_node",
     "add_property",
     "add_node",
     "connect_ports",
@@ -123,6 +124,13 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
 
     if request.action == "update_property":
         _require_payload_text(request.payload, "propertyName", "property_name")
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+    if request.action == "move_node":
+        _require_payload_text(request.payload, "nodeId", "node_id", "objectId", "object_id")
+        request.payload["x"] = _require_payload_number_text(request.payload, "x")
+        request.payload["y"] = _require_payload_number_text(request.payload, "y")
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
@@ -232,10 +240,19 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
     summary["path"] = _effective_path(request)
     summary["assetPath"] = _derive_asset_path(request)
     summary.pop("payload", None)
-    for key in ("propertyName", "propertyType", "nodeType", "displayName", "nodeId", "objectId"):
-        value = _pick_value(request.payload, key)
+    for key_group in (
+        ("propertyName", "property_name"),
+        ("propertyType", "property_type"),
+        ("nodeType", "node_type"),
+        ("displayName", "display_name"),
+        ("nodeId", "node_id"),
+        ("objectId", "object_id"),
+        ("x",),
+        ("y",),
+    ):
+        value = _pick_value(request.payload, *key_group)
         if value is not None:
-            summary[key] = value
+            summary[key_group[0]] = value
     return summary
 
 
@@ -285,4 +302,20 @@ def _require_payload_text(payload: Mapping[str, Any], *keys: str) -> str:
     if text is None:
         labels = ", ".join(repr(key) for key in keys)
         raise ShaderGraphRequestError(f"Missing required field(s): {labels}.")
+    return text
+
+
+def _require_payload_number_text(payload: Mapping[str, Any], *keys: str) -> str:
+    """Require a numeric payload field and normalize it to trimmed text."""
+
+    value = _pick_value(payload, *keys)
+    labels = ", ".join(repr(key) for key in keys)
+    if value is None or isinstance(value, bool):
+        raise ShaderGraphRequestError(f"Missing required field(s): {labels}.")
+
+    text = str(value).strip()
+    try:
+        float(text)
+    except (TypeError, ValueError) as exc:
+        raise ShaderGraphRequestError(f"Field {labels} must be a valid number.") from exc
     return text

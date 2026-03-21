@@ -69,6 +69,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse MoveNode(MoveNodeRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.MoveNode(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)
         {
             return ShaderGraphPackageGraphInspector.AddProperty(
@@ -941,6 +950,168 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public static ShaderGraphResponse MoveNode(
+            MoveNodeRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Move node request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.NodeId))
+            {
+                var missingNodeData = new Dictionary<string, object>(BuildSnapshot(
+                    graphData,
+                    assetPath,
+                    absolutePath,
+                    executionKind,
+                    compatibility,
+                    loadNotes,
+                    "move_node"
+                ).ToDictionary())
+                {
+                    ["query"] = BuildNodeQuery(string.Empty, null, null),
+                    ["matchCount"] = 0,
+                };
+                return ShaderGraphResponse.Fail("Node id is required.", missingNodeData);
+            }
+
+            string nodeId = request.NodeId.Trim();
+            object[] matches = EnumerateMember(graphData, "nodes")
+                .Where(node => NodeMatchesQuery(node, nodeId, null, null))
+                .ToArray();
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "move_node"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildNodeQuery(nodeId, null, null),
+                ["matchCount"] = matches.Length,
+                ["matchStrategy"] = BuildFindNodeMatchStrategy(nodeId, null, null),
+            };
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a graph node with objectId '{nodeId}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateNodes"] = matches.Select(BuildNodeLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Node query for '{nodeId}' matched multiple graph nodes in '{assetPath}'.",
+                    data
+                );
+            }
+
+            object node = matches[0];
+            Rect previousPosition = default;
+            bool hadPreviousPosition = TryGetNodePositionRect(node, out previousPosition);
+
+            if (!TryAssignExactNodePosition(node, request.X, request.Y, out Rect movedPosition, out string moveFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to move Shader Graph node '{nodeId}' in '{assetPath}': {moveFailure}",
+                    data
+                );
+            }
+
+            loadNotes.Add(
+                $"Assigned node draw position to ({movedPosition.x:0}, {movedPosition.y:0})."
+            );
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after moving node '{nodeId}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after moving node '{nodeId}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "move_node"
+            );
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildNodeQuery(nodeId, null, null),
+                ["matchCount"] = 1,
+                ["matchStrategy"] = BuildFindNodeMatchStrategy(nodeId, null, null),
+                ["movedNode"] = BuildMovedNodeData(node, movedPosition, hadPreviousPosition ? previousPosition : (Rect?)null),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Moved Shader Graph node '{GetStringProperty(node, "displayName", "name")}' to ({movedPosition.x:0}, {movedPosition.y:0}) in '{assetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse AddNode(
             AddNodeRequest request,
             ShaderGraphCompatibilitySnapshot compatibility,
@@ -1784,6 +1955,30 @@ namespace ShaderGraphMcp.Editor.Adapters
             return data;
         }
 
+        private static Dictionary<string, object> BuildMovedNodeData(
+            object node,
+            Rect movedPosition,
+            Rect? previousPosition)
+        {
+            var data = BuildNodeLookupData(node);
+            data["position"] = BuildPositionData(movedPosition);
+            if (previousPosition.HasValue)
+            {
+                data["previousPosition"] = BuildPositionData(previousPosition.Value);
+            }
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildPositionData(Rect rect)
+        {
+            return new Dictionary<string, object>
+            {
+                ["x"] = rect.x,
+                ["y"] = rect.y,
+            };
+        }
+
         private static bool PropertyMatchesName(object property, string propertyName)
         {
             if (property == null || string.IsNullOrWhiteSpace(propertyName))
@@ -2081,6 +2276,49 @@ namespace ShaderGraphMcp.Editor.Adapters
             try
             {
                 object drawState = Activator.CreateInstance(drawStateType, true);
+                SetMemberValue(drawState, "expanded", true);
+                SetMemberValue(drawState, "position", assignedPosition);
+                SetMemberValue(node, "drawState", drawState);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to assign node draw state: {GetRootMessage(ex)}";
+                return false;
+            }
+        }
+
+        private static bool TryAssignExactNodePosition(
+            object node,
+            float x,
+            float y,
+            out Rect assignedPosition,
+            out string failureReason)
+        {
+            assignedPosition = default;
+            failureReason = null;
+
+            if (node == null)
+            {
+                failureReason = "Node instance is null.";
+                return false;
+            }
+
+            Type drawStateType = ResolveType(DrawStateTypeName);
+            if (drawStateType == null)
+            {
+                failureReason = $"Could not resolve {DrawStateTypeName}.";
+                return false;
+            }
+
+            try
+            {
+                object drawState = GetMemberValue(node, "drawState") ?? Activator.CreateInstance(drawStateType, true);
+                Rect existingRect = TryGetNodePositionRect(node, out Rect currentRect)
+                    ? currentRect
+                    : new Rect(0f, 0f, 0f, 0f);
+
+                assignedPosition = new Rect(x, y, existingRect.width, existingRect.height);
                 SetMemberValue(drawState, "expanded", true);
                 SetMemberValue(drawState, "position", assignedPosition);
                 SetMemberValue(node, "drawState", drawState);
@@ -4935,6 +5173,18 @@ namespace ShaderGraphMcp.Editor.Adapters
         private static bool TryDescribeNodePosition(object node, out string positionDescription)
         {
             positionDescription = string.Empty;
+            if (!TryGetNodePositionRect(node, out Rect rect))
+            {
+                return false;
+            }
+
+            positionDescription = $"({Mathf.RoundToInt(rect.x)}, {Mathf.RoundToInt(rect.y)})";
+            return true;
+        }
+
+        private static bool TryGetNodePositionRect(object node, out Rect rect)
+        {
+            rect = default;
             if (node == null)
             {
                 return false;
@@ -4947,12 +5197,12 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             object position = GetMemberValue(drawState, "position");
-            if (position is not Rect rect)
+            if (position is not Rect foundRect)
             {
                 return false;
             }
 
-            positionDescription = $"({Mathf.RoundToInt(rect.x)}, {Mathf.RoundToInt(rect.y)})";
+            rect = foundRect;
             return true;
         }
 

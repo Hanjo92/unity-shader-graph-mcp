@@ -240,6 +240,54 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesMovedNodeEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "move node ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["nodeId"] = "node-17",
+                        ["objectId"] = "node-17",
+                    },
+                    ["movedNode"] = new Dictionary<string, object>
+                    {
+                        ["objectId"] = "node-17",
+                        ["nodeId"] = "node-17",
+                        ["displayName"] = "Move Source",
+                        ["nodeType"] = "Float/Vector1",
+                        ["position"] = new Dictionary<string, object>
+                        {
+                            ["x"] = -420f,
+                            ["y"] = 180f,
+                        },
+                        ["previousPosition"] = new Dictionary<string, object>
+                        {
+                            ["x"] = -620f,
+                            ["y"] = 140f,
+                        },
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var movedNode = (IReadOnlyDictionary<string, object>)response.Data["movedNode"];
+            Assert.That(movedNode["objectId"], Is.EqualTo("node-17"));
+            Assert.That(movedNode["displayName"], Is.EqualTo("Move Source"));
+
+            var position = (IReadOnlyDictionary<string, object>)movedNode["position"];
+            Assert.That(position["x"], Is.EqualTo(-420f));
+            Assert.That(position["y"], Is.EqualTo(180f));
+        }
+
+        [Test]
         public void Ok_PreservesColorAndSplitAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

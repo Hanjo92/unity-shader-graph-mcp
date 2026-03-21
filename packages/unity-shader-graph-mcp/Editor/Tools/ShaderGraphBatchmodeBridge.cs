@@ -220,6 +220,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return true;
                 case ShaderGraphAction.UpdateProperty:
                     return TryCreateUpdatePropertyRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.MoveNode:
+                    return TryCreateMoveNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.AddProperty:
                     return TryCreateAddPropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.AddNode:
@@ -338,6 +340,43 @@ namespace ShaderGraphMcp.Editor.Tools
             return true;
         }
 
+        private static bool TryCreateMoveNodeRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Move node requires an asset path.";
+                return false;
+            }
+
+            string nodeId = FirstNonBlank(payload.nodeId, payload.objectId);
+            if (string.IsNullOrWhiteSpace(nodeId))
+            {
+                request = null;
+                errorMessage = "Move node requires nodeId/objectId.";
+                return false;
+            }
+
+            if (!TryParseSingle(payload.x, out float x))
+            {
+                request = null;
+                errorMessage = "Move node requires a valid x coordinate.";
+                return false;
+            }
+
+            if (!TryParseSingle(payload.y, out float y))
+            {
+                request = null;
+                errorMessage = "Move node requires a valid y coordinate.";
+                return false;
+            }
+
+            request = new MoveNodeRequest(assetPath, nodeId, x, y);
+            errorMessage = null;
+            return true;
+        }
+
         private static bool TryCreateAddNodeRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
         {
             string assetPath = ResolveAssetPath(payload);
@@ -413,6 +452,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.ListSupportedNodes;
                 case "update_property":
                     return ShaderGraphAction.UpdateProperty;
+                case "move_node":
+                    return ShaderGraphAction.MoveNode;
                 case "add_property":
                     return ShaderGraphAction.AddProperty;
                 case "add_node":
@@ -447,6 +488,21 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             return null;
+        }
+
+        private static bool TryParseSingle(string value, out float result)
+        {
+            result = default;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            return float.TryParse(
+                value.Trim(),
+                NumberStyles.Float | NumberStyles.AllowLeadingSign,
+                CultureInfo.InvariantCulture,
+                out result);
         }
 
         private static string GetNameFromAssetPath(string assetPath)
@@ -824,6 +880,8 @@ namespace ShaderGraphMcp.Editor.Tools
             public string defaultValue;
             public string nodeId;
             public string objectId;
+            public string x;
+            public string y;
             public string nodeType;
             public string displayName;
             public string outputNodeId;

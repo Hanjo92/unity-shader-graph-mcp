@@ -50,6 +50,13 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "propertyName": "ExampleColor",
         "defaultValue": "#FFFFFFFF",
     },
+    "move_node": {
+        "action": "move_node",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "objectId": "node-17",
+        "x": -420,
+        "y": 180,
+    },
     "add_property": {
         "action": "add_property",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -131,6 +138,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "find_node", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request(
+                {"action": "move_node", "path": "Assets/X.shadergraph", "objectId": "node-1"}
+            )
 
         with patch(
             "unity_shader_graph_mcp.tools.shadergraph_asset.build_unity_batchmode_bridge",

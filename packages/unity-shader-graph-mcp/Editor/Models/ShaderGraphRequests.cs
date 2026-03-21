@@ -9,6 +9,7 @@ namespace ShaderGraphMcp.Editor.Models
         FindNode,
         ListSupportedNodes,
         UpdateProperty,
+        MoveNode,
         AddProperty,
         AddNode,
         ConnectPorts,
@@ -133,6 +134,21 @@ namespace ShaderGraphMcp.Editor.Models
             PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
             PropertyType = string.IsNullOrWhiteSpace(propertyType) ? string.Empty : propertyType.Trim();
             DefaultValue = defaultValue;
+        }
+    }
+
+    public sealed class MoveNodeRequest : ShaderGraphRequest
+    {
+        public string NodeId { get; }
+        public float X { get; }
+        public float Y { get; }
+
+        public MoveNodeRequest(string assetPath, string nodeId, float x, float y)
+            : base(ShaderGraphAction.MoveNode, assetPath)
+        {
+            NodeId = string.IsNullOrWhiteSpace(nodeId) ? string.Empty : nodeId.Trim();
+            X = x;
+            Y = y;
         }
     }
 
