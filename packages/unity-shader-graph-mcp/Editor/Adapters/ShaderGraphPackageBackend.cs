@@ -69,6 +69,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse RenameNode(RenameNodeRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.RenameNode(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse MoveNode(MoveNodeRequest request)
         {
             return ShaderGraphPackageGraphInspector.MoveNode(
@@ -1133,6 +1142,155 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Removed {canonicalPropertyType} property '{propertyName}' from '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse RenameNode(
+            RenameNodeRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Rename node request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            string nodeId = request.NodeId?.Trim();
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "rename_node"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildNodeQuery(nodeId, null, null),
+            };
+
+            if (string.IsNullOrWhiteSpace(nodeId))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Node id is required.", data);
+            }
+
+            string displayName = request.DisplayName?.Trim();
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Display name is required.", data);
+            }
+
+            object[] matches = EnumerateMember(graphData, "nodes")
+                .Where(node => NodeMatchesQuery(node, nodeId, null, null))
+                .ToArray();
+
+            data["matchCount"] = matches.Length;
+            data["matchStrategy"] = BuildFindNodeMatchStrategy(nodeId, null, null);
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a graph node with objectId '{nodeId}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateNodes"] = matches.Select(BuildNodeLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Node query for '{nodeId}' matched multiple graph nodes in '{assetPath}'.",
+                    data
+                );
+            }
+
+            object node = matches[0];
+            string previousDisplayName = GetStringProperty(node, "displayName", "name");
+
+            SetMemberValue(node, "name", displayName);
+            SetMemberValue(node, "displayName", displayName);
+            loadNotes.Add($"Node display name set to '{displayName}'.");
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after renaming node '{nodeId}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after renaming node '{nodeId}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "rename_node"
+            );
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildNodeQuery(nodeId, null, null),
+                ["matchCount"] = 1,
+                ["matchStrategy"] = BuildFindNodeMatchStrategy(nodeId, null, null),
+                ["renamedNode"] = BuildRenamedNodeData(node, previousDisplayName),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Renamed Shader Graph node '{previousDisplayName}' to '{GetStringProperty(node, "displayName", "name")}' in '{assetPath}'.",
                 data
             );
         }
@@ -2661,6 +2819,13 @@ namespace ShaderGraphMcp.Editor.Adapters
                 data["previousPosition"] = BuildPositionData(previousPosition.Value);
             }
 
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildRenamedNodeData(object node, string previousDisplayName)
+        {
+            var data = BuildNodeLookupData(node);
+            data["previousDisplayName"] = previousDisplayName ?? string.Empty;
             return data;
         }
 

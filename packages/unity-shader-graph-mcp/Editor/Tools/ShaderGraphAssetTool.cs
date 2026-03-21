@@ -33,6 +33,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.ListSupportedNodes(listSupportedNodesRequest);
                 case UpdatePropertyRequest updatePropertyRequest:
                     return Adapter.UpdateProperty(updatePropertyRequest);
+                case RenameNodeRequest renameNodeRequest:
+                    return Adapter.RenameNode(renameNodeRequest);
                 case MoveNodeRequest moveNodeRequest:
                     return Adapter.MoveNode(moveNodeRequest);
                 case DeleteNodeRequest deleteNodeRequest:
@@ -51,7 +53,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, update_property, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, update_property, rename_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
                     );
             }
         }
@@ -87,6 +89,14 @@ namespace ShaderGraphMcp.Editor.Tools
             string defaultValue)
         {
             return Handle(new UpdatePropertyRequest(assetPath, propertyName, propertyType, defaultValue));
+        }
+
+        public static ShaderGraphResponse HandleRenameNode(
+            string assetPath,
+            string nodeId,
+            string displayName)
+        {
+            return Handle(new RenameNodeRequest(assetPath, nodeId, displayName));
         }
 
         public static ShaderGraphResponse HandleMoveNode(

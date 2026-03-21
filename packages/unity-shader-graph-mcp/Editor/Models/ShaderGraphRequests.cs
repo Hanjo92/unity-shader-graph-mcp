@@ -9,6 +9,7 @@ namespace ShaderGraphMcp.Editor.Models
         FindNode,
         ListSupportedNodes,
         UpdateProperty,
+        RenameNode,
         MoveNode,
         DeleteNode,
         RemoveProperty,
@@ -137,6 +138,19 @@ namespace ShaderGraphMcp.Editor.Models
             PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
             PropertyType = string.IsNullOrWhiteSpace(propertyType) ? string.Empty : propertyType.Trim();
             DefaultValue = defaultValue;
+        }
+    }
+
+    public sealed class RenameNodeRequest : ShaderGraphRequest
+    {
+        public string NodeId { get; }
+        public string DisplayName { get; }
+
+        public RenameNodeRequest(string assetPath, string nodeId, string displayName)
+            : base(ShaderGraphAction.RenameNode, assetPath)
+        {
+            NodeId = string.IsNullOrWhiteSpace(nodeId) ? string.Empty : nodeId.Trim();
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
         }
     }
 

@@ -249,6 +249,65 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_RenameNode_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphRenameNode", out _);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Add",
+                "Original Add");
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            string nodeId = ShaderGraphTestAssets.GetAddedNodeId(addNodeResponse);
+            Assert.That(nodeId, Is.Not.Empty);
+
+            ShaderGraphResponse findBeforeRenameResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                nodeId,
+                null,
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(findBeforeRenameResponse);
+
+            var foundBeforeRename = ShaderGraphTestAssets.RequireDictionary(findBeforeRenameResponse.Data, "foundNode");
+            string persistedDisplayNameBeforeRename = ShaderGraphTestAssets.GetString(foundBeforeRename, "displayName");
+
+            ShaderGraphResponse renameNodeResponse = ShaderGraphAssetTool.HandleRenameNode(
+                assetPath,
+                nodeId,
+                "Renamed Add");
+            ShaderGraphTestAssets.RequirePackageReady(renameNodeResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(renameNodeResponse.Data, "operation"), Is.EqualTo("rename_node"));
+            Assert.That(ShaderGraphTestAssets.GetInt(renameNodeResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var renamedNode = ShaderGraphTestAssets.RequireDictionary(renameNodeResponse.Data, "renamedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(renamedNode, "objectId"), Is.EqualTo(nodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(renamedNode, "displayName"), Is.EqualTo("Renamed Add"));
+            Assert.That(ShaderGraphTestAssets.GetString(renamedNode, "previousDisplayName"), Is.EqualTo(persistedDisplayNameBeforeRename));
+
+            ShaderGraphResponse findByIdResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                nodeId,
+                null,
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(findByIdResponse);
+
+            var foundById = ShaderGraphTestAssets.RequireDictionary(findByIdResponse.Data, "foundNode");
+            Assert.That(ShaderGraphTestAssets.GetString(foundById, "displayName"), Is.EqualTo("Renamed Add"));
+
+            ShaderGraphResponse findByDisplayNameResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                null,
+                "Renamed Add",
+                "Add");
+            ShaderGraphTestAssets.RequirePackageReady(findByDisplayNameResponse);
+
+            var foundByDisplayName = ShaderGraphTestAssets.RequireDictionary(findByDisplayNameResponse.Data, "foundNode");
+            Assert.That(ShaderGraphTestAssets.GetString(foundByDisplayName, "objectId"), Is.EqualTo(nodeId));
+        }
+
+        [Test]
         public void BlankGraph_MoveNode_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphMoveNode", out _);

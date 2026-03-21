@@ -158,6 +158,29 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsRenameNodeRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""rename_node"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""objectId"": ""node-17"",
+                ""newDisplayName"": ""Renamed Source""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var renameNodeRequest = request as RenameNodeRequest;
+            Assert.That(renameNodeRequest, Is.Not.Null);
+            Assert.That(renameNodeRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(renameNodeRequest.NodeId, Is.EqualTo("node-17"));
+            Assert.That(renameNodeRequest.DisplayName, Is.EqualTo("Renamed Source"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsMoveNodeRequest_FromAliasFields()
         {
             string json = @"{

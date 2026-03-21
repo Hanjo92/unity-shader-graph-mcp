@@ -451,6 +451,66 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse RenameNode(
+            RenameNodeRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Rename node request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "rename_node",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.NodeId))
+                    {
+                        return "Node id is required.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(request.DisplayName))
+                    {
+                        return "Display name is required.";
+                    }
+
+                    string nodeId = request.NodeId.Trim();
+                    ShaderGraphScaffoldNode existing = manifest.nodes.FirstOrDefault(
+                        node => string.Equals(node.id, nodeId, StringComparison.Ordinal));
+                    if (existing == null)
+                    {
+                        return $"Node '{nodeId}' does not exist in the scaffold manifest.";
+                    }
+
+                    existing.displayName = request.DisplayName.Trim();
+                    existing.updatedUtc = UtcNow();
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "rename_node",
+                        new[] { $"Node '{request.NodeId}' renamed in scaffold manifest." },
+                        null
+                    );
+
+                    ShaderGraphScaffoldNode existing = manifest.nodes.First(
+                        node => string.Equals(node.id, request.NodeId, StringComparison.Ordinal));
+                    data["query"] = BuildNodeQuery(request.NodeId, null, null);
+                    data["matchCount"] = 1;
+                    data["renamedNode"] = BuildScaffoldNodeData(existing);
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse DeleteNode(
             DeleteNodeRequest request,
             ShaderGraphExecutionKind executionKind)

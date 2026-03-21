@@ -220,6 +220,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return true;
                 case ShaderGraphAction.UpdateProperty:
                     return TryCreateUpdatePropertyRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.RenameNode:
+                    return TryCreateRenameNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.MoveNode:
                     return TryCreateMoveNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DeleteNode:
@@ -342,6 +344,37 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new UpdatePropertyRequest(assetPath, payload.propertyName, payload.propertyType, payload.defaultValue);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateRenameNodeRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Rename node requires an asset path.";
+                return false;
+            }
+
+            string nodeId = FirstNonBlank(payload.nodeId, payload.objectId);
+            if (string.IsNullOrWhiteSpace(nodeId))
+            {
+                request = null;
+                errorMessage = "Rename node requires nodeId/objectId.";
+                return false;
+            }
+
+            string displayName = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                request = null;
+                errorMessage = "Rename node requires displayName/newDisplayName/name.";
+                return false;
+            }
+
+            request = new RenameNodeRequest(assetPath, nodeId, displayName);
             errorMessage = null;
             return true;
         }
@@ -523,6 +556,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.ListSupportedNodes;
                 case "update_property":
                     return ShaderGraphAction.UpdateProperty;
+                case "rename_node":
+                    return ShaderGraphAction.RenameNode;
                 case "move_node":
                     return ShaderGraphAction.MoveNode;
                 case "delete_node":
@@ -961,6 +996,7 @@ namespace ShaderGraphMcp.Editor.Tools
             public string y;
             public string nodeType;
             public string displayName;
+            public string newDisplayName;
             public string outputNodeId;
             public string outputPort;
             public string inputNodeId;

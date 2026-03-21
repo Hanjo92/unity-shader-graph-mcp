@@ -240,6 +240,43 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesRenamedNodeEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "rename node ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["nodeId"] = "node-17",
+                        ["objectId"] = "node-17",
+                    },
+                    ["renamedNode"] = new Dictionary<string, object>
+                    {
+                        ["objectId"] = "node-17",
+                        ["nodeId"] = "node-17",
+                        ["displayName"] = "Renamed Source",
+                        ["previousDisplayName"] = "Original Source",
+                        ["nodeType"] = "Float/Vector1",
+                        ["summary"] = "Renamed Source (node-17) [Vector1Node] @ (-620, 140)",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var renamedNode = (IReadOnlyDictionary<string, object>)response.Data["renamedNode"];
+            Assert.That(renamedNode["objectId"], Is.EqualTo("node-17"));
+            Assert.That(renamedNode["displayName"], Is.EqualTo("Renamed Source"));
+            Assert.That(renamedNode["previousDisplayName"], Is.EqualTo("Original Source"));
+        }
+
+        [Test]
         public void Ok_PreservesMovedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

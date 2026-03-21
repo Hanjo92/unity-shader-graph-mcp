@@ -29,6 +29,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "find_node",
                 "list_supported_nodes",
                 "update_property",
+                "rename_node",
                 "move_node",
                 "delete_node",
                 "remove_property",
@@ -91,6 +92,21 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.payload["objectId"], "node-17")
         self.assertEqual(request.payload["x"], "-420")
         self.assertEqual(request.payload["y"], "180.5")
+
+    def test_request_normalization_accepts_rename_node_with_alias_display_name(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "rename_node",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "objectId": "node-17",
+                "newDisplayName": "Renamed Source",
+            }
+        )
+
+        self.assertEqual(request.action, "rename_node")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["objectId"], "node-17")
+        self.assertEqual(request.payload["newDisplayName"], "Renamed Source")
 
     def test_request_normalization_accepts_delete_node_with_object_id(self) -> None:
         request = normalize_shadergraph_asset_request(

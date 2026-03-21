@@ -32,6 +32,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.UpdateProperty(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse RenameNode(RenameNodeRequest request)
+        {
+            return ShaderGraphScaffoldStore.RenameNode(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse MoveNode(MoveNodeRequest request)
         {
             return ShaderGraphScaffoldStore.MoveNode(request, ExecutionKind);
