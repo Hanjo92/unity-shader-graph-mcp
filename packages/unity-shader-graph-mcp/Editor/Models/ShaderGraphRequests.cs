@@ -7,6 +7,7 @@ namespace ShaderGraphMcp.Editor.Models
         CreateGraph,
         ReadGraphSummary,
         FindNode,
+        ListSupportedNodes,
         AddProperty,
         AddNode,
         ConnectPorts,
@@ -108,6 +109,14 @@ namespace ShaderGraphMcp.Editor.Models
             NodeId = string.IsNullOrWhiteSpace(nodeId) ? string.Empty : nodeId.Trim();
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
             NodeType = string.IsNullOrWhiteSpace(nodeType) ? string.Empty : nodeType.Trim();
+        }
+    }
+
+    public sealed class ListSupportedNodesRequest : ShaderGraphRequest
+    {
+        public ListSupportedNodesRequest()
+            : base(ShaderGraphAction.ListSupportedNodes, null)
+        {
         }
     }
 

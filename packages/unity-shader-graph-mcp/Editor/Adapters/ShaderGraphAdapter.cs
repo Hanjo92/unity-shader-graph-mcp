@@ -7,6 +7,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse CreateGraph(CreateGraphRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
+        ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request);
         ShaderGraphResponse AddProperty(AddPropertyRequest request);
         ShaderGraphResponse AddNode(AddNodeRequest request);
         ShaderGraphResponse ConnectPorts(ConnectPortsRequest request);
@@ -40,6 +41,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse FindNode(FindNodeRequest request)
         {
             return backend.FindNode(request);
+        }
+
+        public ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request)
+        {
+            return backend.ListSupportedNodes(request);
         }
 
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)

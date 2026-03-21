@@ -22,6 +22,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.FindNode(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request)
+        {
+            return ShaderGraphScaffoldStore.ListSupportedNodes(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)
         {
             return ShaderGraphScaffoldStore.AddProperty(request, ExecutionKind);

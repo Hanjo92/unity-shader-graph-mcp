@@ -175,6 +175,42 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesSupportedNodeCatalogEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "supported node catalog ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["nodeCatalogSemantics"] = "supported=graph-addable",
+                    ["supportedNodeTypes"] = new[]
+                    {
+                        "Color (UnityEditor.ShaderGraph.ColorNode)",
+                        "Float/Vector1 (UnityEditor.ShaderGraph.Vector1Node)",
+                    },
+                    ["supportedNodeCanonicalNames"] = new[] { "Color", "Float/Vector1" },
+                    ["supportedNodeCount"] = 2,
+                    ["discoveredNodeTypes"] = new[]
+                    {
+                        "Add (UnityEditor.ShaderGraph.AddNode)",
+                        "Color (UnityEditor.ShaderGraph.ColorNode)",
+                        "Float/Vector1 (UnityEditor.ShaderGraph.Vector1Node)",
+                    },
+                    ["discoveredNodeCount"] = 3,
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["nodeCatalogSemantics"], Is.EqualTo("supported=graph-addable"));
+            Assert.That(response.Data["supportedNodeCount"], Is.EqualTo(2));
+            Assert.That(response.Data["discoveredNodeCount"], Is.EqualTo(3));
+
+            Assert.That((string[])response.Data["supportedNodeCanonicalNames"], Is.EquivalentTo(new[] { "Color", "Float/Vector1" }));
+        }
+
+        [Test]
         public void Ok_PreservesColorAndSplitAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

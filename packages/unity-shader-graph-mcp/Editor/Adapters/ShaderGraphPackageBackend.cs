@@ -51,6 +51,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ListSupportedNodes(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)
         {
             return ShaderGraphPackageGraphInspector.AddProperty(
@@ -485,6 +494,41 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Fail(
                 $"Node query matched multiple graph nodes in '{assetPath}'. Narrow the query with nodeId/objectId, displayName, or nodeType.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse ListSupportedNodes(
+            ListSupportedNodesRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            string[] supportedNodeTypes = GetSupportedNodeTypeLabels();
+            string[] supportedNodeCanonicalNames = GetSupportedNodeCanonicalNames().ToArray();
+            string[] discoveredNodeTypes = GetDiscoveredNodeTypeLabels();
+
+            var data = new Dictionary<string, object>
+            {
+                ["operation"] = "list_supported_nodes",
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["supportedNodeTypes"] = supportedNodeTypes,
+                ["supportedNodeCanonicalNames"] = supportedNodeCanonicalNames,
+                ["supportedNodeCount"] = GetGraphAddableNodeCatalog().Count,
+                ["discoveredNodeTypes"] = discoveredNodeTypes,
+                ["discoveredNodeCount"] = GetDiscoveredNodeCatalog().Count,
+                ["nodeCatalogSemantics"] = "supported=graph-addable",
+                ["notes"] = new[]
+                {
+                    "Node catalog query served without requiring a graph asset path.",
+                    "supportedNodeTypes tracks the current graph-addable subset; discoveredNodeTypes remains broader for diagnostics.",
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                "Loaded supported Shader Graph node catalog.",
                 data
             );
         }
@@ -1811,6 +1855,16 @@ namespace ShaderGraphMcp.Editor.Adapters
                 .Select(descriptor => descriptor.CanonicalName)
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
+        }
+
+        internal static string[] GetSupportedNodeCatalogLabels()
+        {
+            return GetSupportedNodeTypeLabels();
+        }
+
+        internal static string[] GetDiscoveredNodeCatalogLabels()
+        {
+            return GetDiscoveredNodeTypeLabels();
         }
 
         private static string[] GetDiscoveredNodeTypeLabels()

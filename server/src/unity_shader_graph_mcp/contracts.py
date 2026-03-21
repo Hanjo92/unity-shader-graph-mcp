@@ -9,6 +9,7 @@ ShaderGraphAction = Literal[
     "create_graph",
     "read_graph_summary",
     "find_node",
+    "list_supported_nodes",
     "add_property",
     "add_node",
     "connect_ports",

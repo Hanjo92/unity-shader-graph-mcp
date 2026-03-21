@@ -214,6 +214,10 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindNode:
                     return TryCreateFindNodeRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.ListSupportedNodes:
+                    request = new ListSupportedNodesRequest();
+                    errorMessage = null;
+                    return true;
                 case ShaderGraphAction.AddProperty:
                     return TryCreateAddPropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.AddNode:
@@ -381,6 +385,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.ReadGraphSummary;
                 case "find_node":
                     return ShaderGraphAction.FindNode;
+                case "list_supported_nodes":
+                    return ShaderGraphAction.ListSupportedNodes;
                 case "add_property":
                     return ShaderGraphAction.AddProperty;
                 case "add_node":

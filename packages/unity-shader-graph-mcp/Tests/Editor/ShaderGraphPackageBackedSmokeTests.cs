@@ -262,6 +262,22 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void ListSupportedNodes_ReturnsPackageBackedCatalog()
+        {
+            ShaderGraphResponse response = ShaderGraphAssetTool.HandleListSupportedNodes();
+            ShaderGraphTestAssets.RequirePackageReady(response);
+
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "operation"), Is.EqualTo("list_supported_nodes"));
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "nodeCatalogSemantics"), Is.EqualTo("supported=graph-addable"));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "supportedNodeCount"), Is.GreaterThan(0));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "discoveredNodeCount"), Is.GreaterThan(0));
+
+            var supportedCanonicalNames = ShaderGraphTestAssets.GetStringList(response.Data, "supportedNodeCanonicalNames");
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Float/Vector1"));
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Color"));
+        }
+
+        [Test]
         public void BlankGraph_AddUnsupportedNodeType_ReturnsSupportedNodeHint()
         {
             string assetPath = CreateBlankGraph("BlankGraphUnsupportedNode", out _);

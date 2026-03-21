@@ -14,7 +14,9 @@ namespace ShaderGraphMcp.Editor.Tools
                 return ShaderGraphResponse.Fail("Request is required.");
             }
 
-            if (string.IsNullOrWhiteSpace(request.AssetPath) && request.Action != ShaderGraphAction.CreateGraph)
+            if (string.IsNullOrWhiteSpace(request.AssetPath) &&
+                request.Action != ShaderGraphAction.CreateGraph &&
+                request.Action != ShaderGraphAction.ListSupportedNodes)
             {
                 return ShaderGraphResponse.Fail("Asset path is required.");
             }
@@ -27,6 +29,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.ReadGraphSummary(readGraphSummaryRequest);
                 case FindNodeRequest findNodeRequest:
                     return Adapter.FindNode(findNodeRequest);
+                case ListSupportedNodesRequest listSupportedNodesRequest:
+                    return Adapter.ListSupportedNodes(listSupportedNodesRequest);
                 case AddPropertyRequest addPropertyRequest:
                     return Adapter.AddProperty(addPropertyRequest);
                 case AddNodeRequest addNodeRequest:
@@ -37,7 +41,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, add_property, add_node, connect_ports, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, add_property, add_node, connect_ports, save_graph."
                     );
             }
         }
@@ -59,6 +63,11 @@ namespace ShaderGraphMcp.Editor.Tools
             string nodeType)
         {
             return Handle(new FindNodeRequest(assetPath, nodeId, displayName, nodeType));
+        }
+
+        public static ShaderGraphResponse HandleListSupportedNodes()
+        {
+            return Handle(new ListSupportedNodesRequest());
         }
 
         public static ShaderGraphResponse HandleAddProperty(string assetPath, string propertyName, string propertyType, string defaultValue)

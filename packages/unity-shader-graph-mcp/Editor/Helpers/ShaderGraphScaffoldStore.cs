@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using ShaderGraphMcp.Editor.Adapters;
 using ShaderGraphMcp.Editor.Compatibility;
 using ShaderGraphMcp.Editor.Models;
 using UnityEditor;
@@ -226,6 +227,41 @@ namespace ShaderGraphMcp.Editor.Helpers
 
             return ShaderGraphResponse.Fail(
                 $"Node query matched multiple scaffold nodes in '{assetPath}'. Narrow the query with nodeId/objectId, displayName, or nodeType.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse ListSupportedNodes(
+            ListSupportedNodesRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            ShaderGraphCompatibilitySnapshot compatibility = CompatibilitySnapshot.Value;
+            string[] supportedNodeTypes = ShaderGraphPackageGraphInspector.GetSupportedNodeCatalogLabels();
+            string[] supportedNodeCanonicalNames = ShaderGraphPackageGraphInspector.GetSupportedNodeCanonicalNames().ToArray();
+            string[] discoveredNodeTypes = ShaderGraphPackageGraphInspector.GetDiscoveredNodeCatalogLabels();
+
+            var data = new Dictionary<string, object>
+            {
+                ["operation"] = "list_supported_nodes",
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["supportedNodeTypes"] = supportedNodeTypes,
+                ["supportedNodeCanonicalNames"] = supportedNodeCanonicalNames,
+                ["supportedNodeCount"] = supportedNodeTypes.Length,
+                ["discoveredNodeTypes"] = discoveredNodeTypes,
+                ["discoveredNodeCount"] = discoveredNodeTypes.Length,
+                ["nodeCatalogSemantics"] = "supported=graph-addable",
+                ["notes"] = new[]
+                {
+                    "Node catalog query served without requiring a graph asset path.",
+                    "supportedNodeTypes tracks the current graph-addable subset; discoveredNodeTypes remains broader for diagnostics.",
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                "Loaded supported Shader Graph node catalog.",
                 data
             );
         }
