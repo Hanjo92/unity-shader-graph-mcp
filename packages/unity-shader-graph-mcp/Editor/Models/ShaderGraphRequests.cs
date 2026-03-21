@@ -6,6 +6,7 @@ namespace ShaderGraphMcp.Editor.Models
     {
         CreateGraph,
         ReadGraphSummary,
+        FindNode,
         AddProperty,
         AddNode,
         ConnectPorts,
@@ -92,6 +93,21 @@ namespace ShaderGraphMcp.Editor.Models
         public ReadGraphSummaryRequest(string assetPath)
             : base(ShaderGraphAction.ReadGraphSummary, assetPath)
         {
+        }
+    }
+
+    public sealed class FindNodeRequest : ShaderGraphRequest
+    {
+        public string NodeId { get; }
+        public string DisplayName { get; }
+        public string NodeType { get; }
+
+        public FindNodeRequest(string assetPath, string nodeId, string displayName, string nodeType)
+            : base(ShaderGraphAction.FindNode, assetPath)
+        {
+            NodeId = string.IsNullOrWhiteSpace(nodeId) ? string.Empty : nodeId.Trim();
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
+            NodeType = string.IsNullOrWhiteSpace(nodeType) ? string.Empty : nodeType.Trim();
         }
     }
 

@@ -90,6 +90,31 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsFindNodeRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""find_node"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""objectId"": ""node-17"",
+                ""nodeType"": ""Vector1"",
+                ""displayName"": ""Source""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var findNodeRequest = request as FindNodeRequest;
+            Assert.That(findNodeRequest, Is.Not.Null);
+            Assert.That(findNodeRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(findNodeRequest.NodeId, Is.EqualTo("node-17"));
+            Assert.That(findNodeRequest.NodeType, Is.EqualTo("Vector1"));
+            Assert.That(findNodeRequest.DisplayName, Is.EqualTo("Source"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsConnectPortsRequest_FromAliasFields()
         {
             string json = @"{

@@ -157,8 +157,9 @@ class UnityBridgeTests(unittest.TestCase):
 
         self.assertTrue(response["success"])
         self.assertEqual(response["data"]["status"], "package-backed")
-        self.assertEqual(bridge.calls[0]["payload"]["propertyName"], "ExampleColor")
-        self.assertEqual(bridge.calls[0]["payload"]["propertyType"], "Color")
+        self.assertEqual(bridge.calls[0]["propertyName"], "ExampleColor")
+        self.assertEqual(bridge.calls[0]["propertyType"], "Color")
+        self.assertIn("request", bridge.calls[0])
 
     def test_handler_falls_back_to_scaffold_when_bridge_is_unavailable(self) -> None:
         with patch(

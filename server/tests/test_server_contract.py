@@ -36,6 +36,11 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "action": "read_graph_summary",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
     },
+    "find_node": {
+        "action": "find_node",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "displayName": "Base Color",
+    },
     "add_property": {
         "action": "add_property",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -114,6 +119,9 @@ class ShaderGraphServerContractTests(unittest.TestCase):
     def test_missing_required_fields_raise_contract_error(self) -> None:
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "add_property", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "find_node", "path": "Assets/X.shadergraph"})
 
         with patch(
             "unity_shader_graph_mcp.tools.shadergraph_asset.build_unity_batchmode_bridge",

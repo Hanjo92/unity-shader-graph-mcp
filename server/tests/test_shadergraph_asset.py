@@ -26,6 +26,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
             (
                 "create_graph",
                 "read_graph_summary",
+                "find_node",
                 "add_property",
                 "add_node",
                 "connect_ports",
@@ -54,6 +55,19 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
     def test_request_normalization_rejects_unknown_action(self) -> None:
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "not_real"})
+
+    def test_request_normalization_accepts_find_node_with_display_name(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "find_node",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "displayName": "Base Color",
+            }
+        )
+
+        self.assertEqual(request.action, "find_node")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["displayName"], "Base Color")
 
     def test_server_registry_invokes_shadergraph_asset(self) -> None:
         server = build_server()

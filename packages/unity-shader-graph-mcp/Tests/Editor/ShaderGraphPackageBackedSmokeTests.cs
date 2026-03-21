@@ -219,6 +219,49 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_FindNode_ByIdAndDisplayName_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphFindNode", out _);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Lookup Source");
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            string nodeId = ShaderGraphTestAssets.GetAddedNodeId(addNodeResponse);
+            Assert.That(nodeId, Is.Not.Empty);
+
+            ShaderGraphResponse findByIdResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                nodeId,
+                null,
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(findByIdResponse);
+
+            var foundById = ShaderGraphTestAssets.RequireDictionary(findByIdResponse.Data, "foundNode");
+            Assert.That(ShaderGraphTestAssets.GetString(foundById, "objectId"), Is.EqualTo(nodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(findByIdResponse.Data, "operation"), Is.EqualTo("find_node"));
+            Assert.That(ShaderGraphTestAssets.GetInt(findByIdResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            string persistedDisplayName = ShaderGraphTestAssets.GetString(foundById, "displayName");
+            string persistedNodeType = ShaderGraphTestAssets.GetString(foundById, "nodeType");
+            Assert.That(persistedDisplayName, Is.Not.Empty);
+            Assert.That(persistedNodeType, Is.Not.Empty);
+
+            ShaderGraphResponse findByDisplayNameResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                null,
+                persistedDisplayName,
+                persistedNodeType);
+            ShaderGraphTestAssets.RequirePackageReady(findByDisplayNameResponse);
+
+            var foundByDisplayName = ShaderGraphTestAssets.RequireDictionary(findByDisplayNameResponse.Data, "foundNode");
+            Assert.That(ShaderGraphTestAssets.GetString(foundByDisplayName, "objectId"), Is.EqualTo(nodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(foundByDisplayName, "nodeType"), Is.EqualTo(persistedNodeType));
+        }
+
+        [Test]
         public void BlankGraph_AddUnsupportedNodeType_ReturnsSupportedNodeHint()
         {
             string assetPath = CreateBlankGraph("BlankGraphUnsupportedNode", out _);

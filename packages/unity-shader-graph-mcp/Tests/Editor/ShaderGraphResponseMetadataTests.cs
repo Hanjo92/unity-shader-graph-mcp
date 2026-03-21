@@ -135,6 +135,46 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesFindNodeEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "find node ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Lookup Source",
+                        ["nodeType"] = "Vector1",
+                    },
+                    ["foundNode"] = new Dictionary<string, object>
+                    {
+                        ["objectId"] = "node-lookup-1",
+                        ["nodeId"] = "node-lookup-1",
+                        ["displayName"] = "Lookup Source",
+                        ["nodeType"] = "Float/Vector1",
+                        ["fullTypeName"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["summary"] = "Lookup Source (node-lookup-1) [Vector1Node] @ (-620, 120)",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var query = (IReadOnlyDictionary<string, object>)response.Data["query"];
+            Assert.That(query["displayName"], Is.EqualTo("Lookup Source"));
+            Assert.That(query["nodeType"], Is.EqualTo("Vector1"));
+
+            var foundNode = (IReadOnlyDictionary<string, object>)response.Data["foundNode"];
+            Assert.That(foundNode["objectId"], Is.EqualTo("node-lookup-1"));
+            Assert.That(foundNode["nodeType"], Is.EqualTo("Float/Vector1"));
+        }
+
+        [Test]
         public void Ok_PreservesColorAndSplitAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

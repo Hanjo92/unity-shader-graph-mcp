@@ -26,6 +26,7 @@ from ..unity_bridge import (
 SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "create_graph",
     "read_graph_summary",
+    "find_node",
     "add_property",
     "add_node",
     "connect_ports",
@@ -100,6 +101,18 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
     if request.action == "read_graph_summary" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
+    if request.action == "find_node":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        has_lookup = any(
+            optional_text(_pick_value(request.payload, key)) is not None
+            for key in ("nodeId", "node_id", "objectId", "displayName", "display_name", "nodeType", "node_type")
+        )
+        if not has_lookup:
+            raise ShaderGraphRequestError(
+                "find_node requires at least one of: nodeId/objectId, displayName, nodeType."
+            )
+
     if request.action == "add_property":
         _require_payload_text(request.payload, "propertyName", "property_name")
         _require_payload_text(request.payload, "propertyType", "property_type")
@@ -147,7 +160,7 @@ def handle_shadergraph_asset(
     try:
         request = normalize_shadergraph_asset_request(payload)
         summary = _request_summary(request)
-        bridge_request = asdict(request)
+        bridge_request = _build_bridge_request(request)
         bridge_instance = bridge if bridge is not None else build_unity_batchmode_bridge()
         if bridge_instance is None:
             return as_response(
@@ -212,7 +225,27 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
     summary["path"] = _effective_path(request)
     summary["assetPath"] = _derive_asset_path(request)
     summary.pop("payload", None)
+    for key in ("propertyName", "propertyType", "nodeType", "displayName", "nodeId", "objectId"):
+        value = _pick_value(request.payload, key)
+        if value is not None:
+            summary[key] = value
     return summary
+
+
+def _build_bridge_request(request: ShaderGraphAssetRequest) -> dict[str, Any]:
+    payload = dict(request.payload)
+    payload["action"] = request.action
+
+    if request.name is not None:
+        payload.setdefault("name", request.name)
+    if request.path is not None:
+        payload.setdefault("path", request.path)
+        payload.setdefault("assetPath", _derive_asset_path(request))
+    if request.template is not None:
+        payload.setdefault("template", request.template)
+
+    payload["request"] = asdict(request)
+    return payload
 
 
 def _derive_asset_path(request: ShaderGraphAssetRequest) -> str | None:

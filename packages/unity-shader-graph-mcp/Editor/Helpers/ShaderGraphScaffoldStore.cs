@@ -151,6 +151,85 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse FindNode(
+            FindNodeRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Find node request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            if (!TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest))
+            {
+                return ShaderGraphResponse.Fail(
+                    "'find_node' only supports graphs created by this scaffold. Use create_graph first so the manifest exists."
+                );
+            }
+
+            string queryNodeId = string.IsNullOrWhiteSpace(request.NodeId) ? string.Empty : request.NodeId.Trim();
+            string queryDisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? string.Empty : request.DisplayName.Trim();
+            string queryNodeType = string.IsNullOrWhiteSpace(request.NodeType) ? string.Empty : request.NodeType.Trim();
+
+            ShaderGraphScaffoldNode[] matches = manifest.nodes
+                .Where(node => NodeMatchesQuery(node, queryNodeId, queryDisplayName, queryNodeType))
+                .ToArray();
+
+            var data = BuildSummaryData(
+                manifest,
+                assetPath,
+                absoluteAssetPath,
+                true,
+                true,
+                executionKind,
+                "find_node",
+                new[] { "Scaffold manifest queried for node lookup." },
+                null
+            );
+            data["query"] = BuildNodeQuery(queryNodeId, queryDisplayName, queryNodeType);
+            data["matchCount"] = matches.Length;
+            data["matchStrategy"] = BuildFindNodeMatchStrategy(queryNodeId, queryDisplayName, queryNodeType);
+
+            if (matches.Length == 1)
+            {
+                data["foundNode"] = BuildScaffoldNodeData(matches[0]);
+                return ShaderGraphResponse.Ok(
+                    $"Found scaffold node '{matches[0].displayName}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            data["candidateNodes"] = matches.Select(BuildScaffoldNodeData).Cast<object>().ToArray();
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a scaffold node matching the provided query in '{assetPath}'.",
+                    data
+                );
+            }
+
+            return ShaderGraphResponse.Fail(
+                $"Node query matched multiple scaffold nodes in '{assetPath}'. Narrow the query with nodeId/objectId, displayName, or nodeType.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse AddProperty(
             AddPropertyRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -587,6 +666,122 @@ namespace ShaderGraphMcp.Editor.Helpers
             builder.AppendLine();
             builder.AppendLine("This is a milestone-1 scaffold placeholder.");
             builder.AppendLine("Use the Unity Shader Graph editor or a later API integration to replace it with a real graph.");
+            return builder.ToString();
+        }
+
+        private static bool NodeMatchesQuery(
+            ShaderGraphScaffoldNode node,
+            string queryNodeId,
+            string queryDisplayName,
+            string queryNodeType)
+        {
+            if (node == null)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryNodeId) &&
+                !string.Equals(node.id ?? string.Empty, queryNodeId, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName) &&
+                !string.Equals(node.displayName ?? string.Empty, queryDisplayName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryNodeType) &&
+                !string.Equals(
+                    NormalizeNodeToken(node.nodeType),
+                    NormalizeNodeToken(queryNodeType),
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static Dictionary<string, object> BuildNodeQuery(
+            string queryNodeId,
+            string queryDisplayName,
+            string queryNodeType)
+        {
+            var query = new Dictionary<string, object>();
+
+            if (!string.IsNullOrWhiteSpace(queryNodeId))
+            {
+                query["nodeId"] = queryNodeId;
+                query["objectId"] = queryNodeId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName))
+            {
+                query["displayName"] = queryDisplayName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryNodeType))
+            {
+                query["nodeType"] = queryNodeType;
+            }
+
+            return query;
+        }
+
+        private static string[] BuildFindNodeMatchStrategy(
+            string queryNodeId,
+            string queryDisplayName,
+            string queryNodeType)
+        {
+            var strategy = new List<string>();
+            if (!string.IsNullOrWhiteSpace(queryNodeId))
+            {
+                strategy.Add("Exact objectId/nodeId match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName))
+            {
+                strategy.Add("Case-insensitive displayName match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryNodeType))
+            {
+                strategy.Add("Normalized nodeType token match.");
+            }
+
+            return strategy.ToArray();
+        }
+
+        private static Dictionary<string, object> BuildScaffoldNodeData(ShaderGraphScaffoldNode node)
+        {
+            return new Dictionary<string, object>
+            {
+                ["objectId"] = node?.id ?? string.Empty,
+                ["nodeId"] = node?.id ?? string.Empty,
+                ["displayName"] = node?.displayName ?? string.Empty,
+                ["nodeType"] = node?.nodeType ?? string.Empty,
+                ["summary"] = $"{node?.displayName ?? string.Empty} ({node?.id ?? string.Empty}) [{node?.nodeType ?? string.Empty}]",
+            };
+        }
+
+        private static string NormalizeNodeToken(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var builder = new StringBuilder(value.Length);
+            foreach (char character in value)
+            {
+                if (char.IsLetterOrDigit(character))
+                {
+                    builder.Append(char.ToUpperInvariant(character));
+                }
+            }
+
             return builder.ToString();
         }
 

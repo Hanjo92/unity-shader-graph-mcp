@@ -212,6 +212,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.FindNode:
+                    return TryCreateFindNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.AddProperty:
                     return TryCreateAddPropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.AddNode:
@@ -262,6 +264,33 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new ReadGraphSummaryRequest(assetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateFindNodeRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Find node requires an asset path.";
+                return false;
+            }
+
+            string nodeId = FirstNonBlank(payload.nodeId, payload.objectId);
+            string displayName = FirstNonBlank(payload.displayName);
+            string nodeType = FirstNonBlank(payload.nodeType);
+            if (string.IsNullOrWhiteSpace(nodeId) &&
+                string.IsNullOrWhiteSpace(displayName) &&
+                string.IsNullOrWhiteSpace(nodeType))
+            {
+                request = null;
+                errorMessage = "Find node requires at least one of: nodeId/objectId, displayName, nodeType.";
+                return false;
+            }
+
+            request = new FindNodeRequest(assetPath, nodeId, displayName, nodeType);
             errorMessage = null;
             return true;
         }
@@ -350,6 +379,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.CreateGraph;
                 case "read_graph_summary":
                     return ShaderGraphAction.ReadGraphSummary;
+                case "find_node":
+                    return ShaderGraphAction.FindNode;
                 case "add_property":
                     return ShaderGraphAction.AddProperty;
                 case "add_node":
@@ -759,6 +790,8 @@ namespace ShaderGraphMcp.Editor.Tools
             public string propertyName;
             public string propertyType;
             public string defaultValue;
+            public string nodeId;
+            public string objectId;
             public string nodeType;
             public string displayName;
             public string outputNodeId;

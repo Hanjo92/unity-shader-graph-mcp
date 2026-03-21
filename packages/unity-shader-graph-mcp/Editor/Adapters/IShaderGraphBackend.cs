@@ -7,6 +7,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphExecutionKind ExecutionKind { get; }
         ShaderGraphResponse CreateGraph(CreateGraphRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
+        ShaderGraphResponse FindNode(FindNodeRequest request);
         ShaderGraphResponse AddProperty(AddPropertyRequest request);
         ShaderGraphResponse AddNode(AddNodeRequest request);
         ShaderGraphResponse ConnectPorts(ConnectPortsRequest request);

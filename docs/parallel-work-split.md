@@ -96,3 +96,9 @@ The repo is now past the narrow MVP cut. For the final `1.0.0` push, use the rel
 - Contracts/docs stream: `contracts/` and `docs/`
 
 See [1.0.0-work-split.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.0.0-work-split.md) for the detailed ownership map.
+
+## Post-1.0 Direction
+
+The repository has now shipped `1.0.0`. The next planning baseline is
+[1.1.0-plan.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.1.0-plan.md),
+which focuses on query and mutation ergonomics rather than broad node-matrix expansion.

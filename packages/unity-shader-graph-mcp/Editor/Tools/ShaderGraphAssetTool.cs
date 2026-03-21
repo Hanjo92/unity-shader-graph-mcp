@@ -25,6 +25,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.CreateGraph(createGraphRequest);
                 case ReadGraphSummaryRequest readGraphSummaryRequest:
                     return Adapter.ReadGraphSummary(readGraphSummaryRequest);
+                case FindNodeRequest findNodeRequest:
+                    return Adapter.FindNode(findNodeRequest);
                 case AddPropertyRequest addPropertyRequest:
                     return Adapter.AddProperty(addPropertyRequest);
                 case AddNodeRequest addNodeRequest:
@@ -35,7 +37,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, add_property, add_node, connect_ports, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, add_property, add_node, connect_ports, save_graph."
                     );
             }
         }
@@ -48,6 +50,15 @@ namespace ShaderGraphMcp.Editor.Tools
         public static ShaderGraphResponse HandleReadGraphSummary(string assetPath)
         {
             return Handle(new ReadGraphSummaryRequest(assetPath));
+        }
+
+        public static ShaderGraphResponse HandleFindNode(
+            string assetPath,
+            string nodeId,
+            string displayName,
+            string nodeType)
+        {
+            return Handle(new FindNodeRequest(assetPath, nodeId, displayName, nodeType));
         }
 
         public static ShaderGraphResponse HandleAddProperty(string assetPath, string propertyName, string propertyType, string defaultValue)

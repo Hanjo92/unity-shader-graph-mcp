@@ -42,6 +42,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse FindNode(FindNodeRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.FindNode(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)
         {
             return ShaderGraphPackageGraphInspector.AddProperty(
@@ -375,6 +384,108 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphResponse.Ok(
                 $"Loaded package-backed Shader Graph summary from '{assetPath}'.",
                 new Dictionary<string, object>(snapshot.ToDictionary())
+            );
+        }
+
+        public static ShaderGraphResponse FindNode(
+            FindNodeRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Find node request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.ValidateGraph() could not be invoked: {validateFailure}");
+            }
+
+            string queryNodeId = string.IsNullOrWhiteSpace(request.NodeId) ? string.Empty : request.NodeId.Trim();
+            string queryDisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? string.Empty : request.DisplayName.Trim();
+            string queryNodeType = string.IsNullOrWhiteSpace(request.NodeType) ? string.Empty : request.NodeType.Trim();
+
+            object[] matches = EnumerateMember(graphData, "nodes")
+                .Where(node => NodeMatchesQuery(node, queryNodeId, queryDisplayName, queryNodeType))
+                .ToArray();
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "find_node"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildNodeQuery(queryNodeId, queryDisplayName, queryNodeType),
+                ["matchCount"] = matches.Length,
+                ["matchStrategy"] = BuildFindNodeMatchStrategy(queryNodeId, queryDisplayName, queryNodeType),
+            };
+
+            if (matches.Length == 1)
+            {
+                data["foundNode"] = BuildNodeLookupData(matches[0]);
+                return ShaderGraphResponse.Ok(
+                    $"Found Shader Graph node in '{assetPath}'.",
+                    data
+                );
+            }
+
+            data["candidateNodes"] = matches.Select(BuildNodeLookupData).Cast<object>().ToArray();
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a graph node matching the provided query in '{assetPath}'.",
+                    data
+                );
+            }
+
+            return ShaderGraphResponse.Fail(
+                $"Node query matched multiple graph nodes in '{assetPath}'. Narrow the query with nodeId/objectId, displayName, or nodeType.",
+                data
             );
         }
 
@@ -1237,6 +1348,164 @@ namespace ShaderGraphMcp.Editor.Adapters
                 preview,
                 compatibility
             );
+        }
+
+        private static bool NodeMatchesQuery(
+            object node,
+            string queryNodeId,
+            string queryDisplayName,
+            string queryNodeType)
+        {
+            if (node == null)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryNodeId))
+            {
+                string objectId = GetStringProperty(node, "objectId");
+                if (!string.Equals(objectId, queryNodeId, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName))
+            {
+                string displayName = GetStringProperty(node, "displayName", "name");
+                if (!string.Equals(displayName, queryDisplayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryNodeType) &&
+                !NodeTypeMatchesQuery(node.GetType(), queryNodeType))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool NodeTypeMatchesQuery(Type nodeClassType, string queryNodeType)
+        {
+            if (nodeClassType == null)
+            {
+                return false;
+            }
+
+            string normalizedQuery = NormalizeNodeToken(queryNodeType);
+            if (string.IsNullOrWhiteSpace(normalizedQuery))
+            {
+                return false;
+            }
+
+            string fullTypeName = nodeClassType.FullName ?? nodeClassType.Name ?? string.Empty;
+            if (string.Equals(NormalizeNodeToken(fullTypeName), normalizedQuery, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(NormalizeNodeToken(nodeClassType.Name), normalizedQuery, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            string canonicalName = BuildCanonicalNodeName(nodeClassType);
+            if (string.Equals(NormalizeNodeToken(canonicalName), normalizedQuery, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            ShaderGraphNodeDescriptor descriptor = GetDiscoveredNodeCatalog()
+                .FirstOrDefault(item => item.NodeClassType == nodeClassType);
+            if (descriptor == null)
+            {
+                return false;
+            }
+
+            return descriptor.Aliases.Any(
+                alias => string.Equals(
+                    NormalizeNodeToken(alias),
+                    normalizedQuery,
+                    StringComparison.Ordinal));
+        }
+
+        private static Dictionary<string, object> BuildNodeQuery(
+            string queryNodeId,
+            string queryDisplayName,
+            string queryNodeType)
+        {
+            var query = new Dictionary<string, object>();
+
+            if (!string.IsNullOrWhiteSpace(queryNodeId))
+            {
+                query["nodeId"] = queryNodeId;
+                query["objectId"] = queryNodeId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName))
+            {
+                query["displayName"] = queryDisplayName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryNodeType))
+            {
+                query["nodeType"] = queryNodeType;
+            }
+
+            return query;
+        }
+
+        private static string[] BuildFindNodeMatchStrategy(
+            string queryNodeId,
+            string queryDisplayName,
+            string queryNodeType)
+        {
+            var strategy = new List<string>();
+            if (!string.IsNullOrWhiteSpace(queryNodeId))
+            {
+                strategy.Add("Exact GraphData objectId match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName))
+            {
+                strategy.Add("Case-insensitive displayName match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryNodeType))
+            {
+                strategy.Add("Normalized nodeType alias, canonical name, or CLR type match.");
+            }
+
+            return strategy.ToArray();
+        }
+
+        private static Dictionary<string, object> BuildNodeLookupData(object node)
+        {
+            Type nodeClassType = node?.GetType();
+            string canonicalNodeType = BuildCanonicalNodeName(nodeClassType);
+            string fullTypeName = nodeClassType?.FullName ?? nodeClassType?.Name ?? string.Empty;
+            string displayName = GetStringProperty(node, "displayName", "name");
+            string objectId = GetStringProperty(node, "objectId");
+
+            var data = new Dictionary<string, object>
+            {
+                ["objectId"] = objectId,
+                ["nodeId"] = objectId,
+                ["displayName"] = displayName,
+                ["nodeType"] = canonicalNodeType,
+                ["fullTypeName"] = fullTypeName,
+                ["summary"] = DescribeNode(node),
+            };
+
+            if (TryDescribeNodePosition(node, out string positionDescription))
+            {
+                data["position"] = positionDescription;
+            }
+
+            return data;
         }
 
         private static readonly string[] SupportedPropertyTypes =
