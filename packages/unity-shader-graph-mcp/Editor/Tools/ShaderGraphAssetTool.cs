@@ -45,11 +45,13 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.AddNode(addNodeRequest);
                 case ConnectPortsRequest connectPortsRequest:
                     return Adapter.ConnectPorts(connectPortsRequest);
+                case RemoveConnectionRequest removeConnectionRequest:
+                    return Adapter.RemoveConnection(removeConnectionRequest);
                 case SaveGraphRequest saveGraphRequest:
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, update_property, move_node, delete_node, remove_property, add_property, add_node, connect_ports, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, update_property, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
                     );
             }
         }
@@ -129,6 +131,16 @@ namespace ShaderGraphMcp.Editor.Tools
         )
         {
             return Handle(new ConnectPortsRequest(assetPath, outputNodeId, outputPort, inputNodeId, inputPort));
+        }
+
+        public static ShaderGraphResponse HandleRemoveConnection(
+            string assetPath,
+            string outputNodeId,
+            string outputPort,
+            string inputNodeId,
+            string inputPort)
+        {
+            return Handle(new RemoveConnectionRequest(assetPath, outputNodeId, outputPort, inputNodeId, inputPort));
         }
 
         public static ShaderGraphResponse HandleSaveGraph(string assetPath)

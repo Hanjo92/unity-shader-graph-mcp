@@ -361,6 +361,62 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesRemovedConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "remove connection ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["matchCount"] = 1,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "source-node",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "target-node",
+                        ["inputPort"] = "X",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "source-node",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "target-node",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "X",
+                    },
+                    ["deletedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "source-node",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "target-node",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "X",
+                        ["fullTypeName"] = "UnityEditor.ShaderGraph.Edge",
+                        ["summary"] = "Source (source-node) [Vector1Node] @ (-620, 140):Out(0) -> Target (target-node) [Vector1Node] @ (-260, 140):X(1)",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var deletedConnection = (IReadOnlyDictionary<string, object>)response.Data["deletedConnection"];
+            Assert.That(deletedConnection["outputNodeId"], Is.EqualTo("source-node"));
+            Assert.That(deletedConnection["inputNodeId"], Is.EqualTo("target-node"));
+            Assert.That(deletedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(deletedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
         public void Ok_PreservesColorAndSplitAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

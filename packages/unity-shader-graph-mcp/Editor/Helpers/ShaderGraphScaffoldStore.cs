@@ -695,6 +695,83 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse RemoveConnection(
+            RemoveConnectionRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Remove connection request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "remove_connection",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.OutputNodeId) || string.IsNullOrWhiteSpace(request.InputNodeId))
+                    {
+                        return "Both output and input node ids are required.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(request.OutputPort) || string.IsNullOrWhiteSpace(request.InputPort))
+                    {
+                        return "Both output and input port names are required.";
+                    }
+
+                    string outputNodeId = request.OutputNodeId.Trim();
+                    string outputPort = request.OutputPort.Trim();
+                    string inputNodeId = request.InputNodeId.Trim();
+                    string inputPort = request.InputPort.Trim();
+
+                    int removedCount = manifest.connections.RemoveAll(
+                        connection =>
+                            string.Equals(connection.outputNodeId, outputNodeId, StringComparison.Ordinal) &&
+                            string.Equals(connection.outputPort, outputPort, StringComparison.Ordinal) &&
+                            string.Equals(connection.inputNodeId, inputNodeId, StringComparison.Ordinal) &&
+                            string.Equals(connection.inputPort, inputPort, StringComparison.Ordinal)
+                    );
+
+                    if (removedCount == 0)
+                    {
+                        return $"Connection '{outputNodeId}:{outputPort} -> {inputNodeId}:{inputPort}' does not exist in the scaffold manifest.";
+                    }
+
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "remove_connection",
+                        new[] { "Port disconnection recorded in scaffold manifest." },
+                        null
+                    );
+                    data["matchCount"] = 1;
+                    data["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = request.OutputNodeId.Trim(),
+                        ["outputPort"] = request.OutputPort.Trim(),
+                        ["inputNodeId"] = request.InputNodeId.Trim(),
+                        ["inputPort"] = request.InputPort.Trim(),
+                    };
+                    data["deletedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = request.OutputNodeId.Trim(),
+                        ["outputPort"] = request.OutputPort.Trim(),
+                        ["inputNodeId"] = request.InputNodeId.Trim(),
+                        ["inputPort"] = request.InputPort.Trim(),
+                    };
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse SaveGraph(
             SaveGraphRequest request,
             ShaderGraphExecutionKind executionKind)

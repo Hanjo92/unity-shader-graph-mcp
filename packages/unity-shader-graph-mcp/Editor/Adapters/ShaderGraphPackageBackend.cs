@@ -123,6 +123,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse RemoveConnection(RemoveConnectionRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.RemoveConnection(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse SaveGraph(SaveGraphRequest request)
         {
             return ShaderGraphPackageGraphInspector.SaveGraph(
@@ -1931,6 +1940,367 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public static ShaderGraphResponse RemoveConnection(
+            RemoveConnectionRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Remove connection request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "remove_connection"
+            );
+
+            string requestedOutputNodeId = request.OutputNodeId?.Trim();
+            string requestedOutputPort = request.OutputPort?.Trim();
+            string requestedInputNodeId = request.InputNodeId?.Trim();
+            string requestedInputPort = request.InputPort?.Trim();
+
+            if (string.IsNullOrWhiteSpace(requestedOutputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedOutputPort) ||
+                string.IsNullOrWhiteSpace(requestedInputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedInputPort))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Remove connection request requires output node id, output port, input node id, and input port.",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedOutputNodeId,
+                    out object outputNode,
+                    out string outputNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    outputNodeFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedInputNodeId,
+                    out object inputNode,
+                    out string inputNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    inputNodeFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            string outputNodeId = GetStringProperty(outputNode, "objectId");
+            string inputNodeId = GetStringProperty(inputNode, "objectId");
+            if (string.IsNullOrWhiteSpace(outputNodeId) || string.IsNullOrWhiteSpace(inputNodeId))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Resolved graph nodes do not expose stable object ids. Use read_graph_summary node ids instead of display names.",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            if (string.Equals(outputNodeId, inputNodeId, StringComparison.Ordinal))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Remove connection requires two distinct nodes. Self-connections are not supported in the first package-backed path.",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    outputNode,
+                    requestedOutputPort,
+                    true,
+                    out int outputSlotId,
+                    out string canonicalOutputPort,
+                    out string outputPortFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    outputPortFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    inputNode,
+                    requestedInputPort,
+                    false,
+                    out int inputSlotId,
+                    out string canonicalInputPort,
+                    out string inputPortFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    inputPortFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            if (!TryValidateSupportedConnectionPair(
+                    outputNode,
+                    inputNode,
+                    canonicalOutputPort,
+                    canonicalInputPort,
+                    out string pairFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    pairFailure,
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            object[] matches = EnumerateMember(graphData, "edges")
+                .Where(edge => EdgeMatchesResolvedConnection(edge, outputNodeId, outputSlotId, inputNodeId, inputSlotId))
+                .ToArray();
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph connection matching '{outputNodeId}:{canonicalOutputPort} -> {inputNodeId}:{canonicalInputPort}' in '{assetPath}'.",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                var duplicateData = BuildUnsupportedConnectionData(
+                    snapshot,
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort,
+                    "remove_connection",
+                    "RemoveConnection"
+                );
+                duplicateData["matchCount"] = matches.Length;
+                duplicateData["candidateConnections"] = matches.Select(BuildEdgeLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Connection query for '{outputNodeId}:{canonicalOutputPort} -> {inputNodeId}:{canonicalInputPort}' matched multiple edges in '{assetPath}'.",
+                    duplicateData
+                );
+            }
+
+            object edge = matches[0];
+            Dictionary<string, object> deletedConnection = BuildEdgeLookupData(edge);
+            deletedConnection["outputNodeId"] = outputNodeId;
+            deletedConnection["outputNodeType"] = GetTypeName(outputNode);
+            deletedConnection["outputSlotId"] = outputSlotId;
+            deletedConnection["outputPort"] = canonicalOutputPort;
+            deletedConnection["inputNodeId"] = inputNodeId;
+            deletedConnection["inputNodeType"] = GetTypeName(inputNode);
+            deletedConnection["inputSlotId"] = inputSlotId;
+            deletedConnection["inputPort"] = canonicalInputPort;
+
+            if (!TryInvokeGraphRemoveEdge(graphData, edge, out string removeEdgeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to remove the resolved Shader Graph connection: {removeEdgeFailure}",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after removing the connection: {validateFailure}",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after removing the connection: {writeFailure}",
+                    BuildUnsupportedConnectionData(
+                        snapshot,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort,
+                        "remove_connection",
+                        "RemoveConnection"
+                    )
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            var refreshedSnapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "remove_connection"
+            );
+
+            var data = new Dictionary<string, object>(refreshedSnapshot.ToDictionary())
+            {
+                ["supportedConnectionRules"] = SupportedConnectionRules.ToArray(),
+                ["matchCount"] = 1,
+                ["requestedConnection"] = new Dictionary<string, object>
+                {
+                    ["outputNodeId"] = requestedOutputNodeId,
+                    ["outputPort"] = requestedOutputPort,
+                    ["inputNodeId"] = requestedInputNodeId,
+                    ["inputPort"] = requestedInputPort,
+                },
+                ["resolvedConnection"] = new Dictionary<string, object>
+                {
+                    ["outputNodeId"] = outputNodeId,
+                    ["outputNodeType"] = GetTypeName(outputNode),
+                    ["outputSlotId"] = outputSlotId,
+                    ["outputPort"] = canonicalOutputPort,
+                    ["inputNodeId"] = inputNodeId,
+                    ["inputNodeType"] = GetTypeName(inputNode),
+                    ["inputSlotId"] = inputSlotId,
+                    ["inputPort"] = canonicalInputPort,
+                },
+                ["deletedConnection"] = deletedConnection,
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Removed connection {GetTypeName(outputNode)}.{canonicalOutputPort} -> {GetTypeName(inputNode)}.{canonicalInputPort} in '{assetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse SaveGraph(
             SaveGraphRequest request,
             ShaderGraphCompatibilitySnapshot compatibility,
@@ -2449,13 +2819,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             string requestedOutputNodeId,
             string requestedOutputPort,
             string requestedInputNodeId,
-            string requestedInputPort)
+            string requestedInputPort,
+            string actionName = "connect_ports",
+            string actionLabel = "ConnectPorts")
         {
             var data = snapshot == null
                 ? new Dictionary<string, object>()
                 : new Dictionary<string, object>(snapshot.ToDictionary());
 
-            data["action"] = "connect_ports";
+            data["action"] = actionName;
             data["supportedConnectionRules"] = SupportedConnectionRules.ToArray();
             data["requestedConnection"] = new Dictionary<string, object>
             {
@@ -2464,7 +2836,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["inputNodeId"] = requestedInputNodeId ?? string.Empty,
                 ["inputPort"] = requestedInputPort ?? string.Empty,
             };
-            data["nodeIdentifierContract"] = "ConnectPorts expects exact GraphData objectId values returned by addedNode.objectId or read_graph_summary nodes; display names are not supported.";
+            data["nodeIdentifierContract"] = $"{actionLabel} expects exact GraphData objectId values returned by addedNode.objectId or read_graph_summary nodes; display names are not supported.";
 
             return data;
         }
@@ -4938,6 +5310,41 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
         }
 
+        private static bool TryInvokeGraphRemoveEdge(object graphData, object edge, out string failureReason)
+        {
+            failureReason = null;
+
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            if (edge == null)
+            {
+                failureReason = "Edge instance is null.";
+                return false;
+            }
+
+            MethodInfo removeEdgeMethod = FindMethod(graphData.GetType(), "RemoveEdge", 1);
+            if (removeEdgeMethod == null)
+            {
+                failureReason = $"Method 'RemoveEdge' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                removeEdgeMethod.Invoke(graphData, new[] { edge });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
         private static bool TryInvokeGraphRemoveProperty(object graphData, object shaderInput, out string failureReason)
         {
             failureReason = null;
@@ -5615,6 +6022,66 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             return $"{DescribeSlotReference(outputSlotRef)} -> {DescribeSlotReference(inputSlotRef)}";
+        }
+
+        private static Dictionary<string, object> BuildEdgeLookupData(object edge)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["summary"] = DescribeEdge(edge),
+                ["fullTypeName"] = edge?.GetType().FullName ?? edge?.GetType().Name ?? string.Empty,
+            };
+
+            if (TryGetSlotReferenceEndpointData(GetMemberValue(edge, "outputSlot"), out string outputNodeId, out int outputSlotId))
+            {
+                data["outputNodeId"] = outputNodeId;
+                data["outputSlotId"] = outputSlotId;
+            }
+
+            if (TryGetSlotReferenceEndpointData(GetMemberValue(edge, "inputSlot"), out string inputNodeId, out int inputSlotId))
+            {
+                data["inputNodeId"] = inputNodeId;
+                data["inputSlotId"] = inputSlotId;
+            }
+
+            return data;
+        }
+
+        private static bool EdgeMatchesResolvedConnection(
+            object edge,
+            string outputNodeId,
+            int outputSlotId,
+            string inputNodeId,
+            int inputSlotId)
+        {
+            if (edge == null)
+            {
+                return false;
+            }
+
+            return TryGetSlotReferenceEndpointData(GetMemberValue(edge, "outputSlot"), out string edgeOutputNodeId, out int edgeOutputSlotId) &&
+                   TryGetSlotReferenceEndpointData(GetMemberValue(edge, "inputSlot"), out string edgeInputNodeId, out int edgeInputSlotId) &&
+                   string.Equals(edgeOutputNodeId, outputNodeId, StringComparison.Ordinal) &&
+                   edgeOutputSlotId == outputSlotId &&
+                   string.Equals(edgeInputNodeId, inputNodeId, StringComparison.Ordinal) &&
+                   edgeInputSlotId == inputSlotId;
+        }
+
+        private static bool TryGetSlotReferenceEndpointData(object slotReference, out string nodeId, out int slotId)
+        {
+            nodeId = string.Empty;
+            slotId = -1;
+
+            if (slotReference == null)
+            {
+                return false;
+            }
+
+            object node = GetMemberValue(slotReference, "node");
+            nodeId = GetStringProperty(node, "objectId");
+            slotId = GetIntProperty(slotReference, "slotId");
+
+            return !string.IsNullOrWhiteSpace(nodeId) && slotId >= 0;
         }
 
         private static string DescribeSlotReference(object slotReference)

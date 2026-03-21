@@ -17,6 +17,7 @@ ShaderGraphAction = Literal[
     "add_property",
     "add_node",
     "connect_ports",
+    "remove_connection",
     "save_graph",
 ]
 

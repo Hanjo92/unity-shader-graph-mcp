@@ -252,6 +252,33 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsRemoveConnectionRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""remove_connection"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""sourceNodeId"": ""source-node"",
+                ""sourcePort"": ""Out"",
+                ""targetNodeId"": ""target-node"",
+                ""targetPort"": ""X""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var removeConnectionRequest = request as RemoveConnectionRequest;
+            Assert.That(removeConnectionRequest, Is.Not.Null);
+            Assert.That(removeConnectionRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(removeConnectionRequest.OutputNodeId, Is.EqualTo("source-node"));
+            Assert.That(removeConnectionRequest.OutputPort, Is.EqualTo("Out"));
+            Assert.That(removeConnectionRequest.InputNodeId, Is.EqualTo("target-node"));
+            Assert.That(removeConnectionRequest.InputPort, Is.EqualTo("X"));
+        }
+
+        [Test]
         public void SerializeResponse_WritesStableOrderedJson()
         {
             var response = ShaderGraphResponse.Ok(

@@ -359,6 +359,55 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_RemoveConnection_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphRemoveConnection", out _);
+
+            ShaderGraphResponse addSourceNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Remove Source");
+            ShaderGraphTestAssets.RequirePackageReady(addSourceNodeResponse);
+            string sourceNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSourceNodeResponse);
+            Assert.That(sourceNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse addSinkNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Remove Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addSinkNodeResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSinkNodeResponse);
+            Assert.That(sinkNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sourceNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            ShaderGraphResponse removeConnectionResponse = ShaderGraphAssetTool.HandleRemoveConnection(
+                assetPath,
+                sourceNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(removeConnectionResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(removeConnectionResponse.Data, "operation"), Is.EqualTo("remove_connection"));
+            Assert.That(ShaderGraphTestAssets.GetInt(removeConnectionResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var deletedConnection = ShaderGraphTestAssets.RequireDictionary(removeConnectionResponse.Data, "deletedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(deletedConnection, "outputNodeId"), Is.EqualTo(sourceNodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(deletedConnection, "inputNodeId"), Is.EqualTo(sinkNodeId));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(0));
+        }
+
+        [Test]
         public void BlankGraph_FindNode_ByIdAndDisplayName_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphFindNode", out _);
