@@ -35,6 +35,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.UpdateProperty(updatePropertyRequest);
                 case RenameNodeRequest renameNodeRequest:
                     return Adapter.RenameNode(renameNodeRequest);
+                case DuplicateNodeRequest duplicateNodeRequest:
+                    return Adapter.DuplicateNode(duplicateNodeRequest);
                 case MoveNodeRequest moveNodeRequest:
                     return Adapter.MoveNode(moveNodeRequest);
                 case DeleteNodeRequest deleteNodeRequest:
@@ -53,7 +55,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, update_property, rename_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, update_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
                     );
             }
         }
@@ -97,6 +99,14 @@ namespace ShaderGraphMcp.Editor.Tools
             string displayName)
         {
             return Handle(new RenameNodeRequest(assetPath, nodeId, displayName));
+        }
+
+        public static ShaderGraphResponse HandleDuplicateNode(
+            string assetPath,
+            string nodeId,
+            string displayName)
+        {
+            return Handle(new DuplicateNodeRequest(assetPath, nodeId, displayName));
         }
 
         public static ShaderGraphResponse HandleMoveNode(

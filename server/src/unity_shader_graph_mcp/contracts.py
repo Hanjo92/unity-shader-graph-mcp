@@ -12,6 +12,7 @@ ShaderGraphAction = Literal[
     "list_supported_nodes",
     "update_property",
     "rename_node",
+    "duplicate_node",
     "move_node",
     "delete_node",
     "remove_property",

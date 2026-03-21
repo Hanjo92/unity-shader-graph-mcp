@@ -56,6 +56,12 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "objectId": "node-17",
         "displayName": "Renamed Source",
     },
+    "duplicate_node": {
+        "action": "duplicate_node",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "objectId": "node-17",
+        "displayName": "Copied Source",
+    },
     "move_node": {
         "action": "move_node",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -171,6 +177,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request(
                 {"action": "rename_node", "path": "Assets/X.shadergraph", "objectId": "node-1"}
+            )
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request(
+                {"action": "duplicate_node", "path": "Assets/X.shadergraph"}
             )
 
         with self.assertRaises(ShaderGraphRequestError):

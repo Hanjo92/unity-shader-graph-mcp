@@ -511,6 +511,88 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse DuplicateNode(
+            DuplicateNodeRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Duplicate node request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "duplicate_node",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.NodeId))
+                    {
+                        return "Node id is required.";
+                    }
+
+                    string nodeId = request.NodeId.Trim();
+                    ShaderGraphScaffoldNode existing = manifest.nodes.FirstOrDefault(
+                        node => string.Equals(node.id, nodeId, StringComparison.Ordinal));
+                    if (existing == null)
+                    {
+                        return $"Node '{nodeId}' does not exist in the scaffold manifest.";
+                    }
+
+                    string duplicatedNodeId = GenerateNodeId(manifest);
+                    string duplicatedDisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+                        ? BuildDuplicateDisplayName(existing.displayName, existing.nodeType)
+                        : request.DisplayName.Trim();
+
+                    manifest.nodes.Add(new ShaderGraphScaffoldNode
+                    {
+                        id = duplicatedNodeId,
+                        nodeType = existing.nodeType,
+                        displayName = duplicatedDisplayName,
+                        x = existing.x + 220f,
+                        y = existing.y + 60f,
+                        updatedUtc = UtcNow(),
+                    });
+
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    ShaderGraphScaffoldNode sourceNode = manifest.nodes.First(
+                        node => string.Equals(node.id, request.NodeId.Trim(), StringComparison.Ordinal));
+                    ShaderGraphScaffoldNode duplicatedNode = manifest.nodes.Last();
+
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "duplicate_node",
+                        new[]
+                        {
+                            $"Node '{request.NodeId}' duplicated in scaffold manifest.",
+                            "Connections and node-specific serialized settings are not copied in this first duplicate path.",
+                        },
+                        null
+                    );
+
+                    data["query"] = BuildNodeQuery(request.NodeId, null, null);
+                    data["matchCount"] = 1;
+                    data["duplicationStrategy"] = new[]
+                    {
+                        "Creates a new scaffold node with the same nodeType.",
+                        "Uses requested displayName or appends 'Copy' to the source displayName.",
+                        "Offsets the duplicated node position by (+220, +60).",
+                        "Does not duplicate connections in this first path.",
+                    };
+                    data["duplicatedFrom"] = BuildScaffoldNodeData(sourceNode);
+                    data["duplicatedNode"] = BuildScaffoldNodeData(duplicatedNode);
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse DeleteNode(
             DeleteNodeRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -1332,6 +1414,14 @@ namespace ShaderGraphMcp.Editor.Helpers
             }
 
             return candidate;
+        }
+
+        private static string BuildDuplicateDisplayName(string displayName, string nodeType)
+        {
+            string label = string.IsNullOrWhiteSpace(displayName)
+                ? (string.IsNullOrWhiteSpace(nodeType) ? "Node" : nodeType.Trim())
+                : displayName.Trim();
+            return label + " Copy";
         }
 
         private static string UtcNow()

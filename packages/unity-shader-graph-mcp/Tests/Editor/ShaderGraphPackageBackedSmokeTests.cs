@@ -308,6 +308,64 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_DuplicateNode_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphDuplicateNode", out _);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Add",
+                "Source Add");
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            string sourceNodeId = ShaderGraphTestAssets.GetAddedNodeId(addNodeResponse);
+            Assert.That(sourceNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse duplicateNodeResponse = ShaderGraphAssetTool.HandleDuplicateNode(
+                assetPath,
+                sourceNodeId,
+                "Copied Add");
+            ShaderGraphTestAssets.RequirePackageReady(duplicateNodeResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(duplicateNodeResponse.Data, "operation"), Is.EqualTo("duplicate_node"));
+            Assert.That(ShaderGraphTestAssets.GetInt(duplicateNodeResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var duplicatedFrom = ShaderGraphTestAssets.RequireDictionary(duplicateNodeResponse.Data, "duplicatedFrom");
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedFrom, "objectId"), Is.EqualTo(sourceNodeId));
+
+            var duplicatedNode = ShaderGraphTestAssets.RequireDictionary(duplicateNodeResponse.Data, "duplicatedNode");
+            string duplicatedNodeId = ShaderGraphTestAssets.GetString(duplicatedNode, "objectId");
+            Assert.That(duplicatedNodeId, Is.Not.Empty);
+            Assert.That(duplicatedNodeId, Is.Not.EqualTo(sourceNodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedNode, "displayName"), Is.EqualTo("Copied Add"));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedNode, "sourceNodeId"), Is.EqualTo(sourceNodeId));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(2));
+
+            ShaderGraphResponse findByIdResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                duplicatedNodeId,
+                null,
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(findByIdResponse);
+
+            var foundById = ShaderGraphTestAssets.RequireDictionary(findByIdResponse.Data, "foundNode");
+            Assert.That(ShaderGraphTestAssets.GetString(foundById, "displayName"), Is.EqualTo("Copied Add"));
+
+            ShaderGraphResponse findByDisplayNameResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                null,
+                "Copied Add",
+                "Add");
+            ShaderGraphTestAssets.RequirePackageReady(findByDisplayNameResponse);
+
+            var foundByDisplayName = ShaderGraphTestAssets.RequireDictionary(findByDisplayNameResponse.Data, "foundNode");
+            Assert.That(ShaderGraphTestAssets.GetString(foundByDisplayName, "objectId"), Is.EqualTo(duplicatedNodeId));
+        }
+
+        [Test]
         public void BlankGraph_MoveNode_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphMoveNode", out _);

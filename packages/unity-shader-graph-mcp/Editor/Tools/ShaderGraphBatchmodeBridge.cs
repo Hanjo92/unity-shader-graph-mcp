@@ -222,6 +222,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateUpdatePropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameNode:
                     return TryCreateRenameNodeRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.DuplicateNode:
+                    return TryCreateDuplicateNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.MoveNode:
                     return TryCreateMoveNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DeleteNode:
@@ -375,6 +377,30 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new RenameNodeRequest(assetPath, nodeId, displayName);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateDuplicateNodeRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Duplicate node requires an asset path.";
+                return false;
+            }
+
+            string nodeId = FirstNonBlank(payload.nodeId, payload.objectId);
+            if (string.IsNullOrWhiteSpace(nodeId))
+            {
+                request = null;
+                errorMessage = "Duplicate node requires nodeId/objectId.";
+                return false;
+            }
+
+            string displayName = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.name);
+            request = new DuplicateNodeRequest(assetPath, nodeId, displayName);
             errorMessage = null;
             return true;
         }
@@ -558,6 +584,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.UpdateProperty;
                 case "rename_node":
                     return ShaderGraphAction.RenameNode;
+                case "duplicate_node":
+                    return ShaderGraphAction.DuplicateNode;
                 case "move_node":
                     return ShaderGraphAction.MoveNode;
                 case "delete_node":

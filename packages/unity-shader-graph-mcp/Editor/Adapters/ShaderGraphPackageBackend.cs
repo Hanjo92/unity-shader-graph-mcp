@@ -78,6 +78,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse DuplicateNode(DuplicateNodeRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.DuplicateNode(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse MoveNode(MoveNodeRequest request)
         {
             return ShaderGraphPackageGraphInspector.MoveNode(
@@ -188,6 +197,8 @@ namespace ShaderGraphMcp.Editor.Adapters
         private const string DrawStateTypeName = "UnityEditor.Graphing.DrawState";
         private const string PackageSchema = "unity-shader-graph-mcp/package-backed-v1";
         private const string DefaultGraphPathLabel = "Shader Graphs";
+        private const float DuplicateNodeOffsetX = 220f;
+        private const float DuplicateNodeOffsetY = 60f;
 
         private static readonly BindingFlags InstanceFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -1291,6 +1302,199 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Renamed Shader Graph node '{previousDisplayName}' to '{GetStringProperty(node, "displayName", "name")}' in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse DuplicateNode(
+            DuplicateNodeRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Duplicate node request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            string nodeId = request.NodeId?.Trim();
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "duplicate_node"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildNodeQuery(nodeId, null, null),
+            };
+
+            if (string.IsNullOrWhiteSpace(nodeId))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Node id is required.", data);
+            }
+
+            object[] matches = EnumerateMember(graphData, "nodes")
+                .Where(node => NodeMatchesQuery(node, nodeId, null, null))
+                .ToArray();
+
+            data["matchCount"] = matches.Length;
+            data["matchStrategy"] = BuildFindNodeMatchStrategy(nodeId, null, null);
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a graph node with objectId '{nodeId}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateNodes"] = matches.Select(BuildNodeLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Node query for '{nodeId}' matched multiple graph nodes in '{assetPath}'.",
+                    data
+                );
+            }
+
+            object sourceNode = matches[0];
+            Type sourceNodeType = sourceNode.GetType();
+            string canonicalNodeType = BuildCanonicalNodeName(sourceNodeType);
+            string sourceDisplayName = GetStringProperty(sourceNode, "displayName", "name");
+            string duplicatedDisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+                ? BuildDuplicateDisplayName(sourceDisplayName, canonicalNodeType)
+                : request.DisplayName.Trim();
+
+            if (!TryCreateShaderNode(
+                    sourceNodeType,
+                    duplicatedDisplayName,
+                    out object duplicatedNode,
+                    out string nodeCreationFailure))
+            {
+                data["duplicatedFrom"] = BuildNodeLookupData(sourceNode);
+                return ShaderGraphResponse.Fail(
+                    $"Unable to duplicate Shader Graph node '{nodeId}' in '{assetPath}': {nodeCreationFailure}",
+                    data
+                );
+            }
+
+            Rect? sourcePosition = TryGetNodePositionRect(sourceNode, out Rect sourcePositionRect)
+                ? sourcePositionRect
+                : (Rect?)null;
+            if (!TryAssignDuplicatedNodeLayout(
+                    graphData,
+                    sourceNode,
+                    duplicatedNode,
+                    canonicalNodeType,
+                    out Rect duplicatedPosition,
+                    out string layoutFailure))
+            {
+                loadNotes.Add($"Duplicated node draw position could not be assigned: {layoutFailure}");
+            }
+            else
+            {
+                loadNotes.Add(
+                    $"Assigned duplicated node draw position to ({duplicatedPosition.x:0}, {duplicatedPosition.y:0})."
+                );
+            }
+
+            if (!TryInvokeGraphAddNode(graphData, duplicatedNode, out string addNodeFailure))
+            {
+                data["duplicatedFrom"] = BuildDuplicatedFromData(sourceNode, sourcePosition);
+                return ShaderGraphResponse.Fail(
+                    $"Unable to duplicate Shader Graph node '{nodeId}' in '{assetPath}': {addNodeFailure}",
+                    data
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after duplicating node '{nodeId}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after duplicating node '{nodeId}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "duplicate_node"
+            );
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildNodeQuery(nodeId, null, null),
+                ["matchCount"] = 1,
+                ["matchStrategy"] = BuildFindNodeMatchStrategy(nodeId, null, null),
+                ["duplicationStrategy"] = new[]
+                {
+                    "Creates a new node instance of the same CLR type as the source node.",
+                    "Uses requested displayName or appends 'Copy' to the source displayName.",
+                    "Offsets the duplicated node position by (+220, +60) when the source position is available.",
+                    "Does not duplicate connections or node-specific serialized settings in this first path.",
+                },
+                ["duplicatedFrom"] = BuildDuplicatedFromData(sourceNode, sourcePosition),
+                ["duplicatedNode"] = BuildDuplicatedNodeData(duplicatedNode, sourceNode, duplicatedPosition, sourcePosition),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Duplicated Shader Graph node '{sourceDisplayName}' as '{GetStringProperty(duplicatedNode, "displayName", "name")}' in '{assetPath}'.",
                 data
             );
         }
@@ -2829,6 +3033,35 @@ namespace ShaderGraphMcp.Editor.Adapters
             return data;
         }
 
+        private static Dictionary<string, object> BuildDuplicatedFromData(object sourceNode, Rect? sourcePosition)
+        {
+            var data = BuildNodeLookupData(sourceNode);
+            if (sourcePosition.HasValue)
+            {
+                data["position"] = BuildPositionData(sourcePosition.Value);
+            }
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildDuplicatedNodeData(
+            object duplicatedNode,
+            object sourceNode,
+            Rect duplicatedPosition,
+            Rect? sourcePosition)
+        {
+            var data = BuildNodeLookupData(duplicatedNode);
+            data["position"] = BuildPositionData(duplicatedPosition);
+            data["sourceNodeId"] = GetStringProperty(sourceNode, "objectId");
+            data["sourceDisplayName"] = GetStringProperty(sourceNode, "displayName", "name");
+            if (sourcePosition.HasValue)
+            {
+                data["sourcePosition"] = BuildPositionData(sourcePosition.Value);
+            }
+
+            return data;
+        }
+
         private static Dictionary<string, object> BuildPositionData(Rect rect)
         {
             return new Dictionary<string, object>
@@ -3192,9 +3425,46 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
         }
 
+        private static bool TryAssignDuplicatedNodeLayout(
+            object graphData,
+            object sourceNode,
+            object duplicatedNode,
+            string canonicalNodeType,
+            out Rect assignedPosition,
+            out string failureReason)
+        {
+            assignedPosition = default;
+            failureReason = null;
+
+            if (sourceNode != null && TryGetNodePositionRect(sourceNode, out Rect sourcePosition))
+            {
+                return TryAssignExactNodePosition(
+                    duplicatedNode,
+                    sourcePosition.x + DuplicateNodeOffsetX,
+                    sourcePosition.y + DuplicateNodeOffsetY,
+                    out assignedPosition,
+                    out failureReason);
+            }
+
+            return TryAssignVisibleNodeLayout(
+                graphData,
+                duplicatedNode,
+                canonicalNodeType,
+                out assignedPosition,
+                out failureReason);
+        }
+
         private static IReadOnlyList<ShaderGraphNodeDescriptor> GetSupportedNodeCatalog()
         {
             return SupportedNodeCatalog.Value;
+        }
+
+        private static string BuildDuplicateDisplayName(string displayName, string canonicalNodeType)
+        {
+            string label = string.IsNullOrWhiteSpace(displayName)
+                ? (string.IsNullOrWhiteSpace(canonicalNodeType) ? "Node" : canonicalNodeType)
+                : displayName.Trim();
+            return label + " Copy";
         }
 
         private static IReadOnlyList<ShaderGraphNodeDescriptor> GetDiscoveredNodeCatalog()

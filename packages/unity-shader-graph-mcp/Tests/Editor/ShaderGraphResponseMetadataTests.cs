@@ -277,6 +277,58 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesDuplicatedNodeEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "duplicate node ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["nodeId"] = "node-17",
+                        ["objectId"] = "node-17",
+                    },
+                    ["duplicatedFrom"] = new Dictionary<string, object>
+                    {
+                        ["objectId"] = "node-17",
+                        ["nodeId"] = "node-17",
+                        ["displayName"] = "Source Add",
+                        ["nodeType"] = "Add",
+                    },
+                    ["duplicatedNode"] = new Dictionary<string, object>
+                    {
+                        ["objectId"] = "node-18",
+                        ["nodeId"] = "node-18",
+                        ["displayName"] = "Copied Add",
+                        ["sourceNodeId"] = "node-17",
+                        ["sourceDisplayName"] = "Source Add",
+                        ["nodeType"] = "Add",
+                        ["position"] = new Dictionary<string, object>
+                        {
+                            ["x"] = -400f,
+                            ["y"] = 200f,
+                        },
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var duplicatedFrom = (IReadOnlyDictionary<string, object>)response.Data["duplicatedFrom"];
+            Assert.That(duplicatedFrom["objectId"], Is.EqualTo("node-17"));
+
+            var duplicatedNode = (IReadOnlyDictionary<string, object>)response.Data["duplicatedNode"];
+            Assert.That(duplicatedNode["objectId"], Is.EqualTo("node-18"));
+            Assert.That(duplicatedNode["displayName"], Is.EqualTo("Copied Add"));
+            Assert.That(duplicatedNode["sourceNodeId"], Is.EqualTo("node-17"));
+        }
+
+        [Test]
         public void Ok_PreservesMovedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

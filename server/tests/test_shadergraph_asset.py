@@ -30,6 +30,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "list_supported_nodes",
                 "update_property",
                 "rename_node",
+                "duplicate_node",
                 "move_node",
                 "delete_node",
                 "remove_property",
@@ -107,6 +108,21 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["objectId"], "node-17")
         self.assertEqual(request.payload["newDisplayName"], "Renamed Source")
+
+    def test_request_normalization_accepts_duplicate_node_with_optional_alias_display_name(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "duplicate_node",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "objectId": "node-17",
+                "newDisplayName": "Copied Source",
+            }
+        )
+
+        self.assertEqual(request.action, "duplicate_node")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["objectId"], "node-17")
+        self.assertEqual(request.payload["newDisplayName"], "Copied Source")
 
     def test_request_normalization_accepts_delete_node_with_object_id(self) -> None:
         request = normalize_shadergraph_asset_request(
