@@ -222,6 +222,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateUpdatePropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.MoveNode:
                     return TryCreateMoveNodeRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.DeleteNode:
+                    return TryCreateDeleteNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.AddProperty:
                     return TryCreateAddPropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.AddNode:
@@ -377,6 +379,29 @@ namespace ShaderGraphMcp.Editor.Tools
             return true;
         }
 
+        private static bool TryCreateDeleteNodeRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Delete node requires an asset path.";
+                return false;
+            }
+
+            string nodeId = FirstNonBlank(payload.nodeId, payload.objectId);
+            if (string.IsNullOrWhiteSpace(nodeId))
+            {
+                request = null;
+                errorMessage = "Delete node requires nodeId/objectId.";
+                return false;
+            }
+
+            request = new DeleteNodeRequest(assetPath, nodeId);
+            errorMessage = null;
+            return true;
+        }
+
         private static bool TryCreateAddNodeRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
         {
             string assetPath = ResolveAssetPath(payload);
@@ -454,6 +479,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.UpdateProperty;
                 case "move_node":
                     return ShaderGraphAction.MoveNode;
+                case "delete_node":
+                    return ShaderGraphAction.DeleteNode;
                 case "add_property":
                     return ShaderGraphAction.AddProperty;
                 case "add_node":

@@ -30,6 +30,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "list_supported_nodes",
     "update_property",
     "move_node",
+    "delete_node",
     "add_property",
     "add_node",
     "connect_ports",
@@ -131,6 +132,11 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         _require_payload_text(request.payload, "nodeId", "node_id", "objectId", "object_id")
         request.payload["x"] = _require_payload_number_text(request.payload, "x")
         request.payload["y"] = _require_payload_number_text(request.payload, "y")
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+    if request.action == "delete_node":
+        _require_payload_text(request.payload, "nodeId", "node_id", "objectId", "object_id")
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 

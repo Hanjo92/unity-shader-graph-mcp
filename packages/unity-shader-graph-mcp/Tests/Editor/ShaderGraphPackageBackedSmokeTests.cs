@@ -291,6 +291,45 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_DeleteNode_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphDeleteNode", out _);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Delete Source");
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            string nodeId = ShaderGraphTestAssets.GetAddedNodeId(addNodeResponse);
+            Assert.That(nodeId, Is.Not.Empty);
+
+            ShaderGraphResponse deleteNodeResponse = ShaderGraphAssetTool.HandleDeleteNode(
+                assetPath,
+                nodeId);
+            ShaderGraphTestAssets.RequirePackageReady(deleteNodeResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(deleteNodeResponse.Data, "operation"), Is.EqualTo("delete_node"));
+            Assert.That(ShaderGraphTestAssets.GetInt(deleteNodeResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var deletedNode = ShaderGraphTestAssets.RequireDictionary(deleteNodeResponse.Data, "deletedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(deletedNode, "objectId"), Is.EqualTo(nodeId));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+
+            ShaderGraphResponse findNodeResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                nodeId,
+                null,
+                null);
+
+            Assert.That(findNodeResponse.Success, Is.False);
+            Assert.That(findNodeResponse.Message, Does.Contain("Could not find a graph node"));
+        }
+
+        [Test]
         public void BlankGraph_FindNode_ByIdAndDisplayName_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphFindNode", out _);

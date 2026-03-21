@@ -288,6 +288,41 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesDeletedNodeEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "delete node ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["nodeId"] = "node-17",
+                        ["objectId"] = "node-17",
+                    },
+                    ["deletedNode"] = new Dictionary<string, object>
+                    {
+                        ["objectId"] = "node-17",
+                        ["nodeId"] = "node-17",
+                        ["displayName"] = "Delete Source",
+                        ["nodeType"] = "Float/Vector1",
+                        ["summary"] = "Delete Source (node-17) [Vector1Node] @ (-620, 140)",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var deletedNode = (IReadOnlyDictionary<string, object>)response.Data["deletedNode"];
+            Assert.That(deletedNode["objectId"], Is.EqualTo("node-17"));
+            Assert.That(deletedNode["displayName"], Is.EqualTo("Delete Source"));
+        }
+
+        [Test]
         public void Ok_PreservesColorAndSplitAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

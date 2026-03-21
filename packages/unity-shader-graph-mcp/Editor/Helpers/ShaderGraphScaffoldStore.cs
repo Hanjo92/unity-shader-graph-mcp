@@ -451,6 +451,61 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse DeleteNode(
+            DeleteNodeRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Delete node request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "delete_node",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.NodeId))
+                    {
+                        return "Node id is required.";
+                    }
+
+                    string nodeId = request.NodeId.Trim();
+                    ShaderGraphScaffoldNode existing = manifest.nodes.FirstOrDefault(
+                        node => string.Equals(node.id, nodeId, StringComparison.Ordinal));
+                    if (existing == null)
+                    {
+                        return $"Node '{nodeId}' does not exist in the scaffold manifest.";
+                    }
+
+                    manifest.nodes.Remove(existing);
+                    manifest.connections.RemoveAll(
+                        connection =>
+                            string.Equals(connection.outputNodeId, nodeId, StringComparison.Ordinal) ||
+                            string.Equals(connection.inputNodeId, nodeId, StringComparison.Ordinal));
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "delete_node",
+                        new[] { $"Node '{request.NodeId}' deleted from scaffold manifest." },
+                        null
+                    );
+                    data["query"] = BuildNodeQuery(request.NodeId, null, null);
+                    data["matchCount"] = 1;
+                    data["deletedNodeId"] = request.NodeId.Trim();
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse AddNode(
             AddNodeRequest request,
             ShaderGraphExecutionKind executionKind)

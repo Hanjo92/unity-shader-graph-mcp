@@ -78,6 +78,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse DeleteNode(DeleteNodeRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.DeleteNode(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)
         {
             return ShaderGraphPackageGraphInspector.AddProperty(
@@ -1108,6 +1117,152 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Moved Shader Graph node '{GetStringProperty(node, "displayName", "name")}' to ({movedPosition.x:0}, {movedPosition.y:0}) in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse DeleteNode(
+            DeleteNodeRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Delete node request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            string nodeId = request.NodeId?.Trim();
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "delete_node"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildNodeQuery(nodeId, null, null),
+            };
+
+            if (string.IsNullOrWhiteSpace(nodeId))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Node id is required.", data);
+            }
+
+            object[] matches = EnumerateMember(graphData, "nodes")
+                .Where(node => NodeMatchesQuery(node, nodeId, null, null))
+                .ToArray();
+
+            data["matchCount"] = matches.Length;
+            data["matchStrategy"] = BuildFindNodeMatchStrategy(nodeId, null, null);
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a graph node with objectId '{nodeId}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateNodes"] = matches.Select(BuildNodeLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Node query for '{nodeId}' matched multiple graph nodes in '{assetPath}'.",
+                    data
+                );
+            }
+
+            object node = matches[0];
+            Dictionary<string, object> deletedNode = BuildNodeLookupData(node);
+
+            if (!TryInvokeGraphRemoveNode(graphData, node, out string removeNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to delete Shader Graph node '{nodeId}' from '{assetPath}': {removeNodeFailure}",
+                    data
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after deleting node '{nodeId}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after deleting node '{nodeId}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "delete_node"
+            );
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildNodeQuery(nodeId, null, null),
+                ["matchCount"] = 1,
+                ["matchStrategy"] = BuildFindNodeMatchStrategy(nodeId, null, null),
+                ["deletedNode"] = deletedNode,
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Deleted Shader Graph node '{GetStringProperty(node, "displayName", "name")}' from '{assetPath}'.",
                 data
             );
         }
@@ -4570,6 +4725,41 @@ namespace ShaderGraphMcp.Editor.Adapters
             try
             {
                 addNodeMethod.Invoke(graphData, new[] { node });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryInvokeGraphRemoveNode(object graphData, object node, out string failureReason)
+        {
+            failureReason = null;
+
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            if (node == null)
+            {
+                failureReason = "Node instance is null.";
+                return false;
+            }
+
+            MethodInfo removeNodeMethod = FindMethod(graphData.GetType(), "RemoveNode", 1);
+            if (removeNodeMethod == null)
+            {
+                failureReason = $"Method 'RemoveNode' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                removeNodeMethod.Invoke(graphData, new[] { node });
                 return true;
             }
             catch (Exception ex)
