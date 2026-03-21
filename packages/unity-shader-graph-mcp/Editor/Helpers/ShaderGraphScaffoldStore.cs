@@ -327,6 +327,74 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse UpdateProperty(
+            UpdatePropertyRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Update property request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "update_property",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.PropertyName))
+                    {
+                        return "Property name is required.";
+                    }
+
+                    string propertyName = request.PropertyName.Trim();
+                    var existing = manifest.properties.FirstOrDefault(
+                        property => string.Equals(property.name, propertyName, StringComparison.Ordinal));
+
+                    if (existing == null)
+                    {
+                        return $"Property '{propertyName}' does not exist in the scaffold manifest.";
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(request.PropertyType) &&
+                        !string.Equals(existing.type ?? string.Empty, request.PropertyType.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return $"Property '{propertyName}' exists, but its scaffold type is '{existing.type}'. Requested type '{request.PropertyType.Trim()}' does not match.";
+                    }
+
+                    existing.defaultValue = request.DefaultValue;
+                    existing.updatedUtc = UtcNow();
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "update_property",
+                        new[] { $"Property '{request.PropertyName}' updated in scaffold manifest." },
+                        null
+                    );
+
+                    string propertyName = request.PropertyName.Trim();
+                    ShaderGraphScaffoldProperty existing = manifest.properties.First(
+                        property => string.Equals(property.name, propertyName, StringComparison.Ordinal));
+
+                    data["updatedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = existing.name ?? string.Empty,
+                        ["referenceName"] = existing.name ?? string.Empty,
+                        ["resolvedPropertyType"] = existing.type ?? string.Empty,
+                        ["defaultValue"] = existing.defaultValue ?? string.Empty,
+                    };
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse AddNode(
             AddNodeRequest request,
             ShaderGraphExecutionKind executionKind)

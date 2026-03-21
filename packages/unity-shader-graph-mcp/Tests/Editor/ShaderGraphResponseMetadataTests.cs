@@ -211,6 +211,35 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesUpdatedPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "update property ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1" },
+                    ["updatedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Tint",
+                        ["referenceName"] = "Tint",
+                        ["resolvedPropertyType"] = "Color",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.ColorShaderProperty",
+                        ["defaultValue"] = "RGBA(1.000, 1.000, 1.000, 1.000)",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+
+            var updatedProperty = (IReadOnlyDictionary<string, object>)response.Data["updatedProperty"];
+            Assert.That(updatedProperty["displayName"], Is.EqualTo("Tint"));
+            Assert.That(updatedProperty["resolvedPropertyType"], Is.EqualTo("Color"));
+        }
+
+        [Test]
         public void Ok_PreservesColorAndSplitAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

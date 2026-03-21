@@ -219,6 +219,36 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_UpdateExistingProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUpdateProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Tint",
+                "Color",
+                "#000000");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse updatePropertyResponse = ShaderGraphAssetTool.HandleUpdateProperty(
+                assetPath,
+                "Tint",
+                "Color",
+                "#FFFFFFFF");
+            ShaderGraphTestAssets.RequirePackageReady(updatePropertyResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(updatePropertyResponse.Data, "operation"), Is.EqualTo("update_property"));
+
+            var updatedProperty = ShaderGraphTestAssets.RequireDictionary(updatePropertyResponse.Data, "updatedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(updatedProperty, "displayName"), Is.EqualTo("Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(updatedProperty, "resolvedPropertyType"), Is.EqualTo("Color"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+        }
+
+        [Test]
         public void BlankGraph_FindNode_ByIdAndDisplayName_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphFindNode", out _);

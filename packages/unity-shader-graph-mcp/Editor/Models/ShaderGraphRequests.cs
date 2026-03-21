@@ -8,6 +8,7 @@ namespace ShaderGraphMcp.Editor.Models
         ReadGraphSummary,
         FindNode,
         ListSupportedNodes,
+        UpdateProperty,
         AddProperty,
         AddNode,
         ConnectPorts,
@@ -117,6 +118,21 @@ namespace ShaderGraphMcp.Editor.Models
         public ListSupportedNodesRequest()
             : base(ShaderGraphAction.ListSupportedNodes, null)
         {
+        }
+    }
+
+    public sealed class UpdatePropertyRequest : ShaderGraphRequest
+    {
+        public string PropertyName { get; }
+        public string PropertyType { get; }
+        public string DefaultValue { get; }
+
+        public UpdatePropertyRequest(string assetPath, string propertyName, string propertyType, string defaultValue)
+            : base(ShaderGraphAction.UpdateProperty, assetPath)
+        {
+            PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
+            PropertyType = string.IsNullOrWhiteSpace(propertyType) ? string.Empty : propertyType.Trim();
+            DefaultValue = defaultValue;
         }
     }
 

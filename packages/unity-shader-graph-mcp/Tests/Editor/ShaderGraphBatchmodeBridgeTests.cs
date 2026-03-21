@@ -133,6 +133,31 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsUpdatePropertyRequest_WithOptionalType()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""update_property"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""propertyName"": ""Tint"",
+                ""propertyType"": ""Color"",
+                ""defaultValue"": ""#FFFFFFFF""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var updatePropertyRequest = request as UpdatePropertyRequest;
+            Assert.That(updatePropertyRequest, Is.Not.Null);
+            Assert.That(updatePropertyRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(updatePropertyRequest.PropertyName, Is.EqualTo("Tint"));
+            Assert.That(updatePropertyRequest.PropertyType, Is.EqualTo("Color"));
+            Assert.That(updatePropertyRequest.DefaultValue, Is.EqualTo("#FFFFFFFF"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsConnectPortsRequest_FromAliasFields()
         {
             string json = @"{

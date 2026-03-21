@@ -28,6 +28,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "read_graph_summary",
     "find_node",
     "list_supported_nodes",
+    "update_property",
     "add_property",
     "add_node",
     "connect_ports",
@@ -117,6 +118,11 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
     if request.action == "add_property":
         _require_payload_text(request.payload, "propertyName", "property_name")
         _require_payload_text(request.payload, "propertyType", "property_type")
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+    if request.action == "update_property":
+        _require_payload_text(request.payload, "propertyName", "property_name")
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 

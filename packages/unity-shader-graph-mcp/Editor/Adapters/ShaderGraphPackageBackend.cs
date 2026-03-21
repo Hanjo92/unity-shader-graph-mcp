@@ -60,6 +60,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse UpdateProperty(UpdatePropertyRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.UpdateProperty(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)
         {
             return ShaderGraphPackageGraphInspector.AddProperty(
@@ -585,7 +594,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                         compatibility,
                         executionKind,
                         loadNotes,
-                        request.PropertyType
+                        request.PropertyType,
+                        "update_property"
                     )
                 );
             }
@@ -705,6 +715,228 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Added {canonicalPropertyType} property '{request.PropertyName.Trim()}' to '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse UpdateProperty(
+            UpdatePropertyRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Update property request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.PropertyName))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Property name is required.",
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        request.PropertyType,
+                        "update_property"
+                    )
+                );
+            }
+
+            string propertyName = request.PropertyName.Trim();
+            object[] matches = EnumerateMember(graphData, "properties")
+                .Where(property => PropertyMatchesName(property, propertyName))
+                .ToArray();
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph property named '{propertyName}' in '{assetPath}'.",
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        request.PropertyType
+                    )
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                var duplicateData = BuildUnsupportedPropertyData(
+                    assetPath,
+                    compatibility,
+                    executionKind,
+                    loadNotes,
+                    request.PropertyType,
+                    "update_property"
+                );
+                duplicateData["candidateProperties"] = matches.Select(BuildPropertyLookupData).Cast<object>().ToArray();
+                duplicateData["query"] = new Dictionary<string, object>
+                {
+                    ["propertyName"] = propertyName,
+                };
+                return ShaderGraphResponse.Fail(
+                    $"Property query for '{propertyName}' matched multiple Shader Graph properties in '{assetPath}'.",
+                    duplicateData
+                );
+            }
+
+            object shaderInput = matches[0];
+            if (!TryResolvePropertyTypeFromInstance(shaderInput, out string canonicalPropertyType, out Type shaderInputType, out string propertyTypeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    propertyTypeFailure,
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        request.PropertyType,
+                        "update_property"
+                    )
+                );
+            }
+
+            string requestedPropertyType = request.PropertyType?.Trim();
+            if (!string.IsNullOrWhiteSpace(requestedPropertyType) &&
+                !string.Equals(canonicalPropertyType, NormalizeRequestedPropertyType(requestedPropertyType), StringComparison.Ordinal))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Property '{propertyName}' exists, but its type is '{canonicalPropertyType}'. Requested type '{requestedPropertyType}' does not match.",
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        requestedPropertyType,
+                        "update_property"
+                    )
+                );
+            }
+
+            if (!TryAssignShaderInputDefaultValue(
+                    shaderInput,
+                    shaderInputType,
+                    request.DefaultValue,
+                    out object parsedDefaultValue,
+                    out string parseNote,
+                    out string updateFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    updateFailure,
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        canonicalPropertyType,
+                        "update_property"
+                    )
+                );
+            }
+
+            if (!string.IsNullOrWhiteSpace(parseNote))
+            {
+                loadNotes.Add(parseNote);
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after updating property '{propertyName}': {validateFailure}",
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        canonicalPropertyType,
+                        "update_property"
+                    )
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after updating property '{propertyName}': {writeFailure}",
+                    BuildUnsupportedPropertyData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes,
+                        canonicalPropertyType,
+                        "update_property"
+                    )
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "update_property"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["supportedPropertyTypes"] = SupportedPropertyTypes.ToArray(),
+                ["updatedProperty"] = new Dictionary<string, object>
+                {
+                    ["displayName"] = GetStringProperty(shaderInput, "displayName", "name"),
+                    ["referenceName"] = GetStringProperty(shaderInput, "referenceName"),
+                    ["resolvedPropertyType"] = canonicalPropertyType,
+                    ["resolvedShaderInputType"] = shaderInputType.FullName ?? shaderInputType.Name,
+                    ["defaultValue"] = parsedDefaultValue?.ToString() ?? string.Empty,
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Updated {canonicalPropertyType} property '{propertyName}' in '{assetPath}'.",
                 data
             );
         }
@@ -1552,6 +1784,40 @@ namespace ShaderGraphMcp.Editor.Adapters
             return data;
         }
 
+        private static bool PropertyMatchesName(object property, string propertyName)
+        {
+            if (property == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return false;
+            }
+
+            return string.Equals(GetStringProperty(property, "displayName"), propertyName, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(GetStringProperty(property, "referenceName"), propertyName, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(GetStringProperty(property, "name"), propertyName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static Dictionary<string, object> BuildPropertyLookupData(object property)
+        {
+            string displayName = GetStringProperty(property, "displayName", "name");
+            string referenceName = GetStringProperty(property, "referenceName");
+            string fullTypeName = property?.GetType().FullName ?? property?.GetType().Name ?? string.Empty;
+
+            var data = new Dictionary<string, object>
+            {
+                ["displayName"] = displayName,
+                ["referenceName"] = referenceName,
+                ["fullTypeName"] = fullTypeName,
+                ["summary"] = DescribeProperty(property),
+            };
+
+            if (TryResolvePropertyTypeFromInstance(property, out string canonicalPropertyType, out _, out _))
+            {
+                data["resolvedPropertyType"] = canonicalPropertyType;
+            }
+
+            return data;
+        }
+
         private static readonly string[] SupportedPropertyTypes =
         {
             "Color",
@@ -1588,11 +1854,12 @@ namespace ShaderGraphMcp.Editor.Adapters
             ShaderGraphCompatibilitySnapshot compatibility,
             ShaderGraphExecutionKind executionKind,
             IReadOnlyList<string> loadNotes,
-            string requestedPropertyType)
+            string requestedPropertyType,
+            string actionName = "add_property")
         {
             var data = new Dictionary<string, object>
             {
-                ["action"] = "add_property",
+                ["action"] = actionName,
                 ["assetPath"] = assetPath,
                 ["executionBackendKind"] = executionKind.ToString(),
                 ["backendKind"] = compatibility.BackendKind.ToString(),
@@ -4158,6 +4425,88 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             SetMemberValue(shaderInput, "displayName", displayName);
+
+            return TryAssignShaderInputDefaultValue(
+                shaderInput,
+                shaderInputType,
+                defaultValue,
+                out parsedDefaultValue,
+                out parseNote,
+                out failureReason);
+        }
+
+        private static bool TryResolvePropertyTypeFromInstance(
+            object shaderInput,
+            out string canonicalPropertyType,
+            out Type shaderInputType,
+            out string failureReason)
+        {
+            canonicalPropertyType = string.Empty;
+            shaderInputType = shaderInput?.GetType();
+            failureReason = null;
+
+            if (shaderInputType == null)
+            {
+                failureReason = "Shader property instance is required.";
+                return false;
+            }
+
+            string fullTypeName = shaderInputType.FullName ?? shaderInputType.Name;
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.ColorShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Color";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Float/Vector1";
+                return true;
+            }
+
+            failureReason = $"Unsupported Shader Graph property instance type '{fullTypeName}'.";
+            return false;
+        }
+
+        private static string NormalizeRequestedPropertyType(string propertyType)
+        {
+            if (string.IsNullOrWhiteSpace(propertyType))
+            {
+                return string.Empty;
+            }
+
+            if (string.Equals(propertyType.Trim(), "Color", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Color";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Float", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(propertyType.Trim(), "Vector1", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(propertyType.Trim(), "Float/Vector1", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Float/Vector1";
+            }
+
+            return propertyType.Trim();
+        }
+
+        private static bool TryAssignShaderInputDefaultValue(
+            object shaderInput,
+            Type shaderInputType,
+            string defaultValue,
+            out object parsedDefaultValue,
+            out string parseNote,
+            out string failureReason)
+        {
+            parsedDefaultValue = null;
+            parseNote = null;
+            failureReason = null;
+
+            if (shaderInput == null || shaderInputType == null)
+            {
+                failureReason = "Shader input instance and type are required.";
+                return false;
+            }
 
             if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.ColorShaderProperty", StringComparison.Ordinal))
             {

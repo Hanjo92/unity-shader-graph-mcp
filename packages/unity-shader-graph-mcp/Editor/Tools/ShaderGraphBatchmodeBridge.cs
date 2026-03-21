@@ -218,6 +218,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     request = new ListSupportedNodesRequest();
                     errorMessage = null;
                     return true;
+                case ShaderGraphAction.UpdateProperty:
+                    return TryCreateUpdatePropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.AddProperty:
                     return TryCreateAddPropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.AddNode:
@@ -314,6 +316,28 @@ namespace ShaderGraphMcp.Editor.Tools
             return true;
         }
 
+        private static bool TryCreateUpdatePropertyRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Update property requires an asset path.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(payload.propertyName))
+            {
+                request = null;
+                errorMessage = "Update property requires a property name.";
+                return false;
+            }
+
+            request = new UpdatePropertyRequest(assetPath, payload.propertyName, payload.propertyType, payload.defaultValue);
+            errorMessage = null;
+            return true;
+        }
+
         private static bool TryCreateAddNodeRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
         {
             string assetPath = ResolveAssetPath(payload);
@@ -387,6 +411,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.FindNode;
                 case "list_supported_nodes":
                     return ShaderGraphAction.ListSupportedNodes;
+                case "update_property":
+                    return ShaderGraphAction.UpdateProperty;
                 case "add_property":
                     return ShaderGraphAction.AddProperty;
                 case "add_node":
