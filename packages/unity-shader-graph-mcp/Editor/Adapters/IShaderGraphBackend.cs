@@ -12,6 +12,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse UpdateProperty(UpdatePropertyRequest request);
         ShaderGraphResponse MoveNode(MoveNodeRequest request);
         ShaderGraphResponse DeleteNode(DeleteNodeRequest request);
+        ShaderGraphResponse RemoveProperty(RemovePropertyRequest request);
         ShaderGraphResponse AddProperty(AddPropertyRequest request);
         ShaderGraphResponse AddNode(AddNodeRequest request);
         ShaderGraphResponse ConnectPorts(ConnectPortsRequest request);

@@ -42,6 +42,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.DeleteNode(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse RemoveProperty(RemovePropertyRequest request)
+        {
+            return ShaderGraphScaffoldStore.RemoveProperty(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)
         {
             return ShaderGraphScaffoldStore.AddProperty(request, ExecutionKind);

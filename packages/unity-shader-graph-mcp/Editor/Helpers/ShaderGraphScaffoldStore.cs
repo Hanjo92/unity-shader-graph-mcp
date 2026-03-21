@@ -506,6 +506,60 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse RemoveProperty(
+            RemovePropertyRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Remove property request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "remove_property",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.PropertyName))
+                    {
+                        return "Property name is required.";
+                    }
+
+                    string propertyName = request.PropertyName.Trim();
+                    ShaderGraphScaffoldProperty existing = manifest.properties.FirstOrDefault(
+                        property => string.Equals(property.name, propertyName, StringComparison.Ordinal));
+                    if (existing == null)
+                    {
+                        return $"Property '{propertyName}' does not exist in the scaffold manifest.";
+                    }
+
+                    manifest.properties.Remove(existing);
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "remove_property",
+                        new[] { $"Property '{request.PropertyName}' removed from scaffold manifest." },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["propertyName"] = request.PropertyName.Trim(),
+                    };
+                    data["matchCount"] = 1;
+                    data["deletedPropertyName"] = request.PropertyName.Trim();
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse AddNode(
             AddNodeRequest request,
             ShaderGraphExecutionKind executionKind)

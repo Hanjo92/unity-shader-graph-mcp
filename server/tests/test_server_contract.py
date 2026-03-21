@@ -62,6 +62,11 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
         "objectId": "node-17",
     },
+    "remove_property": {
+        "action": "remove_property",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "propertyName": "ExampleColor",
+    },
     "add_property": {
         "action": "add_property",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -152,6 +157,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request(
                 {"action": "delete_node", "path": "Assets/X.shadergraph"}
+            )
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request(
+                {"action": "remove_property", "path": "Assets/X.shadergraph"}
             )
 
         with patch(

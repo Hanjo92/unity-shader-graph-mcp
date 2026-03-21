@@ -37,6 +37,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.MoveNode(moveNodeRequest);
                 case DeleteNodeRequest deleteNodeRequest:
                     return Adapter.DeleteNode(deleteNodeRequest);
+                case RemovePropertyRequest removePropertyRequest:
+                    return Adapter.RemoveProperty(removePropertyRequest);
                 case AddPropertyRequest addPropertyRequest:
                     return Adapter.AddProperty(addPropertyRequest);
                 case AddNodeRequest addNodeRequest:
@@ -47,7 +49,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, update_property, move_node, delete_node, add_property, add_node, connect_ports, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, update_property, move_node, delete_node, remove_property, add_property, add_node, connect_ports, save_graph."
                     );
             }
         }
@@ -99,6 +101,13 @@ namespace ShaderGraphMcp.Editor.Tools
             string nodeId)
         {
             return Handle(new DeleteNodeRequest(assetPath, nodeId));
+        }
+
+        public static ShaderGraphResponse HandleRemoveProperty(
+            string assetPath,
+            string propertyName)
+        {
+            return Handle(new RemovePropertyRequest(assetPath, propertyName));
         }
 
         public static ShaderGraphResponse HandleAddProperty(string assetPath, string propertyName, string propertyType, string defaultValue)

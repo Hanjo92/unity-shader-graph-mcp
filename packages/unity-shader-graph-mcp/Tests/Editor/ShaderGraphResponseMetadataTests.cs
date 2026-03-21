@@ -323,6 +323,44 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesRemovedPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "remove property ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1" },
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["propertyName"] = "Tint",
+                    },
+                    ["deletedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Tint",
+                        ["referenceName"] = "Tint",
+                        ["resolvedPropertyType"] = "Color",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.ColorShaderProperty",
+                        ["summary"] = "Tint [Color]",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var query = (IReadOnlyDictionary<string, object>)response.Data["query"];
+            Assert.That(query["propertyName"], Is.EqualTo("Tint"));
+
+            var deletedProperty = (IReadOnlyDictionary<string, object>)response.Data["deletedProperty"];
+            Assert.That(deletedProperty["displayName"], Is.EqualTo("Tint"));
+            Assert.That(deletedProperty["resolvedPropertyType"], Is.EqualTo("Color"));
+        }
+
+        [Test]
         public void Ok_PreservesColorAndSplitAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

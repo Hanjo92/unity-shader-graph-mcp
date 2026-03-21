@@ -11,6 +11,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse UpdateProperty(UpdatePropertyRequest request);
         ShaderGraphResponse MoveNode(MoveNodeRequest request);
         ShaderGraphResponse DeleteNode(DeleteNodeRequest request);
+        ShaderGraphResponse RemoveProperty(RemovePropertyRequest request);
         ShaderGraphResponse AddProperty(AddPropertyRequest request);
         ShaderGraphResponse AddNode(AddNodeRequest request);
         ShaderGraphResponse ConnectPorts(ConnectPortsRequest request);
@@ -64,6 +65,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse DeleteNode(DeleteNodeRequest request)
         {
             return backend.DeleteNode(request);
+        }
+
+        public ShaderGraphResponse RemoveProperty(RemovePropertyRequest request)
+        {
+            return backend.RemoveProperty(request);
         }
 
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)

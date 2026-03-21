@@ -330,6 +330,35 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_RemoveExistingProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphRemoveProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Tint",
+                "Color",
+                "#FFFFFFFF");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse removePropertyResponse = ShaderGraphAssetTool.HandleRemoveProperty(
+                assetPath,
+                "Tint");
+            ShaderGraphTestAssets.RequirePackageReady(removePropertyResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(removePropertyResponse.Data, "operation"), Is.EqualTo("remove_property"));
+            Assert.That(ShaderGraphTestAssets.GetInt(removePropertyResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var deletedProperty = ShaderGraphTestAssets.RequireDictionary(removePropertyResponse.Data, "deletedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(deletedProperty, "displayName"), Is.EqualTo("Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(deletedProperty, "resolvedPropertyType"), Is.EqualTo("Color"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(0));
+        }
+
+        [Test]
         public void BlankGraph_FindNode_ByIdAndDisplayName_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphFindNode", out _);

@@ -11,6 +11,7 @@ namespace ShaderGraphMcp.Editor.Models
         UpdateProperty,
         MoveNode,
         DeleteNode,
+        RemoveProperty,
         AddProperty,
         AddNode,
         ConnectPorts,
@@ -161,6 +162,17 @@ namespace ShaderGraphMcp.Editor.Models
             : base(ShaderGraphAction.DeleteNode, assetPath)
         {
             NodeId = string.IsNullOrWhiteSpace(nodeId) ? string.Empty : nodeId.Trim();
+        }
+    }
+
+    public sealed class RemovePropertyRequest : ShaderGraphRequest
+    {
+        public string PropertyName { get; }
+
+        public RemovePropertyRequest(string assetPath, string propertyName)
+            : base(ShaderGraphAction.RemoveProperty, assetPath)
+        {
+            PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
         }
     }
 

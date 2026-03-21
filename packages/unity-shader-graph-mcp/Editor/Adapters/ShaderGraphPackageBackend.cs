@@ -87,6 +87,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse RemoveProperty(RemovePropertyRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.RemoveProperty(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse AddProperty(AddPropertyRequest request)
         {
             return ShaderGraphPackageGraphInspector.AddProperty(
@@ -955,6 +964,166 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Updated {canonicalPropertyType} property '{propertyName}' in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse RemoveProperty(
+            RemovePropertyRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Remove property request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "remove_property"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["propertyName"] = request.PropertyName?.Trim() ?? string.Empty,
+                },
+            };
+
+            if (string.IsNullOrWhiteSpace(request.PropertyName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Property name is required.", data);
+            }
+
+            string propertyName = request.PropertyName.Trim();
+            object[] matches = EnumerateMember(graphData, "properties")
+                .Where(property => PropertyMatchesName(property, propertyName))
+                .ToArray();
+
+            data["matchCount"] = matches.Length;
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph property named '{propertyName}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateProperties"] = matches.Select(BuildPropertyLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Property query for '{propertyName}' matched multiple Shader Graph properties in '{assetPath}'.",
+                    data
+                );
+            }
+
+            object shaderInput = matches[0];
+            if (!TryResolvePropertyTypeFromInstance(shaderInput, out string canonicalPropertyType, out Type shaderInputType, out string propertyTypeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    propertyTypeFailure,
+                    data
+                );
+            }
+
+            Dictionary<string, object> deletedProperty = BuildPropertyLookupData(shaderInput);
+            deletedProperty["resolvedShaderInputType"] = shaderInputType.FullName ?? shaderInputType.Name;
+
+            if (!TryInvokeGraphRemoveProperty(graphData, shaderInput, out string removePropertyFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to remove Shader Graph property '{propertyName}' from '{assetPath}': {removePropertyFailure}",
+                    data
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after removing property '{propertyName}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after removing property '{propertyName}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "remove_property"
+            );
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["supportedPropertyTypes"] = SupportedPropertyTypes.ToArray(),
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["propertyName"] = propertyName,
+                },
+                ["matchCount"] = 1,
+                ["deletedProperty"] = deletedProperty,
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Removed {canonicalPropertyType} property '{propertyName}' from '{assetPath}'.",
                 data
             );
         }
@@ -4760,6 +4929,41 @@ namespace ShaderGraphMcp.Editor.Adapters
             try
             {
                 removeNodeMethod.Invoke(graphData, new[] { node });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryInvokeGraphRemoveProperty(object graphData, object shaderInput, out string failureReason)
+        {
+            failureReason = null;
+
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            if (shaderInput == null)
+            {
+                failureReason = "Shader input instance is null.";
+                return false;
+            }
+
+            MethodInfo removeGraphInputMethod = FindMethod(graphData.GetType(), "RemoveGraphInput", 1);
+            if (removeGraphInputMethod == null)
+            {
+                failureReason = $"Method 'RemoveGraphInput' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                removeGraphInputMethod.Invoke(graphData, new[] { shaderInput });
                 return true;
             }
             catch (Exception ex)

@@ -31,6 +31,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "update_property",
                 "move_node",
                 "delete_node",
+                "remove_property",
                 "add_property",
                 "add_node",
                 "connect_ports",
@@ -102,6 +103,19 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.action, "delete_node")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["objectId"], "node-17")
+
+    def test_request_normalization_accepts_remove_property_with_property_name(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "remove_property",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "propertyName": "Tint",
+            }
+        )
+
+        self.assertEqual(request.action, "remove_property")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["propertyName"], "Tint")
 
     def test_server_registry_invokes_shadergraph_asset(self) -> None:
         server = build_server()
