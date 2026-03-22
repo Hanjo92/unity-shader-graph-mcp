@@ -29,6 +29,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "find_node",
     "list_supported_nodes",
     "update_property",
+    "rename_property",
     "rename_node",
     "duplicate_node",
     "move_node",
@@ -129,6 +130,12 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
 
     if request.action == "update_property":
         _require_payload_text(request.payload, "propertyName", "property_name")
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+    if request.action == "rename_property":
+        _require_payload_text(request.payload, "propertyName", "property_name")
+        _require_payload_text(request.payload, "displayName", "display_name", "newDisplayName", "new_display_name", "name")
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
@@ -277,6 +284,7 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
     for key_group in (
         ("propertyName", "property_name"),
         ("propertyType", "property_type"),
+        ("referenceName", "reference_name", "newReferenceName", "new_reference_name"),
         ("nodeType", "node_type"),
         ("displayName", "display_name", "newDisplayName", "new_display_name"),
         ("nodeId", "node_id"),

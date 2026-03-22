@@ -9,6 +9,7 @@ namespace ShaderGraphMcp.Editor.Models
         FindNode,
         ListSupportedNodes,
         UpdateProperty,
+        RenameProperty,
         RenameNode,
         DuplicateNode,
         MoveNode,
@@ -139,6 +140,21 @@ namespace ShaderGraphMcp.Editor.Models
             PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
             PropertyType = string.IsNullOrWhiteSpace(propertyType) ? string.Empty : propertyType.Trim();
             DefaultValue = defaultValue;
+        }
+    }
+
+    public sealed class RenamePropertyRequest : ShaderGraphRequest
+    {
+        public string PropertyName { get; }
+        public string DisplayName { get; }
+        public string ReferenceName { get; }
+
+        public RenamePropertyRequest(string assetPath, string propertyName, string displayName, string referenceName)
+            : base(ShaderGraphAction.RenameProperty, assetPath)
+        {
+            PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
+            ReferenceName = string.IsNullOrWhiteSpace(referenceName) ? string.Empty : referenceName.Trim();
         }
     }
 

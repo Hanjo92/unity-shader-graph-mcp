@@ -249,6 +249,40 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_RenameProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphRenameProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Tint",
+                "Color",
+                "#FFFFFFFF");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse renamePropertyResponse = ShaderGraphAssetTool.HandleRenameProperty(
+                assetPath,
+                "Tint",
+                "Base Tint",
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(renamePropertyResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(renamePropertyResponse.Data, "operation"), Is.EqualTo("rename_property"));
+            Assert.That(ShaderGraphTestAssets.GetInt(renamePropertyResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var renamedProperty = ShaderGraphTestAssets.RequireDictionary(renamePropertyResponse.Data, "renamedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(renamedProperty, "displayName"), Is.EqualTo("Base Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(renamedProperty, "previousDisplayName"), Is.EqualTo("Tint"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+            var properties = ShaderGraphTestAssets.GetStringList(summaryResponse.Data, "properties");
+            Assert.That(properties, Has.Some.Contains("Base Tint"));
+        }
+
+        [Test]
         public void BlankGraph_RenameNode_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphRenameNode", out _);

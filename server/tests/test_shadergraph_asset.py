@@ -29,6 +29,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "find_node",
                 "list_supported_nodes",
                 "update_property",
+                "rename_property",
                 "rename_node",
                 "duplicate_node",
                 "move_node",
@@ -108,6 +109,23 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["objectId"], "node-17")
         self.assertEqual(request.payload["newDisplayName"], "Renamed Source")
+
+    def test_request_normalization_accepts_rename_property_with_optional_reference_name(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "rename_property",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "propertyName": "Tint",
+                "newDisplayName": "Base Tint",
+                "newReferenceName": "_BaseTint",
+            }
+        )
+
+        self.assertEqual(request.action, "rename_property")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["propertyName"], "Tint")
+        self.assertEqual(request.payload["newDisplayName"], "Base Tint")
+        self.assertEqual(request.payload["newReferenceName"], "_BaseTint")
 
     def test_request_normalization_accepts_duplicate_node_with_optional_alias_display_name(self) -> None:
         request = normalize_shadergraph_asset_request(

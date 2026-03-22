@@ -158,6 +158,31 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsRenamePropertyRequest_WithOptionalReferenceName()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""rename_property"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""propertyName"": ""Tint"",
+                ""newDisplayName"": ""Base Tint"",
+                ""newReferenceName"": ""_BaseTint""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var renamePropertyRequest = request as RenamePropertyRequest;
+            Assert.That(renamePropertyRequest, Is.Not.Null);
+            Assert.That(renamePropertyRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(renamePropertyRequest.PropertyName, Is.EqualTo("Tint"));
+            Assert.That(renamePropertyRequest.DisplayName, Is.EqualTo("Base Tint"));
+            Assert.That(renamePropertyRequest.ReferenceName, Is.EqualTo("_BaseTint"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsRenameNodeRequest_FromAliasFields()
         {
             string json = @"{

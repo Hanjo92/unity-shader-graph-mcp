@@ -50,6 +50,12 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "propertyName": "ExampleColor",
         "defaultValue": "#FFFFFFFF",
     },
+    "rename_property": {
+        "action": "rename_property",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "propertyName": "ExampleColor",
+        "displayName": "Base Tint",
+    },
     "rename_node": {
         "action": "rename_node",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -177,6 +183,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request(
                 {"action": "rename_node", "path": "Assets/X.shadergraph", "objectId": "node-1"}
+            )
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request(
+                {"action": "rename_property", "path": "Assets/X.shadergraph", "propertyName": "Tint"}
             )
 
         with self.assertRaises(ShaderGraphRequestError):

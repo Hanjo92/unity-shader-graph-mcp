@@ -69,6 +69,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse RenameProperty(RenamePropertyRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.RenameProperty(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse RenameNode(RenameNodeRequest request)
         {
             return ShaderGraphPackageGraphInspector.RenameNode(
@@ -993,6 +1002,180 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Updated {canonicalPropertyType} property '{propertyName}' in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse RenameProperty(
+            RenamePropertyRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Rename property request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "rename_property"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["propertyName"] = request.PropertyName?.Trim() ?? string.Empty,
+                },
+            };
+
+            if (string.IsNullOrWhiteSpace(request.PropertyName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Property name is required.", data);
+            }
+
+            string displayName = request.DisplayName?.Trim();
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Display name is required.", data);
+            }
+
+            string propertyName = request.PropertyName.Trim();
+            object[] matches = EnumerateMember(graphData, "properties")
+                .Where(property => PropertyMatchesName(property, propertyName))
+                .ToArray();
+
+            data["matchCount"] = matches.Length;
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph property named '{propertyName}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateProperties"] = matches.Select(BuildPropertyLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Property query for '{propertyName}' matched multiple Shader Graph properties in '{assetPath}'.",
+                    data
+                );
+            }
+
+            object shaderInput = matches[0];
+            if (!TryResolvePropertyTypeFromInstance(shaderInput, out string canonicalPropertyType, out Type shaderInputType, out string propertyTypeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    propertyTypeFailure,
+                    data
+                );
+            }
+
+            string previousDisplayName = GetStringProperty(shaderInput, "displayName", "name");
+            string previousReferenceName = GetStringProperty(shaderInput, "referenceName");
+
+            SetMemberValue(shaderInput, "displayName", displayName);
+            SetMemberValue(shaderInput, "name", displayName);
+            loadNotes.Add($"Property display name set to '{displayName}'.");
+
+            string referenceName = request.ReferenceName?.Trim();
+            if (!string.IsNullOrWhiteSpace(referenceName))
+            {
+                SetMemberValue(shaderInput, "referenceName", referenceName);
+                loadNotes.Add($"Property reference name set to '{referenceName}'.");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after renaming property '{propertyName}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after renaming property '{propertyName}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "rename_property"
+            );
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["propertyName"] = propertyName,
+                },
+                ["matchCount"] = 1,
+                ["renamedProperty"] = BuildRenamedPropertyData(
+                    shaderInput,
+                    previousDisplayName,
+                    previousReferenceName,
+                    canonicalPropertyType,
+                    shaderInputType),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Renamed Shader Graph property '{propertyName}' to '{GetStringProperty(shaderInput, "displayName", "name", "referenceName")}' in '{assetPath}'.",
                 data
             );
         }
@@ -3102,6 +3285,21 @@ namespace ShaderGraphMcp.Editor.Adapters
                 data["resolvedPropertyType"] = canonicalPropertyType;
             }
 
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildRenamedPropertyData(
+            object property,
+            string previousDisplayName,
+            string previousReferenceName,
+            string canonicalPropertyType,
+            Type shaderInputType)
+        {
+            var data = BuildPropertyLookupData(property);
+            data["previousDisplayName"] = previousDisplayName ?? string.Empty;
+            data["previousReferenceName"] = previousReferenceName ?? string.Empty;
+            data["resolvedPropertyType"] = canonicalPropertyType ?? string.Empty;
+            data["resolvedShaderInputType"] = shaderInputType?.FullName ?? shaderInputType?.Name ?? string.Empty;
             return data;
         }
 

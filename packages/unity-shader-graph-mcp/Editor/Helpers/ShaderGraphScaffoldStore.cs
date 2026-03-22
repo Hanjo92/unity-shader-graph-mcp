@@ -395,6 +395,79 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse RenameProperty(
+            RenamePropertyRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Rename property request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "rename_property",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.PropertyName))
+                    {
+                        return "Property name is required.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(request.DisplayName))
+                    {
+                        return "Display name is required.";
+                    }
+
+                    string propertyName = request.PropertyName.Trim();
+                    ShaderGraphScaffoldProperty existing = manifest.properties.FirstOrDefault(
+                        property => string.Equals(property.name, propertyName, StringComparison.Ordinal));
+                    if (existing == null)
+                    {
+                        return $"Property '{propertyName}' does not exist in the scaffold manifest.";
+                    }
+
+                    existing.name = request.DisplayName.Trim();
+                    existing.updatedUtc = UtcNow();
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    string previousDisplayName = request.PropertyName.Trim();
+                    ShaderGraphScaffoldProperty existing = manifest.properties.First(
+                        property => string.Equals(property.name, request.DisplayName.Trim(), StringComparison.Ordinal));
+
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "rename_property",
+                        new[] { $"Property '{request.PropertyName}' renamed in scaffold manifest." },
+                        null
+                    );
+
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["propertyName"] = previousDisplayName,
+                    };
+                    data["matchCount"] = 1;
+                    data["renamedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = existing.name ?? string.Empty,
+                        ["referenceName"] = existing.name ?? string.Empty,
+                        ["previousDisplayName"] = previousDisplayName,
+                        ["previousReferenceName"] = previousDisplayName,
+                        ["resolvedPropertyType"] = existing.type ?? string.Empty,
+                        ["defaultValue"] = existing.defaultValue ?? string.Empty,
+                    };
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse MoveNode(
             MoveNodeRequest request,
             ShaderGraphExecutionKind executionKind)

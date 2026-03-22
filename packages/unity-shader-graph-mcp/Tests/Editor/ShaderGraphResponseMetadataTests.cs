@@ -277,6 +277,42 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesRenamedPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "rename property ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["propertyName"] = "Tint",
+                    },
+                    ["renamedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Base Tint",
+                        ["referenceName"] = "_BaseTint",
+                        ["previousDisplayName"] = "Tint",
+                        ["previousReferenceName"] = "_Tint",
+                        ["resolvedPropertyType"] = "Color",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.ColorShaderProperty",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var renamedProperty = (IReadOnlyDictionary<string, object>)response.Data["renamedProperty"];
+            Assert.That(renamedProperty["displayName"], Is.EqualTo("Base Tint"));
+            Assert.That(renamedProperty["referenceName"], Is.EqualTo("_BaseTint"));
+            Assert.That(renamedProperty["previousDisplayName"], Is.EqualTo("Tint"));
+        }
+
+        [Test]
         public void Ok_PreservesDuplicatedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
