@@ -283,6 +283,50 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_FindProperty_ByDisplayNameAndReferenceName_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphFindProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Tint",
+                "Color",
+                "#FFFFFFFF");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse renamePropertyResponse = ShaderGraphAssetTool.HandleRenameProperty(
+                assetPath,
+                "Tint",
+                "Base Tint",
+                "_BaseTint");
+            ShaderGraphTestAssets.RequirePackageReady(renamePropertyResponse);
+
+            ShaderGraphResponse findByDisplayNameResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                null,
+                "Base Tint",
+                null,
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(findByDisplayNameResponse);
+
+            var foundByDisplayName = ShaderGraphTestAssets.RequireDictionary(findByDisplayNameResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundByDisplayName, "displayName"), Is.EqualTo("Base Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundByDisplayName, "referenceName"), Is.EqualTo("_BaseTint"));
+
+            ShaderGraphResponse findByReferenceResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                null,
+                null,
+                "_BaseTint",
+                "Color");
+            ShaderGraphTestAssets.RequirePackageReady(findByReferenceResponse);
+
+            var foundByReference = ShaderGraphTestAssets.RequireDictionary(findByReferenceResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundByReference, "displayName"), Is.EqualTo("Base Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundByReference, "resolvedPropertyType"), Is.EqualTo("Color"));
+        }
+
+        [Test]
         public void BlankGraph_RenameNode_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphRenameNode", out _);

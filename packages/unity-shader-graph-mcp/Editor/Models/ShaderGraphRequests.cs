@@ -7,6 +7,7 @@ namespace ShaderGraphMcp.Editor.Models
         CreateGraph,
         ReadGraphSummary,
         FindNode,
+        FindProperty,
         ListSupportedNodes,
         UpdateProperty,
         RenameProperty,
@@ -117,6 +118,23 @@ namespace ShaderGraphMcp.Editor.Models
             NodeId = string.IsNullOrWhiteSpace(nodeId) ? string.Empty : nodeId.Trim();
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
             NodeType = string.IsNullOrWhiteSpace(nodeType) ? string.Empty : nodeType.Trim();
+        }
+    }
+
+    public sealed class FindPropertyRequest : ShaderGraphRequest
+    {
+        public string PropertyName { get; }
+        public string DisplayName { get; }
+        public string ReferenceName { get; }
+        public string PropertyType { get; }
+
+        public FindPropertyRequest(string assetPath, string propertyName, string displayName, string referenceName, string propertyType)
+            : base(ShaderGraphAction.FindProperty, assetPath)
+        {
+            PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
+            ReferenceName = string.IsNullOrWhiteSpace(referenceName) ? string.Empty : referenceName.Trim();
+            PropertyType = string.IsNullOrWhiteSpace(propertyType) ? string.Empty : propertyType.Trim();
         }
     }
 

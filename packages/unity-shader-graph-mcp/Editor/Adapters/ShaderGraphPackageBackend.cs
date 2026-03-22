@@ -51,6 +51,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse FindProperty(FindPropertyRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.FindProperty(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request)
         {
             return ShaderGraphPackageGraphInspector.ListSupportedNodes(
@@ -568,6 +577,117 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Fail(
                 $"Node query matched multiple graph nodes in '{assetPath}'. Narrow the query with nodeId/objectId, displayName, or nodeType.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse FindProperty(
+            FindPropertyRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Find property request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.ValidateGraph() could not be invoked: {validateFailure}");
+            }
+
+            string queryPropertyName = string.IsNullOrWhiteSpace(request.PropertyName) ? string.Empty : request.PropertyName.Trim();
+            string queryDisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? string.Empty : request.DisplayName.Trim();
+            string queryReferenceName = string.IsNullOrWhiteSpace(request.ReferenceName) ? string.Empty : request.ReferenceName.Trim();
+            string queryPropertyType = string.IsNullOrWhiteSpace(request.PropertyType) ? string.Empty : request.PropertyType.Trim();
+
+            object[] matches = EnumerateMember(graphData, "properties")
+                .Where(property => PropertyMatchesQuery(property, queryPropertyName, queryDisplayName, queryReferenceName, queryPropertyType))
+                .ToArray();
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "find_property"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = BuildPropertyQuery(queryPropertyName, queryDisplayName, queryReferenceName, queryPropertyType),
+                ["matchCount"] = matches.Length,
+                ["matchStrategy"] = BuildFindPropertyMatchStrategy(queryPropertyName, queryDisplayName, queryReferenceName, queryPropertyType),
+            };
+
+            if (matches.Length == 1)
+            {
+                object shaderInput = matches[0];
+                var foundProperty = BuildPropertyLookupData(shaderInput);
+                if (TryResolvePropertyTypeFromInstance(shaderInput, out string canonicalPropertyType, out Type shaderInputType, out _))
+                {
+                    foundProperty["resolvedPropertyType"] = canonicalPropertyType;
+                    foundProperty["resolvedShaderInputType"] = shaderInputType.FullName ?? shaderInputType.Name;
+                }
+
+                data["foundProperty"] = foundProperty;
+                return ShaderGraphResponse.Ok(
+                    $"Found Shader Graph property in '{assetPath}'.",
+                    data
+                );
+            }
+
+            data["candidateProperties"] = matches.Select(BuildPropertyLookupData).Cast<object>().ToArray();
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph property matching the provided query in '{assetPath}'.",
+                    data
+                );
+            }
+
+            return ShaderGraphResponse.Fail(
+                $"Property query matched multiple Shader Graph properties in '{assetPath}'. Narrow the query with propertyName, displayName, referenceName, or propertyType.",
                 data
             );
         }
@@ -1116,15 +1236,39 @@ namespace ShaderGraphMcp.Editor.Adapters
             string previousDisplayName = GetStringProperty(shaderInput, "displayName", "name");
             string previousReferenceName = GetStringProperty(shaderInput, "referenceName");
 
-            SetMemberValue(shaderInput, "displayName", displayName);
-            SetMemberValue(shaderInput, "name", displayName);
-            loadNotes.Add($"Property display name set to '{displayName}'.");
+            if (TryInvokeInstanceMethod(
+                    shaderInput,
+                    "SetDisplayNameAndSanitizeForGraph",
+                    new object[] { graphData, displayName },
+                    out string renameDisplayFailure))
+            {
+                loadNotes.Add($"Property display name set to '{displayName}' via SetDisplayNameAndSanitizeForGraph().");
+            }
+            else
+            {
+                SetMemberValue(shaderInput, "displayName", displayName);
+                SetMemberValue(shaderInput, "name", displayName);
+                loadNotes.Add(
+                    $"Property display name set to '{displayName}' via raw member update because SetDisplayNameAndSanitizeForGraph() was unavailable: {renameDisplayFailure}");
+            }
 
             string referenceName = request.ReferenceName?.Trim();
             if (!string.IsNullOrWhiteSpace(referenceName))
             {
-                SetMemberValue(shaderInput, "referenceName", referenceName);
-                loadNotes.Add($"Property reference name set to '{referenceName}'.");
+                if (TryInvokeInstanceMethod(
+                        shaderInput,
+                        "SetReferenceNameAndSanitizeForGraph",
+                        new object[] { graphData, referenceName },
+                        out string renameReferenceFailure))
+                {
+                    loadNotes.Add($"Property reference name set to '{referenceName}' via SetReferenceNameAndSanitizeForGraph().");
+                }
+                else
+                {
+                    SetMemberValue(shaderInput, "overrideReferenceName", referenceName);
+                    loadNotes.Add(
+                        $"Property reference name set to '{referenceName}' via raw overrideReferenceName update because SetReferenceNameAndSanitizeForGraph() was unavailable: {renameReferenceFailure}");
+                }
             }
 
             if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
@@ -3266,6 +3410,57 @@ namespace ShaderGraphMcp.Editor.Adapters
                    string.Equals(GetStringProperty(property, "name"), propertyName, StringComparison.OrdinalIgnoreCase);
         }
 
+        private static bool PropertyMatchesQuery(
+            object property,
+            string queryPropertyName,
+            string queryDisplayName,
+            string queryReferenceName,
+            string queryPropertyType)
+        {
+            if (property == null)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyName) &&
+                !PropertyMatchesName(property, queryPropertyName))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName) &&
+                !string.Equals(GetStringProperty(property, "displayName", "name"), queryDisplayName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryReferenceName) &&
+                !string.Equals(GetStringProperty(property, "referenceName"), queryReferenceName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyType))
+            {
+                if (!TryResolvePropertyTypeFromInstance(property, out string canonicalPropertyType, out Type shaderInputType, out _))
+                {
+                    return false;
+                }
+
+                string normalizedQuery = queryPropertyType.Trim();
+                string fullTypeName = shaderInputType?.FullName ?? shaderInputType?.Name ?? string.Empty;
+                string shortTypeName = shaderInputType?.Name ?? string.Empty;
+                if (!string.Equals(canonicalPropertyType, normalizedQuery, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(fullTypeName, normalizedQuery, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(shortTypeName, normalizedQuery, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static Dictionary<string, object> BuildPropertyLookupData(object property)
         {
             string displayName = GetStringProperty(property, "displayName", "name");
@@ -3286,6 +3481,68 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             return data;
+        }
+
+        private static Dictionary<string, object> BuildPropertyQuery(
+            string queryPropertyName,
+            string queryDisplayName,
+            string queryReferenceName,
+            string queryPropertyType)
+        {
+            var query = new Dictionary<string, object>();
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyName))
+            {
+                query["propertyName"] = queryPropertyName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName))
+            {
+                query["displayName"] = queryDisplayName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryReferenceName))
+            {
+                query["referenceName"] = queryReferenceName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyType))
+            {
+                query["propertyType"] = queryPropertyType;
+            }
+
+            return query;
+        }
+
+        private static string[] BuildFindPropertyMatchStrategy(
+            string queryPropertyName,
+            string queryDisplayName,
+            string queryReferenceName,
+            string queryPropertyType)
+        {
+            var strategy = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyName))
+            {
+                strategy.Add("Case-insensitive property name, displayName, or referenceName match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName))
+            {
+                strategy.Add("Case-insensitive displayName match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryReferenceName))
+            {
+                strategy.Add("Case-insensitive referenceName match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyType))
+            {
+                strategy.Add("Property type canonical name or CLR type match.");
+            }
+
+            return strategy.ToArray();
         }
 
         private static Dictionary<string, object> BuildRenamedPropertyData(
@@ -6957,6 +7214,11 @@ namespace ShaderGraphMcp.Editor.Adapters
 
         private static bool TryInvokeInstanceMethod(object target, string methodName, out string failureReason)
         {
+            return TryInvokeInstanceMethod(target, methodName, Array.Empty<object>(), out failureReason);
+        }
+
+        private static bool TryInvokeInstanceMethod(object target, string methodName, object[] args, out string failureReason)
+        {
             failureReason = null;
 
             if (target == null)
@@ -6965,7 +7227,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
-            MethodInfo method = FindMethod(target.GetType(), methodName, 0);
+            object[] invocationArgs = args ?? Array.Empty<object>();
+            MethodInfo method = FindMethod(target.GetType(), methodName, invocationArgs.Length);
             if (method == null)
             {
                 failureReason = $"Method '{methodName}' was not found on {target.GetType().FullName}.";
@@ -6974,7 +7237,7 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             try
             {
-                method.Invoke(target, Array.Empty<object>());
+                method.Invoke(target, invocationArgs);
                 return true;
             }
             catch (Exception ex)

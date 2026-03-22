@@ -27,6 +27,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "create_graph",
     "read_graph_summary",
     "find_node",
+    "find_property",
     "list_supported_nodes",
     "update_property",
     "rename_property",
@@ -120,6 +121,27 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if not has_lookup:
             raise ShaderGraphRequestError(
                 "find_node requires at least one of: nodeId/objectId, displayName, nodeType."
+            )
+
+    if request.action == "find_property":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        has_lookup = any(
+            optional_text(_pick_value(request.payload, key)) is not None
+            for key in (
+                "propertyName",
+                "property_name",
+                "displayName",
+                "display_name",
+                "referenceName",
+                "reference_name",
+                "propertyType",
+                "property_type",
+            )
+        )
+        if not has_lookup:
+            raise ShaderGraphRequestError(
+                "find_property requires at least one of: propertyName, displayName, referenceName, propertyType."
             )
 
     if request.action == "add_property":

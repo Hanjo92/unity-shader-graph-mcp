@@ -214,6 +214,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindNode:
                     return TryCreateFindNodeRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.FindProperty:
+                    return TryCreateFindPropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ListSupportedNodes:
                     request = new ListSupportedNodesRequest();
                     errorMessage = null;
@@ -311,6 +313,35 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new FindNodeRequest(assetPath, nodeId, displayName, nodeType);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateFindPropertyRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Find property requires an asset path.";
+                return false;
+            }
+
+            string propertyName = FirstNonBlank(payload.propertyName);
+            string displayName = FirstNonBlank(payload.displayName);
+            string referenceName = FirstNonBlank(payload.referenceName);
+            string propertyType = FirstNonBlank(payload.propertyType);
+            if (string.IsNullOrWhiteSpace(propertyName) &&
+                string.IsNullOrWhiteSpace(displayName) &&
+                string.IsNullOrWhiteSpace(referenceName) &&
+                string.IsNullOrWhiteSpace(propertyType))
+            {
+                request = null;
+                errorMessage = "Find property requires at least one of: propertyName, displayName, referenceName, propertyType.";
+                return false;
+            }
+
+            request = new FindPropertyRequest(assetPath, propertyName, displayName, referenceName, propertyType);
             errorMessage = null;
             return true;
         }
@@ -612,6 +643,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.ReadGraphSummary;
                 case "find_node":
                     return ShaderGraphAction.FindNode;
+                case "find_property":
+                    return ShaderGraphAction.FindProperty;
                 case "list_supported_nodes":
                     return ShaderGraphAction.ListSupportedNodes;
                 case "update_property":

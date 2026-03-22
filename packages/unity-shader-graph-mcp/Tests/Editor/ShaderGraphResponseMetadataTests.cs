@@ -313,6 +313,39 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesFoundPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "find property ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["referenceName"] = "_BaseColor",
+                        ["propertyType"] = "Color",
+                    },
+                    ["foundProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Base Color",
+                        ["referenceName"] = "_BaseColor",
+                        ["resolvedPropertyType"] = "Color",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.ColorShaderProperty",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var foundProperty = (IReadOnlyDictionary<string, object>)response.Data["foundProperty"];
+            Assert.That(foundProperty["displayName"], Is.EqualTo("Base Color"));
+            Assert.That(foundProperty["referenceName"], Is.EqualTo("_BaseColor"));
+            Assert.That(foundProperty["resolvedPropertyType"], Is.EqualTo("Color"));
+        }
+
+        [Test]
         public void Ok_PreservesDuplicatedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

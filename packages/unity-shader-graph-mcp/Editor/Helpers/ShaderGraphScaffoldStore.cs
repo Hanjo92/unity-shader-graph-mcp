@@ -231,6 +231,86 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse FindProperty(
+            FindPropertyRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Find property request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            if (!TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest))
+            {
+                return ShaderGraphResponse.Fail(
+                    "'find_property' only supports graphs created by this scaffold. Use create_graph first so the manifest exists."
+                );
+            }
+
+            string queryPropertyName = string.IsNullOrWhiteSpace(request.PropertyName) ? string.Empty : request.PropertyName.Trim();
+            string queryDisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? string.Empty : request.DisplayName.Trim();
+            string queryReferenceName = string.IsNullOrWhiteSpace(request.ReferenceName) ? string.Empty : request.ReferenceName.Trim();
+            string queryPropertyType = string.IsNullOrWhiteSpace(request.PropertyType) ? string.Empty : request.PropertyType.Trim();
+
+            ShaderGraphScaffoldProperty[] matches = manifest.properties
+                .Where(property => PropertyMatchesQuery(property, queryPropertyName, queryDisplayName, queryReferenceName, queryPropertyType))
+                .ToArray();
+
+            var data = BuildSummaryData(
+                manifest,
+                assetPath,
+                absoluteAssetPath,
+                true,
+                true,
+                executionKind,
+                "find_property",
+                new[] { "Scaffold manifest queried for property lookup." },
+                null
+            );
+            data["query"] = BuildPropertyQuery(queryPropertyName, queryDisplayName, queryReferenceName, queryPropertyType);
+            data["matchCount"] = matches.Length;
+            data["matchStrategy"] = BuildFindPropertyMatchStrategy(queryPropertyName, queryDisplayName, queryReferenceName, queryPropertyType);
+
+            if (matches.Length == 1)
+            {
+                data["foundProperty"] = BuildScaffoldPropertyData(matches[0]);
+                return ShaderGraphResponse.Ok(
+                    $"Found scaffold property '{matches[0].name}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            data["candidateProperties"] = matches.Select(BuildScaffoldPropertyData).Cast<object>().ToArray();
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a scaffold property matching the provided query in '{assetPath}'.",
+                    data
+                );
+            }
+
+            return ShaderGraphResponse.Fail(
+                $"Property query matched multiple scaffold properties in '{assetPath}'. Narrow the query with propertyName, displayName, referenceName, or propertyType.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse ListSupportedNodes(
             ListSupportedNodesRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -1267,6 +1347,46 @@ namespace ShaderGraphMcp.Editor.Helpers
             return true;
         }
 
+        private static bool PropertyMatchesQuery(
+            ShaderGraphScaffoldProperty property,
+            string queryPropertyName,
+            string queryDisplayName,
+            string queryReferenceName,
+            string queryPropertyType)
+        {
+            if (property == null)
+            {
+                return false;
+            }
+
+            string propertyName = property.name ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(queryPropertyName) &&
+                !string.Equals(propertyName, queryPropertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName) &&
+                !string.Equals(propertyName, queryDisplayName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryReferenceName) &&
+                !string.Equals(propertyName, queryReferenceName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyType) &&
+                !string.Equals(property.type ?? string.Empty, queryPropertyType, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         private static Dictionary<string, object> BuildNodeQuery(
             string queryNodeId,
             string queryDisplayName,
@@ -1288,6 +1408,37 @@ namespace ShaderGraphMcp.Editor.Helpers
             if (!string.IsNullOrWhiteSpace(queryNodeType))
             {
                 query["nodeType"] = queryNodeType;
+            }
+
+            return query;
+        }
+
+        private static Dictionary<string, object> BuildPropertyQuery(
+            string queryPropertyName,
+            string queryDisplayName,
+            string queryReferenceName,
+            string queryPropertyType)
+        {
+            var query = new Dictionary<string, object>();
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyName))
+            {
+                query["propertyName"] = queryPropertyName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName))
+            {
+                query["displayName"] = queryDisplayName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryReferenceName))
+            {
+                query["referenceName"] = queryReferenceName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyType))
+            {
+                query["propertyType"] = queryPropertyType;
             }
 
             return query;
@@ -1317,6 +1468,36 @@ namespace ShaderGraphMcp.Editor.Helpers
             return strategy.ToArray();
         }
 
+        private static string[] BuildFindPropertyMatchStrategy(
+            string queryPropertyName,
+            string queryDisplayName,
+            string queryReferenceName,
+            string queryPropertyType)
+        {
+            var strategy = new List<string>();
+            if (!string.IsNullOrWhiteSpace(queryPropertyName))
+            {
+                strategy.Add("Case-insensitive propertyName match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryDisplayName))
+            {
+                strategy.Add("Case-insensitive displayName match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryReferenceName))
+            {
+                strategy.Add("Case-insensitive referenceName match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryPropertyType))
+            {
+                strategy.Add("Case-insensitive propertyType match.");
+            }
+
+            return strategy.ToArray();
+        }
+
         private static Dictionary<string, object> BuildScaffoldNodeData(ShaderGraphScaffoldNode node)
         {
             string positionDescription = FormatScaffoldNodePosition(node);
@@ -1332,6 +1513,18 @@ namespace ShaderGraphMcp.Editor.Helpers
                     ["y"] = node?.y ?? 0f,
                 },
                 ["summary"] = $"{node?.displayName ?? string.Empty} ({node?.id ?? string.Empty}) [{node?.nodeType ?? string.Empty}] @ {positionDescription}",
+            };
+        }
+
+        private static Dictionary<string, object> BuildScaffoldPropertyData(ShaderGraphScaffoldProperty property)
+        {
+            return new Dictionary<string, object>
+            {
+                ["displayName"] = property?.name ?? string.Empty,
+                ["referenceName"] = property?.name ?? string.Empty,
+                ["resolvedPropertyType"] = property?.type ?? string.Empty,
+                ["defaultValue"] = property?.defaultValue ?? string.Empty,
+                ["summary"] = $"{property?.name ?? string.Empty} [{property?.type ?? string.Empty}]",
             };
         }
 

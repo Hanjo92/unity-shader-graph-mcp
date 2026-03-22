@@ -29,6 +29,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.ReadGraphSummary(readGraphSummaryRequest);
                 case FindNodeRequest findNodeRequest:
                     return Adapter.FindNode(findNodeRequest);
+                case FindPropertyRequest findPropertyRequest:
+                    return Adapter.FindProperty(findPropertyRequest);
                 case ListSupportedNodesRequest listSupportedNodesRequest:
                     return Adapter.ListSupportedNodes(listSupportedNodesRequest);
                 case UpdatePropertyRequest updatePropertyRequest:
@@ -57,7 +59,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, list_supported_nodes, update_property, rename_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, update_property, rename_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
                     );
             }
         }
@@ -79,6 +81,16 @@ namespace ShaderGraphMcp.Editor.Tools
             string nodeType)
         {
             return Handle(new FindNodeRequest(assetPath, nodeId, displayName, nodeType));
+        }
+
+        public static ShaderGraphResponse HandleFindProperty(
+            string assetPath,
+            string propertyName,
+            string displayName,
+            string referenceName,
+            string propertyType)
+        {
+            return Handle(new FindPropertyRequest(assetPath, propertyName, displayName, referenceName, propertyType));
         }
 
         public static ShaderGraphResponse HandleListSupportedNodes()

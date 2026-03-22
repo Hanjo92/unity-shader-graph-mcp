@@ -41,6 +41,11 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
         "displayName": "Base Color",
     },
+    "find_property": {
+        "action": "find_property",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "propertyName": "ExampleColor",
+    },
     "list_supported_nodes": {
         "action": "list_supported_nodes",
     },
@@ -174,6 +179,9 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "find_node", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "find_property", "path": "Assets/X.shadergraph"})
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request(

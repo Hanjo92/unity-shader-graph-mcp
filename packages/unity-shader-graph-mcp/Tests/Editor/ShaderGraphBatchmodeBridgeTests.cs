@@ -115,6 +115,29 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsFindPropertyRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""find_property"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""referenceName"": ""_BaseColor"",
+                ""propertyType"": ""Color""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var findPropertyRequest = request as FindPropertyRequest;
+            Assert.That(findPropertyRequest, Is.Not.Null);
+            Assert.That(findPropertyRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(findPropertyRequest.ReferenceName, Is.EqualTo("_BaseColor"));
+            Assert.That(findPropertyRequest.PropertyType, Is.EqualTo("Color"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsListSupportedNodesRequest_WithoutAssetPath()
         {
             string json = @"{
