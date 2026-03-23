@@ -327,6 +327,54 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_DuplicateProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphDuplicateProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Tint",
+                "Color",
+                "#FFFFFFFF");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse duplicatePropertyResponse = ShaderGraphAssetTool.HandleDuplicateProperty(
+                assetPath,
+                "Tint",
+                "Copied Tint",
+                "_CopiedTint");
+            ShaderGraphTestAssets.RequirePackageReady(duplicatePropertyResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatePropertyResponse.Data, "operation"), Is.EqualTo("duplicate_property"));
+            Assert.That(ShaderGraphTestAssets.GetInt(duplicatePropertyResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var duplicatedFrom = ShaderGraphTestAssets.RequireDictionary(duplicatePropertyResponse.Data, "duplicatedFrom");
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedFrom, "displayName"), Is.EqualTo("Tint"));
+
+            var duplicatedProperty = ShaderGraphTestAssets.RequireDictionary(duplicatePropertyResponse.Data, "duplicatedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedProperty, "displayName"), Is.EqualTo("Copied Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedProperty, "referenceName"), Is.EqualTo("_CopiedTint"));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedProperty, "sourceDisplayName"), Is.EqualTo("Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedProperty, "resolvedPropertyType"), Is.EqualTo("Color"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(2));
+
+            ShaderGraphResponse findByReferenceResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                null,
+                null,
+                "_CopiedTint",
+                "Color");
+            ShaderGraphTestAssets.RequirePackageReady(findByReferenceResponse);
+
+            var foundByReference = ShaderGraphTestAssets.RequireDictionary(findByReferenceResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundByReference, "displayName"), Is.EqualTo("Copied Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundByReference, "referenceName"), Is.EqualTo("_CopiedTint"));
+        }
+
+        [Test]
         public void BlankGraph_RenameNode_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphRenameNode", out _);

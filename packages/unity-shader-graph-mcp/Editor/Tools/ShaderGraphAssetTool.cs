@@ -37,6 +37,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.UpdateProperty(updatePropertyRequest);
                 case RenamePropertyRequest renamePropertyRequest:
                     return Adapter.RenameProperty(renamePropertyRequest);
+                case DuplicatePropertyRequest duplicatePropertyRequest:
+                    return Adapter.DuplicateProperty(duplicatePropertyRequest);
                 case RenameNodeRequest renameNodeRequest:
                     return Adapter.RenameNode(renameNodeRequest);
                 case DuplicateNodeRequest duplicateNodeRequest:
@@ -59,7 +61,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, update_property, rename_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, update_property, rename_property, duplicate_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
                     );
             }
         }
@@ -114,6 +116,15 @@ namespace ShaderGraphMcp.Editor.Tools
             string referenceName)
         {
             return Handle(new RenamePropertyRequest(assetPath, propertyName, displayName, referenceName));
+        }
+
+        public static ShaderGraphResponse HandleDuplicateProperty(
+            string assetPath,
+            string propertyName,
+            string displayName,
+            string referenceName)
+        {
+            return Handle(new DuplicatePropertyRequest(assetPath, propertyName, displayName, referenceName));
         }
 
         public static ShaderGraphResponse HandleRenameNode(

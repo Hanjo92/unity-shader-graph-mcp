@@ -224,6 +224,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateUpdatePropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameProperty:
                     return TryCreateRenamePropertyRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.DuplicateProperty:
+                    return TryCreateDuplicatePropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameNode:
                     return TryCreateRenameNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DuplicateNode:
@@ -411,6 +413,31 @@ namespace ShaderGraphMcp.Editor.Tools
 
             string referenceName = FirstNonBlank(payload.newReferenceName, payload.referenceName);
             request = new RenamePropertyRequest(assetPath, propertyName, displayName, referenceName);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateDuplicatePropertyRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Duplicate property requires an asset path.";
+                return false;
+            }
+
+            string propertyName = FirstNonBlank(payload.propertyName);
+            if (string.IsNullOrWhiteSpace(propertyName))
+            {
+                request = null;
+                errorMessage = "Duplicate property requires a property name.";
+                return false;
+            }
+
+            string displayName = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.name);
+            string referenceName = FirstNonBlank(payload.newReferenceName, payload.referenceName);
+            request = new DuplicatePropertyRequest(assetPath, propertyName, displayName, referenceName);
             errorMessage = null;
             return true;
         }
@@ -651,6 +678,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.UpdateProperty;
                 case "rename_property":
                     return ShaderGraphAction.RenameProperty;
+                case "duplicate_property":
+                    return ShaderGraphAction.DuplicateProperty;
                 case "rename_node":
                     return ShaderGraphAction.RenameNode;
                 case "duplicate_node":

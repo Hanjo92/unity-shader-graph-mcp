@@ -11,6 +11,7 @@ namespace ShaderGraphMcp.Editor.Models
         ListSupportedNodes,
         UpdateProperty,
         RenameProperty,
+        DuplicateProperty,
         RenameNode,
         DuplicateNode,
         MoveNode,
@@ -169,6 +170,21 @@ namespace ShaderGraphMcp.Editor.Models
 
         public RenamePropertyRequest(string assetPath, string propertyName, string displayName, string referenceName)
             : base(ShaderGraphAction.RenameProperty, assetPath)
+        {
+            PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
+            ReferenceName = string.IsNullOrWhiteSpace(referenceName) ? string.Empty : referenceName.Trim();
+        }
+    }
+
+    public sealed class DuplicatePropertyRequest : ShaderGraphRequest
+    {
+        public string PropertyName { get; }
+        public string DisplayName { get; }
+        public string ReferenceName { get; }
+
+        public DuplicatePropertyRequest(string assetPath, string propertyName, string displayName, string referenceName)
+            : base(ShaderGraphAction.DuplicateProperty, assetPath)
         {
             PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();

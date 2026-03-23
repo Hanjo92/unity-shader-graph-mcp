@@ -346,6 +346,47 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesDuplicatedPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "duplicate property ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["propertyName"] = "Tint",
+                    },
+                    ["duplicatedFrom"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Tint",
+                        ["referenceName"] = "_Tint",
+                        ["resolvedPropertyType"] = "Color",
+                    },
+                    ["duplicatedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Copied Tint",
+                        ["referenceName"] = "_CopiedTint",
+                        ["sourceDisplayName"] = "Tint",
+                        ["sourceReferenceName"] = "_Tint",
+                        ["resolvedPropertyType"] = "Color",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.ColorShaderProperty",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var duplicatedProperty = (IReadOnlyDictionary<string, object>)response.Data["duplicatedProperty"];
+            Assert.That(duplicatedProperty["displayName"], Is.EqualTo("Copied Tint"));
+            Assert.That(duplicatedProperty["referenceName"], Is.EqualTo("_CopiedTint"));
+            Assert.That(duplicatedProperty["sourceDisplayName"], Is.EqualTo("Tint"));
+            Assert.That(duplicatedProperty["resolvedPropertyType"], Is.EqualTo("Color"));
+        }
+
+        [Test]
         public void Ok_PreservesDuplicatedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

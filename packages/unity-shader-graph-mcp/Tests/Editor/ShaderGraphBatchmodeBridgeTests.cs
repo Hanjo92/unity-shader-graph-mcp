@@ -206,6 +206,31 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsDuplicatePropertyRequest_WithOptionalReferenceName()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""duplicate_property"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""propertyName"": ""Tint"",
+                ""newDisplayName"": ""Copied Tint"",
+                ""newReferenceName"": ""_CopiedTint""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var duplicatePropertyRequest = request as DuplicatePropertyRequest;
+            Assert.That(duplicatePropertyRequest, Is.Not.Null);
+            Assert.That(duplicatePropertyRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(duplicatePropertyRequest.PropertyName, Is.EqualTo("Tint"));
+            Assert.That(duplicatePropertyRequest.DisplayName, Is.EqualTo("Copied Tint"));
+            Assert.That(duplicatePropertyRequest.ReferenceName, Is.EqualTo("_CopiedTint"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsRenameNodeRequest_FromAliasFields()
         {
             string json = @"{

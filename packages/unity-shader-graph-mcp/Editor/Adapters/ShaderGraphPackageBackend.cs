@@ -87,6 +87,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse DuplicateProperty(DuplicatePropertyRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.DuplicateProperty(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse RenameNode(RenameNodeRequest request)
         {
             return ShaderGraphPackageGraphInspector.RenameNode(
@@ -1320,6 +1329,217 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Renamed Shader Graph property '{propertyName}' to '{GetStringProperty(shaderInput, "displayName", "name", "referenceName")}' in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse DuplicateProperty(
+            DuplicatePropertyRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Duplicate property request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "duplicate_property"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["propertyName"] = request.PropertyName?.Trim() ?? string.Empty,
+                },
+            };
+
+            if (string.IsNullOrWhiteSpace(request.PropertyName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Property name is required.", data);
+            }
+
+            string propertyName = request.PropertyName.Trim();
+            object[] matches = EnumerateMember(graphData, "properties")
+                .Where(property => PropertyMatchesName(property, propertyName))
+                .ToArray();
+
+            data["matchCount"] = matches.Length;
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph property named '{propertyName}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateProperties"] = matches.Select(BuildPropertyLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Property query for '{propertyName}' matched multiple Shader Graph properties in '{assetPath}'.",
+                    data
+                );
+            }
+
+            object sourceProperty = matches[0];
+            if (!TryResolvePropertyTypeFromInstance(sourceProperty, out string canonicalPropertyType, out Type shaderInputType, out string propertyTypeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    propertyTypeFailure,
+                    data
+                );
+            }
+
+            if (!TryInvokeGraphAddCopyOfShaderInput(graphData, sourceProperty, out object duplicatedProperty, out string duplicateFailure))
+            {
+                data["duplicatedFrom"] = BuildPropertyLookupData(sourceProperty);
+                return ShaderGraphResponse.Fail(
+                    $"Unable to duplicate Shader Graph property '{propertyName}' in '{assetPath}': {duplicateFailure}",
+                    data
+                );
+            }
+
+            string sourceDisplayName = GetStringProperty(sourceProperty, "displayName", "name");
+            string duplicatedDisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+                ? BuildDuplicateDisplayName(sourceDisplayName, canonicalPropertyType)
+                : request.DisplayName.Trim();
+
+            if (!string.IsNullOrWhiteSpace(duplicatedDisplayName))
+            {
+                if (TryInvokeInstanceMethod(
+                        duplicatedProperty,
+                        "SetDisplayNameAndSanitizeForGraph",
+                        new object[] { graphData, duplicatedDisplayName },
+                        out string renameDisplayFailure))
+                {
+                    loadNotes.Add($"Duplicated property display name set to '{duplicatedDisplayName}' via SetDisplayNameAndSanitizeForGraph().");
+                }
+                else
+                {
+                    SetMemberValue(duplicatedProperty, "displayName", duplicatedDisplayName);
+                    SetMemberValue(duplicatedProperty, "name", duplicatedDisplayName);
+                    loadNotes.Add(
+                        $"Duplicated property display name set to '{duplicatedDisplayName}' via raw member update because SetDisplayNameAndSanitizeForGraph() was unavailable: {renameDisplayFailure}");
+                }
+            }
+
+            string referenceName = request.ReferenceName?.Trim();
+            if (!string.IsNullOrWhiteSpace(referenceName))
+            {
+                if (TryInvokeInstanceMethod(
+                        duplicatedProperty,
+                        "SetReferenceNameAndSanitizeForGraph",
+                        new object[] { graphData, referenceName },
+                        out string renameReferenceFailure))
+                {
+                    loadNotes.Add($"Duplicated property reference name set to '{referenceName}' via SetReferenceNameAndSanitizeForGraph().");
+                }
+                else
+                {
+                    SetMemberValue(duplicatedProperty, "overrideReferenceName", referenceName);
+                    loadNotes.Add(
+                        $"Duplicated property reference name set to '{referenceName}' via raw overrideReferenceName update because SetReferenceNameAndSanitizeForGraph() was unavailable: {renameReferenceFailure}");
+                }
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after duplicating property '{propertyName}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after duplicating property '{propertyName}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "duplicate_property"
+            );
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["propertyName"] = propertyName,
+                },
+                ["matchCount"] = 1,
+                ["duplicationStrategy"] = new[]
+                {
+                    "Creates a new Shader Graph property via GraphData.AddCopyOfShaderInput(source, -1).",
+                    "Uses requested displayName or appends 'Copy' to the source displayName.",
+                    "Uses requested referenceName when provided; otherwise Unity keeps the duplicated property's sanitized default or copied override.",
+                },
+                ["duplicatedFrom"] = BuildPropertyLookupData(sourceProperty),
+                ["duplicatedProperty"] = BuildDuplicatedPropertyData(
+                    duplicatedProperty,
+                    sourceProperty,
+                    canonicalPropertyType,
+                    shaderInputType),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Duplicated Shader Graph property '{sourceDisplayName}' as '{GetStringProperty(duplicatedProperty, "displayName", "name", "referenceName")}' in '{assetPath}'.",
                 data
             );
         }
@@ -3555,6 +3775,20 @@ namespace ShaderGraphMcp.Editor.Adapters
             var data = BuildPropertyLookupData(property);
             data["previousDisplayName"] = previousDisplayName ?? string.Empty;
             data["previousReferenceName"] = previousReferenceName ?? string.Empty;
+            data["resolvedPropertyType"] = canonicalPropertyType ?? string.Empty;
+            data["resolvedShaderInputType"] = shaderInputType?.FullName ?? shaderInputType?.Name ?? string.Empty;
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildDuplicatedPropertyData(
+            object duplicatedProperty,
+            object sourceProperty,
+            string canonicalPropertyType,
+            Type shaderInputType)
+        {
+            var data = BuildPropertyLookupData(duplicatedProperty);
+            data["sourceDisplayName"] = GetStringProperty(sourceProperty, "displayName", "name");
+            data["sourceReferenceName"] = GetStringProperty(sourceProperty, "referenceName");
             data["resolvedPropertyType"] = canonicalPropertyType ?? string.Empty;
             data["resolvedShaderInputType"] = shaderInputType?.FullName ?? shaderInputType?.Name ?? string.Empty;
             return data;
@@ -6584,6 +6818,52 @@ namespace ShaderGraphMcp.Editor.Adapters
             try
             {
                 addInputMethod.Invoke(graphData, new[] { shaderInput, -1 });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryInvokeGraphAddCopyOfShaderInput(
+            object graphData,
+            object shaderInput,
+            out object duplicatedShaderInput,
+            out string failureReason)
+        {
+            duplicatedShaderInput = null;
+            failureReason = null;
+
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            if (shaderInput == null)
+            {
+                failureReason = "Shader input instance is null.";
+                return false;
+            }
+
+            MethodInfo addCopyMethod = FindMethod(graphData.GetType(), "AddCopyOfShaderInput", 2);
+            if (addCopyMethod == null)
+            {
+                failureReason = $"Method 'AddCopyOfShaderInput' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                duplicatedShaderInput = addCopyMethod.Invoke(graphData, new object[] { shaderInput, -1 });
+                if (duplicatedShaderInput == null)
+                {
+                    failureReason = "AddCopyOfShaderInput returned null.";
+                    return false;
+                }
+
                 return true;
             }
             catch (Exception ex)

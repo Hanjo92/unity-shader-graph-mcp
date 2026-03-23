@@ -548,6 +548,95 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse DuplicateProperty(
+            DuplicatePropertyRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Duplicate property request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "duplicate_property",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.PropertyName))
+                    {
+                        return "Property name is required.";
+                    }
+
+                    string propertyName = request.PropertyName.Trim();
+                    ShaderGraphScaffoldProperty existing = manifest.properties.FirstOrDefault(
+                        property => string.Equals(property.name, propertyName, StringComparison.Ordinal));
+                    if (existing == null)
+                    {
+                        return $"Property '{propertyName}' does not exist in the scaffold manifest.";
+                    }
+
+                    string duplicatedDisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+                        ? BuildDuplicateDisplayName(existing.name, existing.type)
+                        : request.DisplayName.Trim();
+
+                    manifest.properties.Add(new ShaderGraphScaffoldProperty
+                    {
+                        name = duplicatedDisplayName,
+                        type = existing.type,
+                        defaultValue = existing.defaultValue,
+                        updatedUtc = UtcNow(),
+                    });
+
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    string sourcePropertyName = request.PropertyName.Trim();
+                    ShaderGraphScaffoldProperty sourceProperty = manifest.properties.First(
+                        property => string.Equals(property.name, sourcePropertyName, StringComparison.Ordinal));
+                    ShaderGraphScaffoldProperty duplicatedProperty = manifest.properties.Last();
+
+                    var notes = new List<string>
+                    {
+                        $"Property '{request.PropertyName}' duplicated in scaffold manifest.",
+                        "Scaffold properties reuse displayName as referenceName.",
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(request.ReferenceName))
+                    {
+                        notes.Add("Requested referenceName is ignored in scaffold mode because scaffold properties do not store a separate reference name.");
+                    }
+
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "duplicate_property",
+                        notes,
+                        null
+                    );
+
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["propertyName"] = sourcePropertyName,
+                    };
+                    data["matchCount"] = 1;
+                    data["duplicationStrategy"] = new[]
+                    {
+                        "Creates a new scaffold property with the same type and defaultValue.",
+                        "Uses requested displayName or appends 'Copy' to the source displayName.",
+                        "Scaffold properties use displayName as referenceName.",
+                    };
+                    data["duplicatedFrom"] = BuildScaffoldPropertyData(sourceProperty);
+                    data["duplicatedProperty"] = BuildScaffoldPropertyData(duplicatedProperty);
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse MoveNode(
             MoveNodeRequest request,
             ShaderGraphExecutionKind executionKind)
