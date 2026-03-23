@@ -1215,6 +1215,133 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse ReconnectConnection(
+            ReconnectConnectionRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Reconnect connection request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "reconnect_connection",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.OldOutputNodeId) || string.IsNullOrWhiteSpace(request.OldInputNodeId))
+                    {
+                        return "Reconnect connection requires old output and input node ids.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(request.OldOutputPort) || string.IsNullOrWhiteSpace(request.OldInputPort))
+                    {
+                        return "Reconnect connection requires old output and input port names.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(request.OutputNodeId) || string.IsNullOrWhiteSpace(request.InputNodeId))
+                    {
+                        return "Reconnect connection requires new output and input node ids.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(request.OutputPort) || string.IsNullOrWhiteSpace(request.InputPort))
+                    {
+                        return "Reconnect connection requires new output and input port names.";
+                    }
+
+                    string oldOutputNodeId = request.OldOutputNodeId.Trim();
+                    string oldOutputPort = request.OldOutputPort.Trim();
+                    string oldInputNodeId = request.OldInputNodeId.Trim();
+                    string oldInputPort = request.OldInputPort.Trim();
+                    string outputNodeId = request.OutputNodeId.Trim();
+                    string outputPort = request.OutputPort.Trim();
+                    string inputNodeId = request.InputNodeId.Trim();
+                    string inputPort = request.InputPort.Trim();
+
+                    int removedCount = manifest.connections.RemoveAll(
+                        connection =>
+                            string.Equals(connection.outputNodeId, oldOutputNodeId, StringComparison.Ordinal) &&
+                            string.Equals(connection.outputPort, oldOutputPort, StringComparison.Ordinal) &&
+                            string.Equals(connection.inputNodeId, oldInputNodeId, StringComparison.Ordinal) &&
+                            string.Equals(connection.inputPort, oldInputPort, StringComparison.Ordinal)
+                    );
+
+                    if (removedCount == 0)
+                    {
+                        return $"Connection '{oldOutputNodeId}:{oldOutputPort} -> {oldInputNodeId}:{oldInputPort}' does not exist in the scaffold manifest.";
+                    }
+
+                    bool alreadyConnected = manifest.connections.Any(
+                        connection =>
+                            string.Equals(connection.outputNodeId, outputNodeId, StringComparison.Ordinal) &&
+                            string.Equals(connection.outputPort, outputPort, StringComparison.Ordinal) &&
+                            string.Equals(connection.inputNodeId, inputNodeId, StringComparison.Ordinal) &&
+                            string.Equals(connection.inputPort, inputPort, StringComparison.Ordinal)
+                    );
+
+                    if (!alreadyConnected)
+                    {
+                        manifest.connections.Add(new ShaderGraphScaffoldConnection
+                        {
+                            outputNodeId = outputNodeId,
+                            outputPort = outputPort,
+                            inputNodeId = inputNodeId,
+                            inputPort = inputPort,
+                            updatedUtc = DateTime.UtcNow.ToString("O"),
+                        });
+                    }
+
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "reconnect_connection",
+                        new[] { "Port reconnection recorded in scaffold manifest." },
+                        null
+                    );
+                    data["matchCount"] = 1;
+                    data["previousConnection"] = BuildConnectionQuery(
+                        request.OldOutputNodeId.Trim(),
+                        request.OldOutputPort.Trim(),
+                        request.OldInputNodeId.Trim(),
+                        request.OldInputPort.Trim());
+                    data["requestedConnection"] = BuildConnectionQuery(
+                        request.OutputNodeId.Trim(),
+                        request.OutputPort.Trim(),
+                        request.InputNodeId.Trim(),
+                        request.InputPort.Trim());
+                    data["resolvedPreviousConnection"] = BuildConnectionQuery(
+                        request.OldOutputNodeId.Trim(),
+                        request.OldOutputPort.Trim(),
+                        request.OldInputNodeId.Trim(),
+                        request.OldInputPort.Trim());
+                    data["removedConnection"] = BuildConnectionQuery(
+                        request.OldOutputNodeId.Trim(),
+                        request.OldOutputPort.Trim(),
+                        request.OldInputNodeId.Trim(),
+                        request.OldInputPort.Trim());
+                    data["resolvedConnection"] = BuildConnectionQuery(
+                        request.OutputNodeId.Trim(),
+                        request.OutputPort.Trim(),
+                        request.InputNodeId.Trim(),
+                        request.InputPort.Trim());
+                    data["connectedConnection"] = BuildConnectionQuery(
+                        request.OutputNodeId.Trim(),
+                        request.OutputPort.Trim(),
+                        request.InputNodeId.Trim(),
+                        request.InputPort.Trim());
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse FindConnection(
             FindConnectionRequest request,
             ShaderGraphExecutionKind executionKind)

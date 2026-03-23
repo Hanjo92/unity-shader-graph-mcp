@@ -25,6 +25,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse ConnectPorts(ConnectPortsRequest request);
         ShaderGraphResponse FindConnection(FindConnectionRequest request);
         ShaderGraphResponse RemoveConnection(RemoveConnectionRequest request);
+        ShaderGraphResponse ReconnectConnection(ReconnectConnectionRequest request);
         ShaderGraphResponse SaveGraph(SaveGraphRequest request);
     }
 }

@@ -204,6 +204,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse ReconnectConnection(ReconnectConnectionRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ReconnectConnection(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse SaveGraph(SaveGraphRequest request)
         {
             return ShaderGraphPackageGraphInspector.SaveGraph(
@@ -3296,6 +3305,628 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public static ShaderGraphResponse ReconnectConnection(
+            ReconnectConnectionRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Reconnect connection request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "reconnect_connection"
+            );
+
+            string requestedOldOutputNodeId = request.OldOutputNodeId?.Trim();
+            string requestedOldOutputPort = request.OldOutputPort?.Trim();
+            string requestedOldInputNodeId = request.OldInputNodeId?.Trim();
+            string requestedOldInputPort = request.OldInputPort?.Trim();
+            string requestedOutputNodeId = request.OutputNodeId?.Trim();
+            string requestedOutputPort = request.OutputPort?.Trim();
+            string requestedInputNodeId = request.InputNodeId?.Trim();
+            string requestedInputPort = request.InputPort?.Trim();
+
+            if (string.IsNullOrWhiteSpace(requestedOldOutputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedOldOutputPort) ||
+                string.IsNullOrWhiteSpace(requestedOldInputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedOldInputPort))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Reconnect connection request requires old output node id, old output port, old input node id, and old input port.",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(requestedOutputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedOutputPort) ||
+                string.IsNullOrWhiteSpace(requestedInputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedInputPort))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Reconnect connection request requires new output node id, output port, input node id, and input port.",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedOldOutputNodeId,
+                    out object oldOutputNode,
+                    out string oldOutputNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    oldOutputNodeFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedOldInputNodeId,
+                    out object oldInputNode,
+                    out string oldInputNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    oldInputNodeFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            string oldOutputNodeId = GetStringProperty(oldOutputNode, "objectId");
+            string oldInputNodeId = GetStringProperty(oldInputNode, "objectId");
+            if (string.IsNullOrWhiteSpace(oldOutputNodeId) || string.IsNullOrWhiteSpace(oldInputNodeId))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Resolved previous graph nodes do not expose stable object ids. Use read_graph_summary node ids instead of display names.",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (string.Equals(oldOutputNodeId, oldInputNodeId, StringComparison.Ordinal))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Reconnect connection requires two distinct previous endpoint nodes. Self-connections are not supported in the first package-backed path.",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    oldOutputNode,
+                    requestedOldOutputPort,
+                    true,
+                    out int oldOutputSlotId,
+                    out string canonicalOldOutputPort,
+                    out string oldOutputPortFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    oldOutputPortFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    oldInputNode,
+                    requestedOldInputPort,
+                    false,
+                    out int oldInputSlotId,
+                    out string canonicalOldInputPort,
+                    out string oldInputPortFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    oldInputPortFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryValidateSupportedConnectionPair(
+                    oldOutputNode,
+                    oldInputNode,
+                    canonicalOldOutputPort,
+                    canonicalOldInputPort,
+                    out string oldPairFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    oldPairFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            object[] previousMatches = EnumerateMember(graphData, "edges")
+                .Where(edge => EdgeMatchesResolvedConnection(edge, oldOutputNodeId, oldOutputSlotId, oldInputNodeId, oldInputSlotId))
+                .ToArray();
+
+            if (previousMatches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph connection matching '{oldOutputNodeId}:{canonicalOldOutputPort} -> {oldInputNodeId}:{canonicalOldInputPort}' in '{assetPath}'.",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (previousMatches.Length > 1)
+            {
+                var duplicateData = BuildUnsupportedReconnectConnectionData(
+                    snapshot,
+                    requestedOldOutputNodeId,
+                    requestedOldOutputPort,
+                    requestedOldInputNodeId,
+                    requestedOldInputPort,
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort);
+                duplicateData["matchCount"] = previousMatches.Length;
+                duplicateData["candidateConnections"] = previousMatches.Select(BuildEdgeLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Previous connection query for '{oldOutputNodeId}:{canonicalOldOutputPort} -> {oldInputNodeId}:{canonicalOldInputPort}' matched multiple edges in '{assetPath}'.",
+                    duplicateData
+                );
+            }
+
+            object previousEdge = previousMatches[0];
+            Dictionary<string, object> removedConnection = BuildEdgeLookupData(previousEdge);
+            removedConnection["outputNodeId"] = oldOutputNodeId;
+            removedConnection["outputNodeType"] = GetTypeName(oldOutputNode);
+            removedConnection["outputSlotId"] = oldOutputSlotId;
+            removedConnection["outputPort"] = canonicalOldOutputPort;
+            removedConnection["inputNodeId"] = oldInputNodeId;
+            removedConnection["inputNodeType"] = GetTypeName(oldInputNode);
+            removedConnection["inputSlotId"] = oldInputSlotId;
+            removedConnection["inputPort"] = canonicalOldInputPort;
+
+            if (!TryInvokeGraphRemoveEdge(graphData, previousEdge, out string removeEdgeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to remove the resolved previous Shader Graph connection: {removeEdgeFailure}",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedOutputNodeId,
+                    out object outputNode,
+                    out string outputNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    outputNodeFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedInputNodeId,
+                    out object inputNode,
+                    out string inputNodeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    inputNodeFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            string outputNodeId = GetStringProperty(outputNode, "objectId");
+            string inputNodeId = GetStringProperty(inputNode, "objectId");
+            if (string.IsNullOrWhiteSpace(outputNodeId) || string.IsNullOrWhiteSpace(inputNodeId))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Resolved graph nodes do not expose stable object ids. Use read_graph_summary node ids instead of display names.",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (string.Equals(outputNodeId, inputNodeId, StringComparison.Ordinal))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Reconnect connection requires two distinct new endpoint nodes. Self-connections are not supported in the first package-backed path.",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    outputNode,
+                    requestedOutputPort,
+                    true,
+                    out int outputSlotId,
+                    out string canonicalOutputPort,
+                    out string outputPortFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    outputPortFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    inputNode,
+                    requestedInputPort,
+                    false,
+                    out int inputSlotId,
+                    out string canonicalInputPort,
+                    out string inputPortFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    inputPortFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryValidateSupportedConnectionPair(
+                    outputNode,
+                    inputNode,
+                    canonicalOutputPort,
+                    canonicalInputPort,
+                    out string pairFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    pairFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryCreateSlotReference(outputNode, outputSlotId, out object outputSlotRef, out string outputSlotFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    outputSlotFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryCreateSlotReference(inputNode, inputSlotId, out object inputSlotRef, out string inputSlotFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    inputSlotFailure,
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryInvokeGraphConnect(graphData, outputSlotRef, inputSlotRef, out object connectedEdge, out string connectFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to connect the resolved Shader Graph slots: {connectFailure}",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after reconnecting the connection: {validateFailure}",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after reconnecting the connection: {writeFailure}",
+                    BuildUnsupportedReconnectConnectionData(
+                        snapshot,
+                        requestedOldOutputNodeId,
+                        requestedOldOutputPort,
+                        requestedOldInputNodeId,
+                        requestedOldInputPort,
+                        requestedOutputNodeId,
+                        requestedOutputPort,
+                        requestedInputNodeId,
+                        requestedInputPort)
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            var refreshedSnapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "reconnect_connection"
+            );
+
+            var connectedConnection = BuildEdgeLookupData(connectedEdge);
+            connectedConnection["outputNodeId"] = outputNodeId;
+            connectedConnection["outputNodeType"] = GetTypeName(outputNode);
+            connectedConnection["outputSlotId"] = outputSlotId;
+            connectedConnection["outputPort"] = canonicalOutputPort;
+            connectedConnection["inputNodeId"] = inputNodeId;
+            connectedConnection["inputNodeType"] = GetTypeName(inputNode);
+            connectedConnection["inputSlotId"] = inputSlotId;
+            connectedConnection["inputPort"] = canonicalInputPort;
+            connectedConnection["connectedEdgeType"] = connectedEdge?.GetType().FullName ?? string.Empty;
+
+            var data = new Dictionary<string, object>(refreshedSnapshot.ToDictionary())
+            {
+                ["supportedConnectionRules"] = SupportedConnectionRules.ToArray(),
+                ["matchCount"] = 1,
+                ["previousConnection"] = BuildConnectionQuery(
+                    requestedOldOutputNodeId,
+                    requestedOldOutputPort,
+                    requestedOldInputNodeId,
+                    requestedOldInputPort),
+                ["requestedConnection"] = BuildConnectionQuery(
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort),
+                ["resolvedPreviousConnection"] = new Dictionary<string, object>
+                {
+                    ["outputNodeId"] = oldOutputNodeId,
+                    ["outputNodeType"] = GetTypeName(oldOutputNode),
+                    ["outputSlotId"] = oldOutputSlotId,
+                    ["outputPort"] = canonicalOldOutputPort,
+                    ["inputNodeId"] = oldInputNodeId,
+                    ["inputNodeType"] = GetTypeName(oldInputNode),
+                    ["inputSlotId"] = oldInputSlotId,
+                    ["inputPort"] = canonicalOldInputPort,
+                },
+                ["removedConnection"] = removedConnection,
+                ["resolvedConnection"] = new Dictionary<string, object>
+                {
+                    ["outputNodeId"] = outputNodeId,
+                    ["outputNodeType"] = GetTypeName(outputNode),
+                    ["outputSlotId"] = outputSlotId,
+                    ["outputPort"] = canonicalOutputPort,
+                    ["inputNodeId"] = inputNodeId,
+                    ["inputNodeType"] = GetTypeName(inputNode),
+                    ["inputSlotId"] = inputSlotId,
+                    ["inputPort"] = canonicalInputPort,
+                    ["connectedEdgeType"] = connectedEdge?.GetType().FullName ?? string.Empty,
+                },
+                ["connectedConnection"] = connectedConnection,
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Reconnected {GetTypeName(oldOutputNode)}.{canonicalOldOutputPort} -> {GetTypeName(oldInputNode)}.{canonicalOldInputPort} to {GetTypeName(outputNode)}.{canonicalOutputPort} -> {GetTypeName(inputNode)}.{canonicalInputPort} in '{assetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse FindConnection(
             FindConnectionRequest request,
             ShaderGraphCompatibilitySnapshot compatibility,
@@ -4353,6 +4984,38 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["inputPort"] = requestedInputPort ?? string.Empty,
             };
             data["nodeIdentifierContract"] = $"{actionLabel} expects exact GraphData objectId values returned by addedNode.objectId or read_graph_summary nodes; display names are not supported.";
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedReconnectConnectionData(
+            ShaderGraphAssetSnapshot snapshot,
+            string requestedOldOutputNodeId,
+            string requestedOldOutputPort,
+            string requestedOldInputNodeId,
+            string requestedOldInputPort,
+            string requestedOutputNodeId,
+            string requestedOutputPort,
+            string requestedInputNodeId,
+            string requestedInputPort)
+        {
+            var data = snapshot == null
+                ? new Dictionary<string, object>()
+                : new Dictionary<string, object>(snapshot.ToDictionary());
+
+            data["action"] = "reconnect_connection";
+            data["supportedConnectionRules"] = SupportedConnectionRules.ToArray();
+            data["previousConnection"] = BuildConnectionQuery(
+                requestedOldOutputNodeId,
+                requestedOldOutputPort,
+                requestedOldInputNodeId,
+                requestedOldInputPort);
+            data["requestedConnection"] = BuildConnectionQuery(
+                requestedOutputNodeId,
+                requestedOutputPort,
+                requestedInputNodeId,
+                requestedInputPort);
+            data["nodeIdentifierContract"] = "ReconnectConnection expects exact GraphData objectId values returned by addedNode.objectId or read_graph_summary nodes; display names are not supported.";
 
             return data;
         }

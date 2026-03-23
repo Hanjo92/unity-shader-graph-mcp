@@ -107,6 +107,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.RemoveConnection(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse ReconnectConnection(ReconnectConnectionRequest request)
+        {
+            return ShaderGraphScaffoldStore.ReconnectConnection(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse SaveGraph(SaveGraphRequest request)
         {
             return ShaderGraphScaffoldStore.SaveGraph(request, ExecutionKind);

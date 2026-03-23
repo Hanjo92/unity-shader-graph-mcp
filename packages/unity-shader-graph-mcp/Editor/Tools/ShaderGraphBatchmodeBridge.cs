@@ -254,6 +254,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateFindConnectionRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RemoveConnection:
                     return TryCreateRemoveConnectionRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.ReconnectConnection:
+                    return TryCreateReconnectConnectionRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.SaveGraph:
                     return TryCreateSaveGraphRequest(payload, out request, out errorMessage);
                 default:
@@ -664,6 +666,39 @@ namespace ShaderGraphMcp.Editor.Tools
             return true;
         }
 
+        private static bool TryCreateReconnectConnectionRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Reconnect connection requires an asset path.";
+                return false;
+            }
+
+            string oldOutputNodeId = FirstNonBlank(payload.oldOutputNodeId, payload.oldSourceNodeId);
+            string oldOutputPort = FirstNonBlank(payload.oldOutputPort, payload.oldSourcePort);
+            string oldInputNodeId = FirstNonBlank(payload.oldInputNodeId, payload.oldTargetNodeId);
+            string oldInputPort = FirstNonBlank(payload.oldInputPort, payload.oldTargetPort);
+            string outputNodeId = FirstNonBlank(payload.outputNodeId, payload.sourceNodeId, payload.newOutputNodeId, payload.newSourceNodeId);
+            string outputPort = FirstNonBlank(payload.outputPort, payload.sourcePort, payload.newOutputPort, payload.newSourcePort);
+            string inputNodeId = FirstNonBlank(payload.inputNodeId, payload.targetNodeId, payload.newInputNodeId, payload.newTargetNodeId);
+            string inputPort = FirstNonBlank(payload.inputPort, payload.targetPort, payload.newInputPort, payload.newTargetPort);
+
+            request = new ReconnectConnectionRequest(
+                assetPath,
+                oldOutputNodeId,
+                oldOutputPort,
+                oldInputNodeId,
+                oldInputPort,
+                outputNodeId,
+                outputPort,
+                inputNodeId,
+                inputPort);
+            errorMessage = null;
+            return true;
+        }
+
         private static bool TryCreateSaveGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
         {
             string assetPath = ResolveAssetPath(payload);
@@ -734,6 +769,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.FindConnection;
                 case "remove_connection":
                     return ShaderGraphAction.RemoveConnection;
+                case "reconnect_connection":
+                    return ShaderGraphAction.ReconnectConnection;
                 case "save_graph":
                     return ShaderGraphAction.SaveGraph;
             }
@@ -1169,6 +1206,22 @@ namespace ShaderGraphMcp.Editor.Tools
             public string sourcePort;
             public string targetNodeId;
             public string targetPort;
+            public string oldOutputNodeId;
+            public string oldOutputPort;
+            public string oldInputNodeId;
+            public string oldInputPort;
+            public string oldSourceNodeId;
+            public string oldSourcePort;
+            public string oldTargetNodeId;
+            public string oldTargetPort;
+            public string newOutputNodeId;
+            public string newOutputPort;
+            public string newInputNodeId;
+            public string newInputPort;
+            public string newSourceNodeId;
+            public string newSourcePort;
+            public string newTargetNodeId;
+            public string newTargetPort;
         }
 
         internal sealed class BatchmodeRunResult

@@ -65,11 +65,13 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.FindConnection(findConnectionRequest);
                 case RemoveConnectionRequest removeConnectionRequest:
                     return Adapter.RemoveConnection(removeConnectionRequest);
+                case ReconnectConnectionRequest reconnectConnectionRequest:
+                    return Adapter.ReconnectConnection(reconnectConnectionRequest);
                 case SaveGraphRequest saveGraphRequest:
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, reconnect_connection, save_graph."
                     );
             }
         }
@@ -223,6 +225,29 @@ namespace ShaderGraphMcp.Editor.Tools
             string inputPort)
         {
             return Handle(new RemoveConnectionRequest(assetPath, outputNodeId, outputPort, inputNodeId, inputPort));
+        }
+
+        public static ShaderGraphResponse HandleReconnectConnection(
+            string assetPath,
+            string oldOutputNodeId,
+            string oldOutputPort,
+            string oldInputNodeId,
+            string oldInputPort,
+            string outputNodeId,
+            string outputPort,
+            string inputNodeId,
+            string inputPort)
+        {
+            return Handle(new ReconnectConnectionRequest(
+                assetPath,
+                oldOutputNodeId,
+                oldOutputPort,
+                oldInputNodeId,
+                oldInputPort,
+                outputNodeId,
+                outputPort,
+                inputNodeId,
+                inputPort));
         }
 
         public static ShaderGraphResponse HandleSaveGraph(string assetPath)

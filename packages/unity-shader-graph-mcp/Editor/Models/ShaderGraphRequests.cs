@@ -24,6 +24,7 @@ namespace ShaderGraphMcp.Editor.Models
         ConnectPorts,
         FindConnection,
         RemoveConnection,
+        ReconnectConnection,
         SaveGraph,
     }
 
@@ -365,6 +366,40 @@ namespace ShaderGraphMcp.Editor.Models
             OutputPort = outputPort;
             InputNodeId = inputNodeId;
             InputPort = inputPort;
+        }
+    }
+
+    public sealed class ReconnectConnectionRequest : ShaderGraphRequest
+    {
+        public string OldOutputNodeId { get; }
+        public string OldOutputPort { get; }
+        public string OldInputNodeId { get; }
+        public string OldInputPort { get; }
+        public string OutputNodeId { get; }
+        public string OutputPort { get; }
+        public string InputNodeId { get; }
+        public string InputPort { get; }
+
+        public ReconnectConnectionRequest(
+            string assetPath,
+            string oldOutputNodeId,
+            string oldOutputPort,
+            string oldInputNodeId,
+            string oldInputPort,
+            string outputNodeId,
+            string outputPort,
+            string inputNodeId,
+            string inputPort
+        ) : base(ShaderGraphAction.ReconnectConnection, assetPath)
+        {
+            OldOutputNodeId = string.IsNullOrWhiteSpace(oldOutputNodeId) ? string.Empty : oldOutputNodeId.Trim();
+            OldOutputPort = string.IsNullOrWhiteSpace(oldOutputPort) ? string.Empty : oldOutputPort.Trim();
+            OldInputNodeId = string.IsNullOrWhiteSpace(oldInputNodeId) ? string.Empty : oldInputNodeId.Trim();
+            OldInputPort = string.IsNullOrWhiteSpace(oldInputPort) ? string.Empty : oldInputPort.Trim();
+            OutputNodeId = string.IsNullOrWhiteSpace(outputNodeId) ? string.Empty : outputNodeId.Trim();
+            OutputPort = string.IsNullOrWhiteSpace(outputPort) ? string.Empty : outputPort.Trim();
+            InputNodeId = string.IsNullOrWhiteSpace(inputNodeId) ? string.Empty : inputNodeId.Trim();
+            InputPort = string.IsNullOrWhiteSpace(inputPort) ? string.Empty : inputPort.Trim();
         }
     }
 

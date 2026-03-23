@@ -705,6 +705,72 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesReconnectConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "reconnect connection ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["matchCount"] = 1,
+                    ["previousConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "source-node",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "target-a",
+                        ["inputPort"] = "X",
+                    },
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "source-node",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "target-b",
+                        ["inputPort"] = "X",
+                    },
+                    ["removedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "source-node",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "target-a",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "X",
+                    },
+                    ["connectedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "source-node",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "target-b",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "X",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var previousConnection = (IReadOnlyDictionary<string, object>)response.Data["previousConnection"];
+            Assert.That(previousConnection["inputNodeId"], Is.EqualTo("target-a"));
+
+            var requestedConnection = (IReadOnlyDictionary<string, object>)response.Data["requestedConnection"];
+            Assert.That(requestedConnection["inputNodeId"], Is.EqualTo("target-b"));
+
+            var connectedConnection = (IReadOnlyDictionary<string, object>)response.Data["connectedConnection"];
+            Assert.That(connectedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(connectedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
         public void Ok_PreservesColorAndSplitAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

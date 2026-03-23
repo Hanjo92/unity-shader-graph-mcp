@@ -139,6 +139,18 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "targetNodeId": "node-2",
         "targetPort": "In",
     },
+    "reconnect_connection": {
+        "action": "reconnect_connection",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "oldSourceNodeId": "node-1",
+        "oldSourcePort": "Out",
+        "oldTargetNodeId": "node-2",
+        "oldTargetPort": "In",
+        "sourceNodeId": "node-1",
+        "sourcePort": "Out",
+        "targetNodeId": "node-3",
+        "targetPort": "In",
+    },
     "save_graph": {
         "action": "save_graph",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -244,6 +256,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request(
                 {"action": "find_connection", "path": "Assets/X.shadergraph", "sourceNodeId": "node-1"}
+            )
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request(
+                {"action": "reconnect_connection", "path": "Assets/X.shadergraph", "oldSourceNodeId": "node-1"}
             )
 
         with patch(

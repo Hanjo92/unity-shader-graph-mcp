@@ -706,6 +706,96 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_ReconnectConnection_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphReconnectConnection", out _);
+
+            ShaderGraphResponse addSourceNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Reconnect Source");
+            ShaderGraphTestAssets.RequirePackageReady(addSourceNodeResponse);
+            string sourceNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSourceNodeResponse);
+            Assert.That(sourceNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse addOldSinkNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Reconnect Old Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addOldSinkNodeResponse);
+            string oldSinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addOldSinkNodeResponse);
+            Assert.That(oldSinkNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse addNewSinkNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Reconnect New Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addNewSinkNodeResponse);
+            string newSinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addNewSinkNodeResponse);
+            Assert.That(newSinkNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sourceNodeId,
+                "Out",
+                oldSinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            ShaderGraphResponse reconnectResponse = ShaderGraphAssetTool.HandleReconnectConnection(
+                assetPath,
+                sourceNodeId,
+                "Out",
+                oldSinkNodeId,
+                "X",
+                sourceNodeId,
+                "Out",
+                newSinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(reconnectResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(reconnectResponse.Data, "operation"), Is.EqualTo("reconnect_connection"));
+            Assert.That(ShaderGraphTestAssets.GetInt(reconnectResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var previousConnection = ShaderGraphTestAssets.RequireDictionary(reconnectResponse.Data, "previousConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(previousConnection, "outputNodeId"), Is.EqualTo(sourceNodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(previousConnection, "inputNodeId"), Is.EqualTo(oldSinkNodeId));
+
+            var requestedConnection = ShaderGraphTestAssets.RequireDictionary(reconnectResponse.Data, "requestedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(requestedConnection, "outputNodeId"), Is.EqualTo(sourceNodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(requestedConnection, "inputNodeId"), Is.EqualTo(newSinkNodeId));
+
+            var removedConnection = ShaderGraphTestAssets.RequireDictionary(reconnectResponse.Data, "removedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(removedConnection, "inputNodeId"), Is.EqualTo(oldSinkNodeId));
+
+            var connectedConnection = ShaderGraphTestAssets.RequireDictionary(reconnectResponse.Data, "connectedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(connectedConnection, "inputNodeId"), Is.EqualTo(newSinkNodeId));
+
+            ShaderGraphResponse oldConnectionResponse = ShaderGraphAssetTool.HandleFindConnection(
+                assetPath,
+                sourceNodeId,
+                "Out",
+                oldSinkNodeId,
+                "X");
+            Assert.That(oldConnectionResponse.Success, Is.False);
+            Assert.That(ShaderGraphTestAssets.GetString(oldConnectionResponse.Data, "backendKind"), Is.EqualTo("PackageReady"));
+            Assert.That(ShaderGraphTestAssets.GetInt(oldConnectionResponse.Data, "matchCount"), Is.EqualTo(0));
+
+            ShaderGraphResponse newConnectionResponse = ShaderGraphAssetTool.HandleFindConnection(
+                assetPath,
+                sourceNodeId,
+                "Out",
+                newSinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(newConnectionResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(newConnectionResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+        }
+
+        [Test]
         public void BlankGraph_FindNode_ByIdAndDisplayName_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphFindNode", out _);

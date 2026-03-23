@@ -12,6 +12,7 @@ ShaderGraphAction = Literal[
     "find_property",
     "list_supported_nodes",
     "list_supported_properties",
+    "list_supported_connections",
     "update_property",
     "rename_property",
     "duplicate_property",
@@ -25,6 +26,7 @@ ShaderGraphAction = Literal[
     "connect_ports",
     "find_connection",
     "remove_connection",
+    "reconnect_connection",
     "save_graph",
 ]
 

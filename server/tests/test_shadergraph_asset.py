@@ -44,6 +44,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "connect_ports",
                 "find_connection",
                 "remove_connection",
+                "reconnect_connection",
                 "save_graph",
             ),
         )
@@ -234,6 +235,27 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.action, "find_connection")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["sourceNodeId"], "node-1")
+
+    def test_request_normalization_accepts_reconnect_connection_with_old_and_new_alias_fields(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "reconnect_connection",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "oldSourceNodeId": "node-1",
+                "oldSourcePort": "Out",
+                "oldTargetNodeId": "node-2",
+                "oldTargetPort": "X",
+                "sourceNodeId": "node-1",
+                "sourcePort": "Out",
+                "targetNodeId": "node-3",
+                "targetPort": "X",
+            }
+        )
+
+        self.assertEqual(request.action, "reconnect_connection")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["oldSourceNodeId"], "node-1")
+        self.assertEqual(request.payload["targetNodeId"], "node-3")
 
     def test_server_registry_invokes_shadergraph_asset(self) -> None:
         server = build_server()

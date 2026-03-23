@@ -461,6 +461,41 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsReconnectConnectionRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""reconnect_connection"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""oldSourceNodeId"": ""source-node"",
+                ""oldSourcePort"": ""Out"",
+                ""oldTargetNodeId"": ""target-a"",
+                ""oldTargetPort"": ""X"",
+                ""sourceNodeId"": ""source-node"",
+                ""sourcePort"": ""Out"",
+                ""targetNodeId"": ""target-b"",
+                ""targetPort"": ""X""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var reconnectConnectionRequest = request as ReconnectConnectionRequest;
+            Assert.That(reconnectConnectionRequest, Is.Not.Null);
+            Assert.That(reconnectConnectionRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(reconnectConnectionRequest.OldOutputNodeId, Is.EqualTo("source-node"));
+            Assert.That(reconnectConnectionRequest.OldOutputPort, Is.EqualTo("Out"));
+            Assert.That(reconnectConnectionRequest.OldInputNodeId, Is.EqualTo("target-a"));
+            Assert.That(reconnectConnectionRequest.OldInputPort, Is.EqualTo("X"));
+            Assert.That(reconnectConnectionRequest.OutputNodeId, Is.EqualTo("source-node"));
+            Assert.That(reconnectConnectionRequest.OutputPort, Is.EqualTo("Out"));
+            Assert.That(reconnectConnectionRequest.InputNodeId, Is.EqualTo("target-b"));
+            Assert.That(reconnectConnectionRequest.InputPort, Is.EqualTo("X"));
+        }
+
+        [Test]
         public void SerializeResponse_WritesStableOrderedJson()
         {
             var response = ShaderGraphResponse.Ok(
