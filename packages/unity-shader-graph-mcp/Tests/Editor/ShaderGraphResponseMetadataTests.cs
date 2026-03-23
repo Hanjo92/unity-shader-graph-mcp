@@ -73,6 +73,30 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesSupportedConnectionCatalogEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "supported connection catalog ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["supportedConnectionRuleCount"] = CurrentSupportedConnectionRules.Length,
+                    ["connectionCatalogSemantics"] = "supportedConnectionRules=enforced-runtime-rules",
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["supportedConnectionRuleCount"], Is.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(response.Data["connectionCatalogSemantics"], Is.EqualTo("supportedConnectionRules=enforced-runtime-rules"));
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Is.EquivalentTo(CurrentSupportedConnectionRules));
+        }
+
+        [Test]
         public void Ok_PreservesAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

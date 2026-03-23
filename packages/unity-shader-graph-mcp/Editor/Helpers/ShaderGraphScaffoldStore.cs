@@ -375,6 +375,36 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse ListSupportedConnections(
+            ListSupportedConnectionsRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            ShaderGraphCompatibilitySnapshot compatibility = CompatibilitySnapshot.Value;
+            string[] supportedConnectionRules = ShaderGraphPackageGraphInspector.GetSupportedConnectionRules();
+
+            var data = new Dictionary<string, object>
+            {
+                ["operation"] = "list_supported_connections",
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["supportedConnectionRules"] = supportedConnectionRules,
+                ["supportedConnectionRuleCount"] = supportedConnectionRules.Length,
+                ["connectionCatalogSemantics"] = "supportedConnectionRules=enforced-runtime-rules",
+                ["notes"] = new[]
+                {
+                    "Connection rule catalog query served without requiring a graph asset path.",
+                    "supportedConnectionRules reflects the current runtime connection matrix.",
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                "Loaded supported Shader Graph connection catalog.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse AddProperty(
             AddPropertyRequest request,
             ShaderGraphExecutionKind executionKind)

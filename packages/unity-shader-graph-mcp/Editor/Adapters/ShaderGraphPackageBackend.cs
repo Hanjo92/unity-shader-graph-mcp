@@ -78,6 +78,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse ListSupportedConnections(ListSupportedConnectionsRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ListSupportedConnections(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse UpdateProperty(UpdatePropertyRequest request)
         {
             return ShaderGraphPackageGraphInspector.UpdateProperty(
@@ -779,6 +788,36 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 "Loaded supported Shader Graph property catalog.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse ListSupportedConnections(
+            ListSupportedConnectionsRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            string[] supportedConnectionRules = GetSupportedConnectionRules();
+
+            var data = new Dictionary<string, object>
+            {
+                ["operation"] = "list_supported_connections",
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["supportedConnectionRules"] = supportedConnectionRules,
+                ["supportedConnectionRuleCount"] = supportedConnectionRules.Length,
+                ["connectionCatalogSemantics"] = "supportedConnectionRules=enforced-runtime-rules",
+                ["notes"] = new[]
+                {
+                    "Connection rule catalog query served without requiring a graph asset path.",
+                    "supportedConnectionRules reflects the currently enforced package-backed connection matrix.",
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                "Loaded supported Shader Graph connection catalog.",
                 data
             );
         }
@@ -4209,6 +4248,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             "BranchNode output slot 3 / Out is supported when the input node is a different Vector1Node input slot 1 / X or scalar arithmetic input ports.",
             "Self-connections are rejected.",
         };
+
+        internal static string[] GetSupportedConnectionRules()
+        {
+            return SupportedConnectionRules.ToArray();
+        }
 
         private static Dictionary<string, object> BuildUnsupportedPropertyData(
             string assetPath,

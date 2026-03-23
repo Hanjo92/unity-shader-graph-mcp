@@ -779,6 +779,20 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void ListSupportedConnections_ReturnsPackageBackedCatalog()
+        {
+            ShaderGraphResponse response = ShaderGraphAssetTool.HandleListSupportedConnections();
+            ShaderGraphTestAssets.RequirePackageReady(response);
+
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "operation"), Is.EqualTo("list_supported_connections"));
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "connectionCatalogSemantics"), Is.EqualTo("supportedConnectionRules=enforced-runtime-rules"));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "supportedConnectionRuleCount"), Is.GreaterThan(0));
+
+            var supportedConnectionRules = ShaderGraphTestAssets.GetStringList(response.Data, "supportedConnectionRules");
+            Assert.That(supportedConnectionRules, Does.Contain("Self-connections are rejected."));
+        }
+
+        [Test]
         public void BlankGraph_AddUnsupportedNodeType_ReturnsSupportedNodeHint()
         {
             string assetPath = CreateBlankGraph("BlankGraphUnsupportedNode", out _);

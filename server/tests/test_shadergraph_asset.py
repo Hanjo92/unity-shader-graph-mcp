@@ -30,6 +30,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "find_property",
                 "list_supported_nodes",
                 "list_supported_properties",
+                "list_supported_connections",
                 "update_property",
                 "rename_property",
                 "duplicate_property",
