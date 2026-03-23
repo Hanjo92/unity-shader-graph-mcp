@@ -9,6 +9,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse FindNode(FindNodeRequest request);
         ShaderGraphResponse FindProperty(FindPropertyRequest request);
         ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request);
+        ShaderGraphResponse ListSupportedProperties(ListSupportedPropertiesRequest request);
         ShaderGraphResponse UpdateProperty(UpdatePropertyRequest request);
         ShaderGraphResponse RenameProperty(RenamePropertyRequest request);
         ShaderGraphResponse DuplicateProperty(DuplicatePropertyRequest request);
@@ -61,6 +62,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request)
         {
             return backend.ListSupportedNodes(request);
+        }
+
+        public ShaderGraphResponse ListSupportedProperties(ListSupportedPropertiesRequest request)
+        {
+            return backend.ListSupportedProperties(request);
         }
 
         public ShaderGraphResponse UpdateProperty(UpdatePropertyRequest request)

@@ -346,6 +346,35 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse ListSupportedProperties(
+            ListSupportedPropertiesRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            ShaderGraphCompatibilitySnapshot compatibility = CompatibilitySnapshot.Value;
+            string[] supportedPropertyTypes = ShaderGraphPackageGraphInspector.GetSupportedPropertyTypes();
+
+            var data = new Dictionary<string, object>
+            {
+                ["operation"] = "list_supported_properties",
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["supportedPropertyTypes"] = supportedPropertyTypes,
+                ["supportedPropertyCount"] = supportedPropertyTypes.Length,
+                ["notes"] = new[]
+                {
+                    "Property catalog query served without requiring a graph asset path.",
+                    "supportedPropertyTypes reflects the currently implemented property operations.",
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                "Loaded supported Shader Graph property catalog.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse AddProperty(
             AddPropertyRequest request,
             ShaderGraphExecutionKind executionKind)

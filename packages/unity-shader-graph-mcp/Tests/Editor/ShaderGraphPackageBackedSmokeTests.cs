@@ -710,6 +710,20 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void ListSupportedProperties_ReturnsPackageBackedCatalog()
+        {
+            ShaderGraphResponse response = ShaderGraphAssetTool.HandleListSupportedProperties();
+            ShaderGraphTestAssets.RequirePackageReady(response);
+
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "operation"), Is.EqualTo("list_supported_properties"));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "supportedPropertyCount"), Is.GreaterThan(0));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(response.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Float/Vector1"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Color"));
+        }
+
+        [Test]
         public void BlankGraph_AddUnsupportedNodeType_ReturnsSupportedNodeHint()
         {
             string assetPath = CreateBlankGraph("BlankGraphUnsupportedNode", out _);

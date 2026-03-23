@@ -9,6 +9,7 @@ namespace ShaderGraphMcp.Editor.Models
         FindNode,
         FindProperty,
         ListSupportedNodes,
+        ListSupportedProperties,
         UpdateProperty,
         RenameProperty,
         DuplicateProperty,
@@ -143,6 +144,14 @@ namespace ShaderGraphMcp.Editor.Models
     {
         public ListSupportedNodesRequest()
             : base(ShaderGraphAction.ListSupportedNodes, null)
+        {
+        }
+    }
+
+    public sealed class ListSupportedPropertiesRequest : ShaderGraphRequest
+    {
+        public ListSupportedPropertiesRequest()
+            : base(ShaderGraphAction.ListSupportedProperties, null)
         {
         }
     }

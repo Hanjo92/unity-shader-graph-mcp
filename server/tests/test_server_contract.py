@@ -49,6 +49,9 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
     "list_supported_nodes": {
         "action": "list_supported_nodes",
     },
+    "list_supported_properties": {
+        "action": "list_supported_properties",
+    },
     "update_property": {
         "action": "update_property",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",

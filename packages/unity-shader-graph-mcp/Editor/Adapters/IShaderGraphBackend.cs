@@ -10,6 +10,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse FindNode(FindNodeRequest request);
         ShaderGraphResponse FindProperty(FindPropertyRequest request);
         ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request);
+        ShaderGraphResponse ListSupportedProperties(ListSupportedPropertiesRequest request);
         ShaderGraphResponse UpdateProperty(UpdatePropertyRequest request);
         ShaderGraphResponse RenameProperty(RenamePropertyRequest request);
         ShaderGraphResponse DuplicateProperty(DuplicatePropertyRequest request);

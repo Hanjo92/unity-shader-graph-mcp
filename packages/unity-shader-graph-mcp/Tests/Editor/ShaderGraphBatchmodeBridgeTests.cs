@@ -156,6 +156,24 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsListSupportedPropertiesRequest_WithoutAssetPath()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""list_supported_properties""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var listSupportedPropertiesRequest = request as ListSupportedPropertiesRequest;
+            Assert.That(listSupportedPropertiesRequest, Is.Not.Null);
+            Assert.That(listSupportedPropertiesRequest.AssetPath, Is.Null);
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsUpdatePropertyRequest_WithOptionalType()
         {
             string json = @"{

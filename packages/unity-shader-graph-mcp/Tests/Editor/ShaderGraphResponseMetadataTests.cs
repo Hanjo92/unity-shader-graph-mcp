@@ -211,6 +211,26 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesSupportedPropertyCatalogEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "supported property catalog ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1" },
+                    ["supportedPropertyCount"] = 2,
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["supportedPropertyCount"], Is.EqualTo(2));
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1" }));
+        }
+
+        [Test]
         public void Ok_PreservesUpdatedPropertyEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

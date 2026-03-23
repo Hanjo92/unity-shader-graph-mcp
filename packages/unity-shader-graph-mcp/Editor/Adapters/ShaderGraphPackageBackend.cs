@@ -69,6 +69,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse ListSupportedProperties(ListSupportedPropertiesRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ListSupportedProperties(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse UpdateProperty(UpdatePropertyRequest request)
         {
             return ShaderGraphPackageGraphInspector.UpdateProperty(
@@ -732,6 +741,35 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 "Loaded supported Shader Graph node catalog.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse ListSupportedProperties(
+            ListSupportedPropertiesRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            string[] supportedPropertyTypes = GetSupportedPropertyTypes();
+
+            var data = new Dictionary<string, object>
+            {
+                ["operation"] = "list_supported_properties",
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["supportedPropertyTypes"] = supportedPropertyTypes,
+                ["supportedPropertyCount"] = supportedPropertyTypes.Length,
+                ["notes"] = new[]
+                {
+                    "Property catalog query served without requiring a graph asset path.",
+                    "supportedPropertyTypes reflects the currently implemented package-backed property operations.",
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                "Loaded supported Shader Graph property catalog.",
                 data
             );
         }
@@ -4178,6 +4216,13 @@ namespace ShaderGraphMcp.Editor.Adapters
         {
             return GetGraphAddableNodeCatalog()
                 .Select(descriptor => descriptor.CanonicalName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        internal static string[] GetSupportedPropertyTypes()
+        {
+            return SupportedPropertyTypes
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
         }

@@ -16,7 +16,8 @@ namespace ShaderGraphMcp.Editor.Tools
 
             if (string.IsNullOrWhiteSpace(request.AssetPath) &&
                 request.Action != ShaderGraphAction.CreateGraph &&
-                request.Action != ShaderGraphAction.ListSupportedNodes)
+                request.Action != ShaderGraphAction.ListSupportedNodes &&
+                request.Action != ShaderGraphAction.ListSupportedProperties)
             {
                 return ShaderGraphResponse.Fail("Asset path is required.");
             }
@@ -33,6 +34,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.FindProperty(findPropertyRequest);
                 case ListSupportedNodesRequest listSupportedNodesRequest:
                     return Adapter.ListSupportedNodes(listSupportedNodesRequest);
+                case ListSupportedPropertiesRequest listSupportedPropertiesRequest:
+                    return Adapter.ListSupportedProperties(listSupportedPropertiesRequest);
                 case UpdatePropertyRequest updatePropertyRequest:
                     return Adapter.UpdateProperty(updatePropertyRequest);
                 case RenamePropertyRequest renamePropertyRequest:
@@ -61,7 +64,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, update_property, rename_property, duplicate_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, update_property, rename_property, duplicate_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."
                     );
             }
         }
@@ -98,6 +101,11 @@ namespace ShaderGraphMcp.Editor.Tools
         public static ShaderGraphResponse HandleListSupportedNodes()
         {
             return Handle(new ListSupportedNodesRequest());
+        }
+
+        public static ShaderGraphResponse HandleListSupportedProperties()
+        {
+            return Handle(new ListSupportedPropertiesRequest());
         }
 
         public static ShaderGraphResponse HandleUpdateProperty(

@@ -220,6 +220,10 @@ namespace ShaderGraphMcp.Editor.Tools
                     request = new ListSupportedNodesRequest();
                     errorMessage = null;
                     return true;
+                case ShaderGraphAction.ListSupportedProperties:
+                    request = new ListSupportedPropertiesRequest();
+                    errorMessage = null;
+                    return true;
                 case ShaderGraphAction.UpdateProperty:
                     return TryCreateUpdatePropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameProperty:
@@ -674,6 +678,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.FindProperty;
                 case "list_supported_nodes":
                     return ShaderGraphAction.ListSupportedNodes;
+                case "list_supported_properties":
+                    return ShaderGraphAction.ListSupportedProperties;
                 case "update_property":
                     return ShaderGraphAction.UpdateProperty;
                 case "rename_property":

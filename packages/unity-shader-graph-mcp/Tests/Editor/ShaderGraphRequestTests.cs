@@ -51,7 +51,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             Assert.That(response.Success, Is.False);
             Assert.That(response.Message, Does.Contain("Unsupported Shader Graph action"));
-            Assert.That(response.Message, Does.Contain("Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, update_property, rename_property, duplicate_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."));
+            Assert.That(response.Message, Does.Contain("Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, update_property, rename_property, duplicate_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, remove_connection, save_graph."));
         }
     }
 }
