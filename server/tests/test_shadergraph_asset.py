@@ -41,6 +41,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "add_property",
                 "add_node",
                 "connect_ports",
+                "find_connection",
                 "remove_connection",
                 "save_graph",
             ),
@@ -214,6 +215,22 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         )
 
         self.assertEqual(request.action, "remove_connection")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["sourceNodeId"], "node-1")
+
+    def test_request_normalization_accepts_find_connection_with_alias_fields(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "find_connection",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "sourceNodeId": "node-1",
+                "sourcePort": "Out",
+                "targetNodeId": "node-2",
+                "targetPort": "In",
+            }
+        )
+
+        self.assertEqual(request.action, "find_connection")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["sourceNodeId"], "node-1")
 

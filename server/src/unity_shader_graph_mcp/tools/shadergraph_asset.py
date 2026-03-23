@@ -41,6 +41,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "add_property",
     "add_node",
     "connect_ports",
+    "find_connection",
     "remove_connection",
     "save_graph",
 )
@@ -209,6 +210,14 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
+    if request.action == "find_connection":
+        _require_payload_text(request.payload, "outputNodeId", "output_node_id", "sourceNodeId", "source_node_id")
+        _require_payload_text(request.payload, "outputPort", "output_port", "sourcePort", "source_port")
+        _require_payload_text(request.payload, "inputNodeId", "input_node_id", "targetNodeId", "target_node_id")
+        _require_payload_text(request.payload, "inputPort", "input_port", "targetPort", "target_port")
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
     if request.action == "remove_connection":
         _require_payload_text(request.payload, "outputNodeId", "output_node_id", "sourceNodeId", "source_node_id")
         _require_payload_text(request.payload, "outputPort", "output_port", "sourcePort", "source_port")
@@ -318,6 +327,10 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
         ("displayName", "display_name", "newDisplayName", "new_display_name"),
         ("nodeId", "node_id"),
         ("objectId", "object_id"),
+        ("outputNodeId", "output_node_id", "sourceNodeId", "source_node_id"),
+        ("outputPort", "output_port", "sourcePort", "source_port"),
+        ("inputNodeId", "input_node_id", "targetNodeId", "target_node_id"),
+        ("inputPort", "input_port", "targetPort", "target_port"),
         ("x",),
         ("y",),
     ):

@@ -92,6 +92,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.ConnectPorts(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse FindConnection(FindConnectionRequest request)
+        {
+            return ShaderGraphScaffoldStore.FindConnection(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse RemoveConnection(RemoveConnectionRequest request)
         {
             return ShaderGraphScaffoldStore.RemoveConnection(request, ExecutionKind);

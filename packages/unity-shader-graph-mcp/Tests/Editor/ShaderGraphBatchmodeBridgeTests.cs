@@ -416,6 +416,33 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsFindConnectionRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""find_connection"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""sourceNodeId"": ""source-node"",
+                ""sourcePort"": ""Out"",
+                ""targetNodeId"": ""target-node"",
+                ""targetPort"": ""X""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var findConnectionRequest = request as FindConnectionRequest;
+            Assert.That(findConnectionRequest, Is.Not.Null);
+            Assert.That(findConnectionRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(findConnectionRequest.OutputNodeId, Is.EqualTo("source-node"));
+            Assert.That(findConnectionRequest.OutputPort, Is.EqualTo("Out"));
+            Assert.That(findConnectionRequest.InputNodeId, Is.EqualTo("target-node"));
+            Assert.That(findConnectionRequest.InputPort, Is.EqualTo("X"));
+        }
+
+        [Test]
         public void SerializeResponse_WritesStableOrderedJson()
         {
             var response = ShaderGraphResponse.Ok(

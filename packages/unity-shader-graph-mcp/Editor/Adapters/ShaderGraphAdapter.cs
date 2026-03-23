@@ -21,6 +21,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse AddProperty(AddPropertyRequest request);
         ShaderGraphResponse AddNode(AddNodeRequest request);
         ShaderGraphResponse ConnectPorts(ConnectPortsRequest request);
+        ShaderGraphResponse FindConnection(FindConnectionRequest request);
         ShaderGraphResponse RemoveConnection(RemoveConnectionRequest request);
         ShaderGraphResponse SaveGraph(SaveGraphRequest request);
     }
@@ -122,6 +123,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse ConnectPorts(ConnectPortsRequest request)
         {
             return backend.ConnectPorts(request);
+        }
+
+        public ShaderGraphResponse FindConnection(FindConnectionRequest request)
+        {
+            return backend.FindConnection(request);
         }
 
         public ShaderGraphResponse RemoveConnection(RemoveConnectionRequest request)

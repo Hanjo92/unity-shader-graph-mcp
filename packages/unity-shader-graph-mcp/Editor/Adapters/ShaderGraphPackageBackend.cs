@@ -177,6 +177,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse FindConnection(FindConnectionRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.FindConnection(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse RemoveConnection(RemoveConnectionRequest request)
         {
             return ShaderGraphPackageGraphInspector.RemoveConnection(
@@ -3248,6 +3257,278 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public static ShaderGraphResponse FindConnection(
+            FindConnectionRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Find connection request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.ValidateGraph() could not be invoked: {validateFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "find_connection"
+            );
+
+            string requestedOutputNodeId = request.OutputNodeId?.Trim();
+            string requestedOutputPort = request.OutputPort?.Trim();
+            string requestedInputNodeId = request.InputNodeId?.Trim();
+            string requestedInputPort = request.InputPort?.Trim();
+            Dictionary<string, object> query = BuildConnectionQuery(
+                requestedOutputNodeId,
+                requestedOutputPort,
+                requestedInputNodeId,
+                requestedInputPort);
+            string[] matchStrategy = BuildFindConnectionMatchStrategy(
+                requestedOutputNodeId,
+                requestedOutputPort,
+                requestedInputNodeId,
+                requestedInputPort);
+
+            if (string.IsNullOrWhiteSpace(requestedOutputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedOutputPort) ||
+                string.IsNullOrWhiteSpace(requestedInputNodeId) ||
+                string.IsNullOrWhiteSpace(requestedInputPort))
+            {
+                var invalidData = BuildUnsupportedConnectionData(
+                    snapshot,
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort,
+                    "find_connection",
+                    "FindConnection");
+                invalidData["query"] = query;
+                invalidData["matchStrategy"] = matchStrategy;
+                return ShaderGraphResponse.Fail(
+                    "Find connection request requires output node id, output port, input node id, and input port.",
+                    invalidData
+                );
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedOutputNodeId,
+                    out object outputNode,
+                    out string outputNodeFailure))
+            {
+                var data = BuildUnsupportedConnectionData(
+                    snapshot,
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort,
+                    "find_connection",
+                    "FindConnection");
+                data["query"] = query;
+                data["matchStrategy"] = matchStrategy;
+                return ShaderGraphResponse.Fail(outputNodeFailure, data);
+            }
+
+            if (!TryResolveGraphNodeByObjectId(
+                    graphData,
+                    requestedInputNodeId,
+                    out object inputNode,
+                    out string inputNodeFailure))
+            {
+                var data = BuildUnsupportedConnectionData(
+                    snapshot,
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort,
+                    "find_connection",
+                    "FindConnection");
+                data["query"] = query;
+                data["matchStrategy"] = matchStrategy;
+                return ShaderGraphResponse.Fail(inputNodeFailure, data);
+            }
+
+            string outputNodeId = GetStringProperty(outputNode, "objectId");
+            string inputNodeId = GetStringProperty(inputNode, "objectId");
+            if (string.IsNullOrWhiteSpace(outputNodeId) || string.IsNullOrWhiteSpace(inputNodeId))
+            {
+                var data = BuildUnsupportedConnectionData(
+                    snapshot,
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort,
+                    "find_connection",
+                    "FindConnection");
+                data["query"] = query;
+                data["matchStrategy"] = matchStrategy;
+                return ShaderGraphResponse.Fail(
+                    "Resolved graph nodes do not expose stable object ids. Use read_graph_summary node ids instead of display names.",
+                    data
+                );
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    outputNode,
+                    requestedOutputPort,
+                    true,
+                    out int outputSlotId,
+                    out string canonicalOutputPort,
+                    out string outputPortFailure))
+            {
+                var data = BuildUnsupportedConnectionData(
+                    snapshot,
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort,
+                    "find_connection",
+                    "FindConnection");
+                data["query"] = query;
+                data["matchStrategy"] = matchStrategy;
+                return ShaderGraphResponse.Fail(outputPortFailure, data);
+            }
+
+            if (!TryResolveSupportedConnectionEndpoint(
+                    inputNode,
+                    requestedInputPort,
+                    false,
+                    out int inputSlotId,
+                    out string canonicalInputPort,
+                    out string inputPortFailure))
+            {
+                var data = BuildUnsupportedConnectionData(
+                    snapshot,
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort,
+                    "find_connection",
+                    "FindConnection");
+                data["query"] = query;
+                data["matchStrategy"] = matchStrategy;
+                return ShaderGraphResponse.Fail(inputPortFailure, data);
+            }
+
+            if (!TryValidateSupportedConnectionPair(
+                    outputNode,
+                    inputNode,
+                    canonicalOutputPort,
+                    canonicalInputPort,
+                    out string pairFailure))
+            {
+                var data = BuildUnsupportedConnectionData(
+                    snapshot,
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort,
+                    "find_connection",
+                    "FindConnection");
+                data["query"] = query;
+                data["matchStrategy"] = matchStrategy;
+                return ShaderGraphResponse.Fail(pairFailure, data);
+            }
+
+            object[] matches = EnumerateMember(graphData, "edges")
+                .Where(edge => EdgeMatchesResolvedConnection(edge, outputNodeId, outputSlotId, inputNodeId, inputSlotId))
+                .ToArray();
+
+            var responseData = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = query,
+                ["requestedConnection"] = BuildConnectionQuery(
+                    requestedOutputNodeId,
+                    requestedOutputPort,
+                    requestedInputNodeId,
+                    requestedInputPort),
+                ["matchCount"] = matches.Length,
+                ["matchStrategy"] = matchStrategy,
+                ["supportedConnectionRules"] = SupportedConnectionRules.ToArray(),
+            };
+
+            if (matches.Length == 1)
+            {
+                Dictionary<string, object> foundConnection = BuildEdgeLookupData(matches[0]);
+                foundConnection["outputNodeId"] = outputNodeId;
+                foundConnection["outputNodeType"] = GetTypeName(outputNode);
+                foundConnection["outputSlotId"] = outputSlotId;
+                foundConnection["outputPort"] = canonicalOutputPort;
+                foundConnection["inputNodeId"] = inputNodeId;
+                foundConnection["inputNodeType"] = GetTypeName(inputNode);
+                foundConnection["inputSlotId"] = inputSlotId;
+                foundConnection["inputPort"] = canonicalInputPort;
+
+                responseData["resolvedConnection"] = new Dictionary<string, object>(foundConnection);
+                responseData["foundConnection"] = foundConnection;
+
+                return ShaderGraphResponse.Ok(
+                    $"Found connection {GetTypeName(outputNode)}.{canonicalOutputPort} -> {GetTypeName(inputNode)}.{canonicalInputPort} in '{assetPath}'.",
+                    responseData
+                );
+            }
+
+            responseData["candidateConnections"] = matches.Select(BuildEdgeLookupData).Cast<object>().ToArray();
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph connection matching '{outputNodeId}:{canonicalOutputPort} -> {inputNodeId}:{canonicalInputPort}' in '{assetPath}'.",
+                    responseData
+                );
+            }
+
+            return ShaderGraphResponse.Fail(
+                $"Connection query for '{outputNodeId}:{canonicalOutputPort} -> {inputNodeId}:{canonicalInputPort}' matched multiple edges in '{assetPath}'.",
+                responseData
+            );
+        }
+
         public static ShaderGraphResponse SaveGraph(
             SaveGraphRequest request,
             ShaderGraphCompatibilitySnapshot compatibility,
@@ -3772,6 +4053,41 @@ namespace ShaderGraphMcp.Editor.Adapters
             return query;
         }
 
+        private static Dictionary<string, object> BuildConnectionQuery(
+            string queryOutputNodeId,
+            string queryOutputPort,
+            string queryInputNodeId,
+            string queryInputPort)
+        {
+            var query = new Dictionary<string, object>();
+
+            if (!string.IsNullOrWhiteSpace(queryOutputNodeId))
+            {
+                query["outputNodeId"] = queryOutputNodeId;
+                query["sourceNodeId"] = queryOutputNodeId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryOutputPort))
+            {
+                query["outputPort"] = queryOutputPort;
+                query["sourcePort"] = queryOutputPort;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryInputNodeId))
+            {
+                query["inputNodeId"] = queryInputNodeId;
+                query["targetNodeId"] = queryInputNodeId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryInputPort))
+            {
+                query["inputPort"] = queryInputPort;
+                query["targetPort"] = queryInputPort;
+            }
+
+            return query;
+        }
+
         private static string[] BuildFindPropertyMatchStrategy(
             string queryPropertyName,
             string queryDisplayName,
@@ -3798,6 +4114,37 @@ namespace ShaderGraphMcp.Editor.Adapters
             if (!string.IsNullOrWhiteSpace(queryPropertyType))
             {
                 strategy.Add("Property type canonical name or CLR type match.");
+            }
+
+            return strategy.ToArray();
+        }
+
+        private static string[] BuildFindConnectionMatchStrategy(
+            string queryOutputNodeId,
+            string queryOutputPort,
+            string queryInputNodeId,
+            string queryInputPort)
+        {
+            var strategy = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(queryOutputNodeId))
+            {
+                strategy.Add("Exact GraphData output objectId/sourceNodeId match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryOutputPort))
+            {
+                strategy.Add("Supported output port alias resolves to the canonical slot id.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryInputNodeId))
+            {
+                strategy.Add("Exact GraphData input objectId/targetNodeId match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryInputPort))
+            {
+                strategy.Add("Supported input port alias resolves to the canonical slot id.");
             }
 
             return strategy.ToArray();

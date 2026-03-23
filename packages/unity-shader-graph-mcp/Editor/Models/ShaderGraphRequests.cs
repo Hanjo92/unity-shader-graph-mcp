@@ -21,6 +21,7 @@ namespace ShaderGraphMcp.Editor.Models
         AddProperty,
         AddNode,
         ConnectPorts,
+        FindConnection,
         RemoveConnection,
         SaveGraph,
     }
@@ -328,6 +329,28 @@ namespace ShaderGraphMcp.Editor.Models
             string inputNodeId,
             string inputPort
         ) : base(ShaderGraphAction.RemoveConnection, assetPath)
+        {
+            OutputNodeId = outputNodeId;
+            OutputPort = outputPort;
+            InputNodeId = inputNodeId;
+            InputPort = inputPort;
+        }
+    }
+
+    public sealed class FindConnectionRequest : ShaderGraphRequest
+    {
+        public string OutputNodeId { get; }
+        public string OutputPort { get; }
+        public string InputNodeId { get; }
+        public string InputPort { get; }
+
+        public FindConnectionRequest(
+            string assetPath,
+            string outputNodeId,
+            string outputPort,
+            string inputNodeId,
+            string inputPort
+        ) : base(ShaderGraphAction.FindConnection, assetPath)
         {
             OutputNodeId = outputNodeId;
             OutputPort = outputPort;

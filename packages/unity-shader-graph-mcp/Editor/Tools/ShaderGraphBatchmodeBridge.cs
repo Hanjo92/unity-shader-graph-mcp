@@ -246,6 +246,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateAddNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ConnectPorts:
                     return TryCreateConnectPortsRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.FindConnection:
+                    return TryCreateFindConnectionRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RemoveConnection:
                     return TryCreateRemoveConnectionRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.SaveGraph:
@@ -638,6 +640,26 @@ namespace ShaderGraphMcp.Editor.Tools
             return true;
         }
 
+        private static bool TryCreateFindConnectionRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Find connection requires an asset path.";
+                return false;
+            }
+
+            string outputNodeId = FirstNonBlank(payload.outputNodeId, payload.sourceNodeId);
+            string outputPort = FirstNonBlank(payload.outputPort, payload.sourcePort);
+            string inputNodeId = FirstNonBlank(payload.inputNodeId, payload.targetNodeId);
+            string inputPort = FirstNonBlank(payload.inputPort, payload.targetPort);
+
+            request = new FindConnectionRequest(assetPath, outputNodeId, outputPort, inputNodeId, inputPort);
+            errorMessage = null;
+            return true;
+        }
+
         private static bool TryCreateSaveGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
         {
             string assetPath = ResolveAssetPath(payload);
@@ -702,6 +724,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.AddNode;
                 case "connect_ports":
                     return ShaderGraphAction.ConnectPorts;
+                case "find_connection":
+                    return ShaderGraphAction.FindConnection;
                 case "remove_connection":
                     return ShaderGraphAction.RemoveConnection;
                 case "save_graph":

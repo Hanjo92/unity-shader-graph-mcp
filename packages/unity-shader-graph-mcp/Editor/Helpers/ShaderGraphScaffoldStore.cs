@@ -1185,6 +1185,91 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse FindConnection(
+            FindConnectionRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Find connection request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            if (!TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest))
+            {
+                return ShaderGraphResponse.Fail(
+                    "'find_connection' only supports graphs created by this scaffold. Use create_graph first so the manifest exists."
+                );
+            }
+
+            string queryOutputNodeId = string.IsNullOrWhiteSpace(request.OutputNodeId) ? string.Empty : request.OutputNodeId.Trim();
+            string queryOutputPort = string.IsNullOrWhiteSpace(request.OutputPort) ? string.Empty : request.OutputPort.Trim();
+            string queryInputNodeId = string.IsNullOrWhiteSpace(request.InputNodeId) ? string.Empty : request.InputNodeId.Trim();
+            string queryInputPort = string.IsNullOrWhiteSpace(request.InputPort) ? string.Empty : request.InputPort.Trim();
+
+            ShaderGraphScaffoldConnection[] matches = manifest.connections
+                .Where(connection =>
+                    string.Equals(connection.outputNodeId ?? string.Empty, queryOutputNodeId, StringComparison.Ordinal) &&
+                    string.Equals(connection.outputPort ?? string.Empty, queryOutputPort, StringComparison.Ordinal) &&
+                    string.Equals(connection.inputNodeId ?? string.Empty, queryInputNodeId, StringComparison.Ordinal) &&
+                    string.Equals(connection.inputPort ?? string.Empty, queryInputPort, StringComparison.Ordinal))
+                .ToArray();
+
+            var data = BuildSummaryData(
+                manifest,
+                assetPath,
+                absoluteAssetPath,
+                true,
+                true,
+                executionKind,
+                "find_connection",
+                new[] { "Scaffold manifest queried for connection lookup." },
+                null
+            );
+            data["query"] = BuildConnectionQuery(queryOutputNodeId, queryOutputPort, queryInputNodeId, queryInputPort);
+            data["requestedConnection"] = BuildConnectionQuery(queryOutputNodeId, queryOutputPort, queryInputNodeId, queryInputPort);
+            data["matchCount"] = matches.Length;
+            data["matchStrategy"] = BuildFindConnectionMatchStrategy(queryOutputNodeId, queryOutputPort, queryInputNodeId, queryInputPort);
+
+            if (matches.Length == 1)
+            {
+                data["foundConnection"] = BuildScaffoldConnectionData(matches[0]);
+                return ShaderGraphResponse.Ok(
+                    $"Found scaffold connection in '{assetPath}'.",
+                    data
+                );
+            }
+
+            data["candidateConnections"] = matches.Select(BuildScaffoldConnectionData).Cast<object>().ToArray();
+
+            if (matches.Length == 0)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a scaffold connection matching the provided query in '{assetPath}'.",
+                    data
+                );
+            }
+
+            return ShaderGraphResponse.Fail(
+                $"Connection query matched multiple scaffold connections in '{assetPath}'. Narrow the query with exact source/target ids and port names.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse SaveGraph(
             SaveGraphRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -1562,6 +1647,41 @@ namespace ShaderGraphMcp.Editor.Helpers
             return query;
         }
 
+        private static Dictionary<string, object> BuildConnectionQuery(
+            string queryOutputNodeId,
+            string queryOutputPort,
+            string queryInputNodeId,
+            string queryInputPort)
+        {
+            var query = new Dictionary<string, object>();
+
+            if (!string.IsNullOrWhiteSpace(queryOutputNodeId))
+            {
+                query["outputNodeId"] = queryOutputNodeId;
+                query["sourceNodeId"] = queryOutputNodeId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryOutputPort))
+            {
+                query["outputPort"] = queryOutputPort;
+                query["sourcePort"] = queryOutputPort;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryInputNodeId))
+            {
+                query["inputNodeId"] = queryInputNodeId;
+                query["targetNodeId"] = queryInputNodeId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryInputPort))
+            {
+                query["inputPort"] = queryInputPort;
+                query["targetPort"] = queryInputPort;
+            }
+
+            return query;
+        }
+
         private static string[] BuildFindNodeMatchStrategy(
             string queryNodeId,
             string queryDisplayName,
@@ -1614,6 +1734,55 @@ namespace ShaderGraphMcp.Editor.Helpers
             }
 
             return strategy.ToArray();
+        }
+
+        private static string[] BuildFindConnectionMatchStrategy(
+            string queryOutputNodeId,
+            string queryOutputPort,
+            string queryInputNodeId,
+            string queryInputPort)
+        {
+            var strategy = new List<string>();
+            if (!string.IsNullOrWhiteSpace(queryOutputNodeId))
+            {
+                strategy.Add("Exact outputNodeId/sourceNodeId match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryOutputPort))
+            {
+                strategy.Add("Exact outputPort/sourcePort match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryInputNodeId))
+            {
+                strategy.Add("Exact inputNodeId/targetNodeId match.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryInputPort))
+            {
+                strategy.Add("Exact inputPort/targetPort match.");
+            }
+
+            return strategy.ToArray();
+        }
+
+        private static Dictionary<string, object> BuildScaffoldConnectionData(ShaderGraphScaffoldConnection connection)
+        {
+            return new Dictionary<string, object>
+            {
+                ["outputNodeId"] = connection.outputNodeId ?? string.Empty,
+                ["outputPort"] = connection.outputPort ?? string.Empty,
+                ["inputNodeId"] = connection.inputNodeId ?? string.Empty,
+                ["inputPort"] = connection.inputPort ?? string.Empty,
+                ["updatedUtc"] = connection.updatedUtc ?? string.Empty,
+                ["fullTypeName"] = typeof(ShaderGraphScaffoldConnection).FullName ?? nameof(ShaderGraphScaffoldConnection),
+                ["summary"] = string.Format(
+                    "{0}:{1} -> {2}:{3}",
+                    connection.outputNodeId ?? string.Empty,
+                    connection.outputPort ?? string.Empty,
+                    connection.inputNodeId ?? string.Empty,
+                    connection.inputPort ?? string.Empty),
+            };
         }
 
         private static Dictionary<string, object> BuildScaffoldNodeData(ShaderGraphScaffoldNode node)

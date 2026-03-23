@@ -120,6 +120,14 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "inputNodeId": "node-2",
         "inputPort": "In",
     },
+    "find_connection": {
+        "action": "find_connection",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "sourceNodeId": "node-1",
+        "sourcePort": "Out",
+        "targetNodeId": "node-2",
+        "targetPort": "In",
+    },
     "remove_connection": {
         "action": "remove_connection",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -228,6 +236,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request(
                 {"action": "remove_connection", "path": "Assets/X.shadergraph", "sourceNodeId": "node-1"}
+            )
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request(
+                {"action": "find_connection", "path": "Assets/X.shadergraph", "sourceNodeId": "node-1"}
             )
 
         with patch(
