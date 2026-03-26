@@ -234,6 +234,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateRenamePropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DuplicateProperty:
                     return TryCreateDuplicatePropertyRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.ReorderProperty:
+                    return TryCreateReorderPropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameNode:
                     return TryCreateRenameNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DuplicateNode:
@@ -450,6 +452,44 @@ namespace ShaderGraphMcp.Editor.Tools
             string displayName = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.name);
             string referenceName = FirstNonBlank(payload.newReferenceName, payload.referenceName);
             request = new DuplicatePropertyRequest(assetPath, propertyName, displayName, referenceName);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateReorderPropertyRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Reorder property requires an asset path.";
+                return false;
+            }
+
+            string propertyName = FirstNonBlank(payload.propertyName);
+            if (string.IsNullOrWhiteSpace(propertyName))
+            {
+                request = null;
+                errorMessage = "Reorder property requires a property name.";
+                return false;
+            }
+
+            string indexText = FirstNonBlank(payload.newIndex, payload.targetIndex, payload.index);
+            if (string.IsNullOrWhiteSpace(indexText))
+            {
+                request = null;
+                errorMessage = "Reorder property requires index/newIndex/targetIndex.";
+                return false;
+            }
+
+            if (!int.TryParse(indexText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int index))
+            {
+                request = null;
+                errorMessage = "Reorder property requires an integer index.";
+                return false;
+            }
+
+            request = new ReorderPropertyRequest(assetPath, propertyName, index);
             errorMessage = null;
             return true;
         }
@@ -749,6 +789,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.RenameProperty;
                 case "duplicate_property":
                     return ShaderGraphAction.DuplicateProperty;
+                case "reorder_property":
+                    return ShaderGraphAction.ReorderProperty;
                 case "rename_node":
                     return ShaderGraphAction.RenameNode;
                 case "duplicate_node":
@@ -1191,6 +1233,9 @@ namespace ShaderGraphMcp.Editor.Tools
             public string defaultValue;
             public string referenceName;
             public string newReferenceName;
+            public string index;
+            public string newIndex;
+            public string targetIndex;
             public string nodeId;
             public string objectId;
             public string x;

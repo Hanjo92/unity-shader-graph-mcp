@@ -14,6 +14,7 @@ namespace ShaderGraphMcp.Editor.Models
         UpdateProperty,
         RenameProperty,
         DuplicateProperty,
+        ReorderProperty,
         RenameNode,
         DuplicateNode,
         MoveNode,
@@ -209,6 +210,19 @@ namespace ShaderGraphMcp.Editor.Models
             PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
             ReferenceName = string.IsNullOrWhiteSpace(referenceName) ? string.Empty : referenceName.Trim();
+        }
+    }
+
+    public sealed class ReorderPropertyRequest : ShaderGraphRequest
+    {
+        public string PropertyName { get; }
+        public int Index { get; }
+
+        public ReorderPropertyRequest(string assetPath, string propertyName, int index)
+            : base(ShaderGraphAction.ReorderProperty, assetPath)
+        {
+            PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
+            Index = index;
         }
     }
 

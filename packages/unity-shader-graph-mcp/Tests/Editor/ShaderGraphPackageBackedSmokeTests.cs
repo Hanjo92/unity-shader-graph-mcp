@@ -375,6 +375,50 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_ReorderProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphReorderProperty", out _);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Exposure", "Float/Vector1", "0"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Tint", "Color", "#FFFFFFFF"));
+
+            ShaderGraphResponse reorderToFrontResponse = ShaderGraphAssetTool.HandleReorderProperty(
+                assetPath,
+                "Tint",
+                0);
+            ShaderGraphTestAssets.RequirePackageReady(reorderToFrontResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(reorderToFrontResponse.Data, "operation"), Is.EqualTo("reorder_property"));
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToFrontResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToFrontResponse.Data, "previousIndex"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToFrontResponse.Data, "newIndex"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetString(reorderToFrontResponse.Data, "categoryGuid"), Is.Not.Empty);
+
+            var categoryOrder = ShaderGraphTestAssets.GetStringList(reorderToFrontResponse.Data, "categoryPropertyOrder");
+            Assert.That(categoryOrder.Count, Is.EqualTo(2));
+            Assert.That(categoryOrder[0], Does.Contain("Tint"));
+
+            var reorderedProperty = ShaderGraphTestAssets.RequireDictionary(reorderToFrontResponse.Data, "reorderedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(reorderedProperty, "displayName"), Is.EqualTo("Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(reorderedProperty, "resolvedPropertyType"), Is.EqualTo("Color"));
+
+            ShaderGraphResponse reorderToBackResponse = ShaderGraphAssetTool.HandleReorderProperty(
+                assetPath,
+                "Tint",
+                1);
+            ShaderGraphTestAssets.RequirePackageReady(reorderToBackResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToBackResponse.Data, "previousIndex"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToBackResponse.Data, "newIndex"), Is.EqualTo(1));
+
+            var reorderedBackOrder = ShaderGraphTestAssets.GetStringList(reorderToBackResponse.Data, "categoryPropertyOrder");
+            Assert.That(reorderedBackOrder.Count, Is.EqualTo(2));
+            Assert.That(reorderedBackOrder[1], Does.Contain("Tint"));
+        }
+
+        [Test]
         public void BlankGraph_RenameNode_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphRenameNode", out _);

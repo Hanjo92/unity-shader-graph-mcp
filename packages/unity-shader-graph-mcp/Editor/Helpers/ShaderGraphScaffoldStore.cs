@@ -696,6 +696,93 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse ReorderProperty(
+            ReorderPropertyRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Reorder property request is required.");
+            }
+
+            int previousIndex = -1;
+            return MutateScaffold(
+                request.AssetPath,
+                "reorder_property",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    if (string.IsNullOrWhiteSpace(request.PropertyName))
+                    {
+                        return "Property name is required.";
+                    }
+
+                    previousIndex = manifest.properties.FindIndex(
+                        property => string.Equals(property.name, request.PropertyName.Trim(), StringComparison.Ordinal));
+                    if (previousIndex < 0)
+                    {
+                        return $"Property '{request.PropertyName.Trim()}' does not exist in the scaffold manifest.";
+                    }
+
+                    if (request.Index < 0 || request.Index >= manifest.properties.Count)
+                    {
+                        return
+                            $"Reorder property requires an index between 0 and {Math.Max(manifest.properties.Count - 1, 0)}.";
+                    }
+
+                    ShaderGraphScaffoldProperty property = manifest.properties[previousIndex];
+                    if (request.Index != previousIndex)
+                    {
+                        manifest.properties.RemoveAt(previousIndex);
+                        manifest.properties.Insert(request.Index, property);
+                    }
+
+                    property.updatedUtc = UtcNow();
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    int reorderedIndex = manifest.properties.FindIndex(
+                        property => string.Equals(property.name, request.PropertyName.Trim(), StringComparison.Ordinal));
+                    ShaderGraphScaffoldProperty reorderedProperty = manifest.properties[reorderedIndex];
+
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "reorder_property",
+                        new[]
+                        {
+                            $"Property '{request.PropertyName}' reordered in scaffold manifest.",
+                            "Scaffold reorder uses manifest property order as the effective blackboard order.",
+                        },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["propertyName"] = request.PropertyName.Trim(),
+                        ["index"] = request.Index,
+                    };
+                    data["matchCount"] = 1;
+                    data["previousIndex"] = previousIndex;
+                    data["newIndex"] = reorderedIndex;
+                    data["previousGraphInputIndex"] = previousIndex;
+                    data["graphInputIndex"] = reorderedIndex;
+                    data["categoryGuid"] = "scaffold-default-category";
+                    data["categoryPropertyOrder"] = BuildScaffoldPropertyOrder(manifest.properties);
+                    data["reorderSemantics"] = new[]
+                    {
+                        "Index is 0-based within the current scaffold property list.",
+                        "Scaffold mode treats the manifest property list as a single default category.",
+                    };
+                    data["reorderedProperty"] = BuildScaffoldPropertyData(reorderedProperty);
+                    return data;
+                }
+            );
+        }
+
         public static ShaderGraphResponse MoveNode(
             MoveNodeRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -1970,6 +2057,13 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ["defaultValue"] = property?.defaultValue ?? string.Empty,
                 ["summary"] = $"{property?.name ?? string.Empty} [{property?.type ?? string.Empty}]",
             };
+        }
+
+        private static string[] BuildScaffoldPropertyOrder(IEnumerable<ShaderGraphScaffoldProperty> properties)
+        {
+            return (properties ?? Array.Empty<ShaderGraphScaffoldProperty>())
+                .Select(property => $"{property?.name ?? string.Empty} [{property?.type ?? string.Empty}]")
+                .ToArray();
         }
 
         private static string FormatScaffoldNodePosition(ShaderGraphScaffoldNode node)

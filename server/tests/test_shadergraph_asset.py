@@ -34,6 +34,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "update_property",
                 "rename_property",
                 "duplicate_property",
+                "reorder_property",
                 "rename_node",
                 "duplicate_node",
                 "move_node",
@@ -162,6 +163,21 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.payload["propertyName"], "Tint")
         self.assertEqual(request.payload["newDisplayName"], "Copied Tint")
         self.assertEqual(request.payload["newReferenceName"], "_CopiedTint")
+
+    def test_request_normalization_accepts_reorder_property_with_index_alias(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "reorder_property",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "propertyName": "Tint",
+                "newIndex": 0,
+            }
+        )
+
+        self.assertEqual(request.action, "reorder_property")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["propertyName"], "Tint")
+        self.assertEqual(request.payload["index"], "0")
 
     def test_request_normalization_accepts_duplicate_node_with_optional_alias_display_name(self) -> None:
         request = normalize_shadergraph_asset_request(

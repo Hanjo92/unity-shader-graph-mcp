@@ -14,6 +14,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse UpdateProperty(UpdatePropertyRequest request);
         ShaderGraphResponse RenameProperty(RenamePropertyRequest request);
         ShaderGraphResponse DuplicateProperty(DuplicatePropertyRequest request);
+        ShaderGraphResponse ReorderProperty(ReorderPropertyRequest request);
         ShaderGraphResponse RenameNode(RenameNodeRequest request);
         ShaderGraphResponse DuplicateNode(DuplicateNodeRequest request);
         ShaderGraphResponse MoveNode(MoveNodeRequest request);
@@ -90,6 +91,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse DuplicateProperty(DuplicatePropertyRequest request)
         {
             return backend.DuplicateProperty(request);
+        }
+
+        public ShaderGraphResponse ReorderProperty(ReorderPropertyRequest request)
+        {
+            return backend.ReorderProperty(request);
         }
 
         public ShaderGraphResponse RenameNode(RenameNodeRequest request)

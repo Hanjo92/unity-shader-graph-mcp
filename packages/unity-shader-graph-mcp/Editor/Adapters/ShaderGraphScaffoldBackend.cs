@@ -57,6 +57,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.DuplicateProperty(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse ReorderProperty(ReorderPropertyRequest request)
+        {
+            return ShaderGraphScaffoldStore.ReorderProperty(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse RenameNode(RenameNodeRequest request)
         {
             return ShaderGraphScaffoldStore.RenameNode(request, ExecutionKind);

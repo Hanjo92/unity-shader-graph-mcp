@@ -431,6 +431,61 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesReorderedPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "reorder property ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["propertyName"] = "Tint",
+                        ["index"] = 0,
+                    },
+                    ["previousIndex"] = 1,
+                    ["newIndex"] = 0,
+                    ["previousGraphInputIndex"] = 1,
+                    ["graphInputIndex"] = 1,
+                    ["categoryGuid"] = "category-default",
+                    ["categoryPropertyOrder"] = new[]
+                    {
+                        "Tint [Color] = _BaseTint",
+                        "Exposure [Float/Vector1] = _Exposure",
+                    },
+                    ["reorderSemantics"] = new[]
+                    {
+                        "Index is 0-based within the resolved blackboard category.",
+                        "graphInputIndex may differ from category-local order.",
+                    },
+                    ["reorderedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Tint",
+                        ["referenceName"] = "_BaseTint",
+                        ["resolvedPropertyType"] = "Color",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.ColorShaderProperty",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["previousIndex"], Is.EqualTo(1));
+            Assert.That(response.Data["newIndex"], Is.EqualTo(0));
+            Assert.That(response.Data["categoryGuid"], Is.EqualTo("category-default"));
+
+            var categoryPropertyOrder = (string[])response.Data["categoryPropertyOrder"];
+            Assert.That(categoryPropertyOrder[0], Does.Contain("Tint"));
+
+            var reorderedProperty = (IReadOnlyDictionary<string, object>)response.Data["reorderedProperty"];
+            Assert.That(reorderedProperty["displayName"], Is.EqualTo("Tint"));
+            Assert.That(reorderedProperty["resolvedPropertyType"], Is.EqualTo("Color"));
+        }
+
+        [Test]
         public void Ok_PreservesDuplicatedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

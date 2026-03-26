@@ -73,6 +73,12 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "propertyName": "ExampleColor",
         "displayName": "Copied Tint",
     },
+    "reorder_property": {
+        "action": "reorder_property",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "propertyName": "ExampleColor",
+        "newIndex": 0,
+    },
     "rename_node": {
         "action": "rename_node",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -217,6 +223,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "duplicate_property", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request(
+                {"action": "reorder_property", "path": "Assets/X.shadergraph", "propertyName": "Tint"}
+            )
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request(

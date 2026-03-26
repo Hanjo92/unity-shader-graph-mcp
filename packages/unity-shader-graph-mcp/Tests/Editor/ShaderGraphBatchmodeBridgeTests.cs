@@ -267,6 +267,29 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsReorderPropertyRequest_WithIndexAliases()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""reorder_property"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""propertyName"": ""Tint"",
+                ""newIndex"": ""0""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var reorderPropertyRequest = request as ReorderPropertyRequest;
+            Assert.That(reorderPropertyRequest, Is.Not.Null);
+            Assert.That(reorderPropertyRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(reorderPropertyRequest.PropertyName, Is.EqualTo("Tint"));
+            Assert.That(reorderPropertyRequest.Index, Is.EqualTo(0));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsRenameNodeRequest_FromAliasFields()
         {
             string json = @"{

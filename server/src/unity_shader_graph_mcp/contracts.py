@@ -16,6 +16,7 @@ ShaderGraphAction = Literal[
     "update_property",
     "rename_property",
     "duplicate_property",
+    "reorder_property",
     "rename_node",
     "duplicate_node",
     "move_node",

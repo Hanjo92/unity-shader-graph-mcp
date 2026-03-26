@@ -34,6 +34,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "update_property",
     "rename_property",
     "duplicate_property",
+    "reorder_property",
     "rename_node",
     "duplicate_node",
     "move_node",
@@ -168,6 +169,19 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
 
     if request.action == "duplicate_property":
         _require_payload_text(request.payload, "propertyName", "property_name")
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+    if request.action == "reorder_property":
+        _require_payload_text(request.payload, "propertyName", "property_name")
+        request.payload["index"] = _require_payload_int_text(
+            request.payload,
+            "newIndex",
+            "new_index",
+            "targetIndex",
+            "target_index",
+            "index",
+        )
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
@@ -377,6 +391,7 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
         ("propertyName", "property_name"),
         ("propertyType", "property_type"),
         ("referenceName", "reference_name", "newReferenceName", "new_reference_name"),
+        ("index", "newIndex", "new_index", "targetIndex", "target_index"),
         ("nodeType", "node_type"),
         ("displayName", "display_name", "newDisplayName", "new_display_name"),
         ("nodeId", "node_id"),
@@ -464,4 +479,20 @@ def _require_payload_number_text(payload: Mapping[str, Any], *keys: str) -> str:
         float(text)
     except (TypeError, ValueError) as exc:
         raise ShaderGraphRequestError(f"Field {labels} must be a valid number.") from exc
+    return text
+
+
+def _require_payload_int_text(payload: Mapping[str, Any], *keys: str) -> str:
+    """Require an integer payload field and normalize it to trimmed text."""
+
+    value = _pick_value(payload, *keys)
+    labels = ", ".join(repr(key) for key in keys)
+    if value is None or isinstance(value, bool):
+        raise ShaderGraphRequestError(f"Missing required field(s): {labels}.")
+
+    text = str(value).strip()
+    try:
+        int(text)
+    except (TypeError, ValueError) as exc:
+        raise ShaderGraphRequestError(f"Field {labels} must be a valid integer.") from exc
     return text
