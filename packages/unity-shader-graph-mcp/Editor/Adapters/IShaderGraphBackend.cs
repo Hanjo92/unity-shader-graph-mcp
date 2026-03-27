@@ -6,6 +6,8 @@ namespace ShaderGraphMcp.Editor.Adapters
     {
         ShaderGraphExecutionKind ExecutionKind { get; }
         ShaderGraphResponse CreateGraph(CreateGraphRequest request);
+        ShaderGraphResponse CreateCategory(CreateCategoryRequest request);
+        ShaderGraphResponse RenameCategory(RenameCategoryRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
         ShaderGraphResponse FindProperty(FindPropertyRequest request);
@@ -16,6 +18,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse RenameProperty(RenamePropertyRequest request);
         ShaderGraphResponse DuplicateProperty(DuplicatePropertyRequest request);
         ShaderGraphResponse ReorderProperty(ReorderPropertyRequest request);
+        ShaderGraphResponse MovePropertyToCategory(MovePropertyToCategoryRequest request);
         ShaderGraphResponse RenameNode(RenameNodeRequest request);
         ShaderGraphResponse DuplicateNode(DuplicateNodeRequest request);
         ShaderGraphResponse MoveNode(MoveNodeRequest request);

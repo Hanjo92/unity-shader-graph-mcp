@@ -25,6 +25,8 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
             SUPPORTED_SHADERGRAPH_ASSET_ACTIONS,
             (
                 "create_graph",
+                "create_category",
+                "rename_category",
                 "read_graph_summary",
                 "find_node",
                 "find_property",
@@ -35,6 +37,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "rename_property",
                 "duplicate_property",
                 "reorder_property",
+                "move_property_to_category",
                 "rename_node",
                 "duplicate_node",
                 "move_node",
@@ -84,6 +87,35 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.action, "find_node")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["displayName"], "Base Color")
+
+    def test_request_normalization_accepts_create_category_with_category_name(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "create_category",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "categoryName": "Surface Inputs",
+            }
+        )
+
+        self.assertEqual(request.action, "create_category")
+        self.assertEqual(request.name, "Surface Inputs")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["categoryName"], "Surface Inputs")
+
+    def test_request_normalization_accepts_rename_category_with_alias_display_name(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "rename_category",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "categoryName": "Surface Inputs",
+                "newDisplayName": "Material Inputs",
+            }
+        )
+
+        self.assertEqual(request.action, "rename_category")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["categoryName"], "Surface Inputs")
+        self.assertEqual(request.payload["newDisplayName"], "Material Inputs")
 
     def test_request_normalization_accepts_find_property_with_reference_name(self) -> None:
         request = normalize_shadergraph_asset_request(
@@ -178,6 +210,23 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["propertyName"], "Tint")
         self.assertEqual(request.payload["index"], "0")
+
+    def test_request_normalization_accepts_move_property_to_category_with_optional_index(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "move_property_to_category",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "propertyName": "Tint",
+                "categoryName": "Surface Inputs",
+                "targetIndex": 1,
+            }
+        )
+
+        self.assertEqual(request.action, "move_property_to_category")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["propertyName"], "Tint")
+        self.assertEqual(request.payload["categoryName"], "Surface Inputs")
+        self.assertEqual(request.payload["index"], "1")
 
     def test_request_normalization_accepts_duplicate_node_with_optional_alias_display_name(self) -> None:
         request = normalize_shadergraph_asset_request(

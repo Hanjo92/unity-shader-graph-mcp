@@ -210,6 +210,10 @@ namespace ShaderGraphMcp.Editor.Tools
             {
                 case ShaderGraphAction.CreateGraph:
                     return TryCreateGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.CreateCategory:
+                    return TryCreateCreateCategoryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.RenameCategory:
+                    return TryCreateRenameCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindNode:
@@ -236,6 +240,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateDuplicatePropertyRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReorderProperty:
                     return TryCreateReorderPropertyRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.MovePropertyToCategory:
+                    return TryCreateMovePropertyToCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameNode:
                     return TryCreateRenameNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DuplicateNode:
@@ -302,6 +308,61 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new ReadGraphSummaryRequest(assetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateCreateCategoryRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Create category requires an asset path.";
+                return false;
+            }
+
+            string categoryName = FirstNonBlank(payload.categoryName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(categoryName))
+            {
+                request = null;
+                errorMessage = "Create category requires categoryName/displayName/name.";
+                return false;
+            }
+
+            request = new CreateCategoryRequest(assetPath, categoryName);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateRenameCategoryRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Rename category requires an asset path.";
+                return false;
+            }
+
+            string categoryGuid = FirstNonBlank(payload.categoryGuid);
+            string categoryName = FirstNonBlank(payload.categoryName);
+            if (string.IsNullOrWhiteSpace(categoryGuid) && string.IsNullOrWhiteSpace(categoryName))
+            {
+                request = null;
+                errorMessage = "Rename category requires categoryGuid or categoryName.";
+                return false;
+            }
+
+            string displayName = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                request = null;
+                errorMessage = "Rename category requires newDisplayName/displayName/name.";
+                return false;
+            }
+
+            request = new RenameCategoryRequest(assetPath, categoryGuid, categoryName, displayName);
             errorMessage = null;
             return true;
         }
@@ -490,6 +551,52 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new ReorderPropertyRequest(assetPath, propertyName, index);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateMovePropertyToCategoryRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Move property to category requires an asset path.";
+                return false;
+            }
+
+            string propertyName = FirstNonBlank(payload.propertyName);
+            if (string.IsNullOrWhiteSpace(propertyName))
+            {
+                request = null;
+                errorMessage = "Move property to category requires propertyName.";
+                return false;
+            }
+
+            string categoryGuid = FirstNonBlank(payload.categoryGuid);
+            string categoryName = FirstNonBlank(payload.categoryName, payload.newDisplayName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(categoryGuid) && string.IsNullOrWhiteSpace(categoryName))
+            {
+                request = null;
+                errorMessage = "Move property to category requires categoryGuid or categoryName/displayName/name.";
+                return false;
+            }
+
+            string indexText = FirstNonBlank(payload.newIndex, payload.targetIndex, payload.index);
+            int? index = null;
+            if (!string.IsNullOrWhiteSpace(indexText))
+            {
+                if (!int.TryParse(indexText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedIndex))
+                {
+                    request = null;
+                    errorMessage = "Move property to category requires an integer index when provided.";
+                    return false;
+                }
+
+                index = parsedIndex;
+            }
+
+            request = new MovePropertyToCategoryRequest(assetPath, propertyName, categoryGuid, categoryName, index);
             errorMessage = null;
             return true;
         }
@@ -771,6 +878,10 @@ namespace ShaderGraphMcp.Editor.Tools
             {
                 case "create_graph":
                     return ShaderGraphAction.CreateGraph;
+                case "create_category":
+                    return ShaderGraphAction.CreateCategory;
+                case "rename_category":
+                    return ShaderGraphAction.RenameCategory;
                 case "read_graph_summary":
                     return ShaderGraphAction.ReadGraphSummary;
                 case "find_node":
@@ -791,6 +902,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.DuplicateProperty;
                 case "reorder_property":
                     return ShaderGraphAction.ReorderProperty;
+                case "move_property_to_category":
+                    return ShaderGraphAction.MovePropertyToCategory;
                 case "rename_node":
                     return ShaderGraphAction.RenameNode;
                 case "duplicate_node":
@@ -1227,10 +1340,12 @@ namespace ShaderGraphMcp.Editor.Tools
             public string assetPath;
             public string path;
             public string name;
+            public string categoryName;
             public string template;
             public string propertyName;
             public string propertyType;
             public string defaultValue;
+            public string categoryGuid;
             public string referenceName;
             public string newReferenceName;
             public string index;

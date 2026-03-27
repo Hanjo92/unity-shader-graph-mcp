@@ -419,6 +419,102 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_CreateCategory_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCreateCategory", out _);
+
+            ShaderGraphResponse createCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(
+                assetPath,
+                "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createCategoryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(createCategoryResponse.Data, "operation"), Is.EqualTo("create_category"));
+            Assert.That(ShaderGraphTestAssets.GetInt(createCategoryResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(createCategoryResponse.Data, "categoryCount"), Is.GreaterThanOrEqualTo(2));
+
+            var createdCategory = ShaderGraphTestAssets.RequireDictionary(createCategoryResponse.Data, "createdCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(createdCategory, "displayName"), Is.EqualTo("Surface Inputs"));
+            Assert.That(ShaderGraphTestAssets.GetString(createdCategory, "categoryGuid"), Is.Not.Empty);
+            Assert.That(ShaderGraphTestAssets.GetInt(createdCategory, "childCount"), Is.EqualTo(0));
+
+            var categoryOrder = ShaderGraphTestAssets.GetStringList(createCategoryResponse.Data, "categoryOrder");
+            Assert.That(categoryOrder, Does.Contain("Surface Inputs"));
+        }
+
+        [Test]
+        public void BlankGraph_RenameCategory_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphRenameCategory", out _);
+
+            ShaderGraphResponse createCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(
+                assetPath,
+                "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createCategoryResponse);
+
+            string categoryGuid = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(createCategoryResponse.Data, "createdCategory"),
+                "categoryGuid");
+
+            ShaderGraphResponse renameCategoryResponse = ShaderGraphAssetTool.HandleRenameCategory(
+                assetPath,
+                categoryGuid,
+                null,
+                "Material Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(renameCategoryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(renameCategoryResponse.Data, "operation"), Is.EqualTo("rename_category"));
+            Assert.That(ShaderGraphTestAssets.GetInt(renameCategoryResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(renameCategoryResponse.Data, "categoryCount"), Is.GreaterThanOrEqualTo(2));
+
+            var renamedCategory = ShaderGraphTestAssets.RequireDictionary(renameCategoryResponse.Data, "renamedCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(renamedCategory, "categoryGuid"), Is.EqualTo(categoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(renamedCategory, "displayName"), Is.EqualTo("Material Inputs"));
+            Assert.That(ShaderGraphTestAssets.GetString(renamedCategory, "previousDisplayName"), Is.EqualTo("Surface Inputs"));
+
+            var categoryOrder = ShaderGraphTestAssets.GetStringList(renameCategoryResponse.Data, "categoryOrder");
+            Assert.That(categoryOrder, Does.Contain("Material Inputs"));
+        }
+
+        [Test]
+        public void BlankGraph_MovePropertyToCategory_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphMovePropertyToCategory", out _);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Exposure", "Float/Vector1", "0"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Tint", "Color", "#FFFFFFFF"));
+            ShaderGraphResponse createCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(assetPath, "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createCategoryResponse);
+
+            string categoryGuid = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(createCategoryResponse.Data, "createdCategory"),
+                "categoryGuid");
+
+            ShaderGraphResponse moveResponse = ShaderGraphAssetTool.HandleMovePropertyToCategory(
+                assetPath,
+                "Tint",
+                categoryGuid,
+                null,
+                0);
+            ShaderGraphTestAssets.RequirePackageReady(moveResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(moveResponse.Data, "operation"), Is.EqualTo("move_property_to_category"));
+            Assert.That(ShaderGraphTestAssets.GetInt(moveResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetString(moveResponse.Data, "previousCategoryGuid"), Is.Not.EqualTo(categoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(moveResponse.Data, "categoryGuid"), Is.EqualTo(categoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetInt(moveResponse.Data, "newIndex"), Is.EqualTo(0));
+
+            var movedProperty = ShaderGraphTestAssets.RequireDictionary(moveResponse.Data, "movedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(movedProperty, "displayName"), Is.EqualTo("Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(movedProperty, "categoryGuid"), Is.EqualTo(categoryGuid));
+
+            var categoryPropertyOrder = ShaderGraphTestAssets.GetStringList(moveResponse.Data, "categoryPropertyOrder");
+            Assert.That(categoryPropertyOrder.Count, Is.EqualTo(1));
+            Assert.That(categoryPropertyOrder[0], Does.Contain("Tint"));
+        }
+
+        [Test]
         public void BlankGraph_RenameNode_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphRenameNode", out _);

@@ -7,6 +7,8 @@ from typing import Any, Literal, Mapping
 
 ShaderGraphAction = Literal[
     "create_graph",
+    "create_category",
+    "rename_category",
     "read_graph_summary",
     "find_node",
     "find_property",
@@ -17,6 +19,7 @@ ShaderGraphAction = Literal[
     "rename_property",
     "duplicate_property",
     "reorder_property",
+    "move_property_to_category",
     "rename_node",
     "duplicate_node",
     "move_node",

@@ -12,6 +12,16 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.CreateGraph(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse CreateCategory(CreateCategoryRequest request)
+        {
+            return ShaderGraphScaffoldStore.CreateCategory(request, ExecutionKind);
+        }
+
+        public ShaderGraphResponse RenameCategory(RenameCategoryRequest request)
+        {
+            return ShaderGraphScaffoldStore.RenameCategory(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
         {
             return ShaderGraphScaffoldStore.ReadGraphSummary(request, ExecutionKind);
@@ -60,6 +70,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse ReorderProperty(ReorderPropertyRequest request)
         {
             return ShaderGraphScaffoldStore.ReorderProperty(request, ExecutionKind);
+        }
+
+        public ShaderGraphResponse MovePropertyToCategory(MovePropertyToCategoryRequest request)
+        {
+            return ShaderGraphScaffoldStore.MovePropertyToCategory(request, ExecutionKind);
         }
 
         public ShaderGraphResponse RenameNode(RenameNodeRequest request)

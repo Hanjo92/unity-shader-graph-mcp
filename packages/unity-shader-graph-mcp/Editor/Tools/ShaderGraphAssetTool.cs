@@ -27,6 +27,10 @@ namespace ShaderGraphMcp.Editor.Tools
             {
                 case CreateGraphRequest createGraphRequest:
                     return Adapter.CreateGraph(createGraphRequest);
+                case CreateCategoryRequest createCategoryRequest:
+                    return Adapter.CreateCategory(createCategoryRequest);
+                case RenameCategoryRequest renameCategoryRequest:
+                    return Adapter.RenameCategory(renameCategoryRequest);
                 case ReadGraphSummaryRequest readGraphSummaryRequest:
                     return Adapter.ReadGraphSummary(readGraphSummaryRequest);
                 case FindNodeRequest findNodeRequest:
@@ -47,6 +51,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.DuplicateProperty(duplicatePropertyRequest);
                 case ReorderPropertyRequest reorderPropertyRequest:
                     return Adapter.ReorderProperty(reorderPropertyRequest);
+                case MovePropertyToCategoryRequest movePropertyToCategoryRequest:
+                    return Adapter.MovePropertyToCategory(movePropertyToCategoryRequest);
                 case RenameNodeRequest renameNodeRequest:
                     return Adapter.RenameNode(renameNodeRequest);
                 case DuplicateNodeRequest duplicateNodeRequest:
@@ -73,7 +79,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, reorder_property, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, reconnect_connection, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, create_category, rename_category, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, reorder_property, move_property_to_category, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, reconnect_connection, save_graph."
                     );
             }
         }
@@ -81,6 +87,20 @@ namespace ShaderGraphMcp.Editor.Tools
         public static ShaderGraphResponse HandleCreateGraph(string name, string path, string template)
         {
             return Handle(new CreateGraphRequest(name, path, template));
+        }
+
+        public static ShaderGraphResponse HandleCreateCategory(string assetPath, string name)
+        {
+            return Handle(new CreateCategoryRequest(assetPath, name));
+        }
+
+        public static ShaderGraphResponse HandleRenameCategory(
+            string assetPath,
+            string categoryGuid,
+            string categoryName,
+            string displayName)
+        {
+            return Handle(new RenameCategoryRequest(assetPath, categoryGuid, categoryName, displayName));
         }
 
         public static ShaderGraphResponse HandleReadGraphSummary(string assetPath)
@@ -155,6 +175,16 @@ namespace ShaderGraphMcp.Editor.Tools
             int index)
         {
             return Handle(new ReorderPropertyRequest(assetPath, propertyName, index));
+        }
+
+        public static ShaderGraphResponse HandleMovePropertyToCategory(
+            string assetPath,
+            string propertyName,
+            string categoryGuid,
+            string categoryName,
+            int? index)
+        {
+            return Handle(new MovePropertyToCategoryRequest(assetPath, propertyName, categoryGuid, categoryName, index));
         }
 
         public static ShaderGraphResponse HandleRenameNode(

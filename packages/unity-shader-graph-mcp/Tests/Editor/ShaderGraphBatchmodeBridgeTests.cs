@@ -71,6 +71,75 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsCreateCategoryRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""create_category"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""categoryName"": ""Surface Inputs""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var createCategoryRequest = request as CreateCategoryRequest;
+            Assert.That(createCategoryRequest, Is.Not.Null);
+            Assert.That(createCategoryRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(createCategoryRequest.Name, Is.EqualTo("Surface Inputs"));
+        }
+
+        [Test]
+        public void TryParseRequest_ReturnsRenameCategoryRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""rename_category"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""categoryName"": ""Surface Inputs"",
+                ""newDisplayName"": ""Material Inputs""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var renameCategoryRequest = request as RenameCategoryRequest;
+            Assert.That(renameCategoryRequest, Is.Not.Null);
+            Assert.That(renameCategoryRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(renameCategoryRequest.CategoryName, Is.EqualTo("Surface Inputs"));
+            Assert.That(renameCategoryRequest.DisplayName, Is.EqualTo("Material Inputs"));
+        }
+
+        [Test]
+        public void TryParseRequest_ReturnsMovePropertyToCategoryRequest_WithAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""move_property_to_category"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""propertyName"": ""Tint"",
+                ""categoryName"": ""Surface Inputs"",
+                ""targetIndex"": ""1""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var moveRequest = request as MovePropertyToCategoryRequest;
+            Assert.That(moveRequest, Is.Not.Null);
+            Assert.That(moveRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(moveRequest.PropertyName, Is.EqualTo("Tint"));
+            Assert.That(moveRequest.CategoryName, Is.EqualTo("Surface Inputs"));
+            Assert.That(moveRequest.Index, Is.EqualTo(1));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsReadGraphSummaryRequest_FromAssetPathPayload()
         {
             string json = @"{

@@ -32,6 +32,17 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "path": "Assets/ShaderGraphs",
         "template": "urp_lit",
     },
+    "create_category": {
+        "action": "create_category",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "categoryName": "Surface Inputs",
+    },
+    "rename_category": {
+        "action": "rename_category",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "categoryName": "Surface Inputs",
+        "newDisplayName": "Material Inputs",
+    },
     "read_graph_summary": {
         "action": "read_graph_summary",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -78,6 +89,13 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
         "propertyName": "ExampleColor",
         "newIndex": 0,
+    },
+    "move_property_to_category": {
+        "action": "move_property_to_category",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "propertyName": "ExampleColor",
+        "categoryName": "Surface Inputs",
+        "targetIndex": 0,
     },
     "rename_node": {
         "action": "rename_node",
@@ -213,6 +231,12 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
     def test_missing_required_fields_raise_contract_error(self) -> None:
         with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "create_category", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "rename_category", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "add_property", "path": "Assets/X.shadergraph"})
 
         with self.assertRaises(ShaderGraphRequestError):
@@ -227,6 +251,11 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request(
                 {"action": "reorder_property", "path": "Assets/X.shadergraph", "propertyName": "Tint"}
+            )
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request(
+                {"action": "move_property_to_category", "path": "Assets/X.shadergraph", "propertyName": "Tint"}
             )
 
         with self.assertRaises(ShaderGraphRequestError):

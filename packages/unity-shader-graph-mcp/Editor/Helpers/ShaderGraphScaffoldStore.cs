@@ -17,6 +17,8 @@ namespace ShaderGraphMcp.Editor.Helpers
         private const string DefaultTemplate = "blank";
         private const string DefaultFolder = "Assets/ShaderGraphs";
         private const string ManifestSuffix = ".mcp.json";
+        private const string ScaffoldDefaultCategoryGuid = "scaffold-default-category";
+        private const string ScaffoldDefaultCategoryName = "";
         private static readonly Lazy<ShaderGraphCompatibilitySnapshot> CompatibilitySnapshot =
             new Lazy<ShaderGraphCompatibilitySnapshot>(ShaderGraphPackageCompatibility.Capture);
 
@@ -66,6 +68,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 createdUtc = now,
                 updatedUtc = now,
             };
+            EnsureManifestCategories(manifest);
 
             try
             {
@@ -98,6 +101,168 @@ namespace ShaderGraphMcp.Editor.Helpers
                     null
                 )
             );
+        }
+
+        public static ShaderGraphResponse CreateCategory(
+            CreateCategoryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Create category request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "create_category",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    EnsureManifestCategories(manifest);
+
+                    if (string.IsNullOrWhiteSpace(request.Name))
+                    {
+                        return "Category name is required.";
+                    }
+
+                    string categoryName = request.Name.Trim();
+                    if (manifest.categories.Any(category =>
+                            string.Equals(category.name ?? string.Empty, categoryName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return $"A scaffold category named '{categoryName}' already exists.";
+                    }
+
+                    manifest.categories.Add(new ShaderGraphScaffoldCategory
+                    {
+                        guid = $"scaffold-category-{Guid.NewGuid():N}",
+                        name = categoryName,
+                        updatedUtc = UtcNow(),
+                    });
+
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    ShaderGraphScaffoldCategory createdCategory = manifest.categories.Last();
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "create_category",
+                        new[]
+                        {
+                            $"Category '{request.Name}' recorded in scaffold manifest.",
+                            "Scaffold categories are sidecar-only and do not yet affect Unity runtime graph structure.",
+                        },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["categoryName"] = request.Name?.Trim() ?? string.Empty,
+                    };
+                    data["categoryCount"] = manifest.categories.Count;
+                    data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+                    data["categoryCreateSemantics"] = new[]
+                    {
+                        "Category names are compared case-insensitively for duplicate prevention.",
+                        "Scaffold manifests keep an explicit default category plus any named categories.",
+                        "Existing properties remain in their current categories.",
+                    };
+                    data["createdCategory"] = BuildScaffoldCategoryData(manifest, createdCategory);
+                    return data;
+                });
+        }
+
+        public static ShaderGraphResponse RenameCategory(
+            RenameCategoryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Rename category request is required.");
+            }
+
+            string previousDisplayName = string.Empty;
+            string resolvedCategoryGuid = string.Empty;
+
+            return MutateScaffold(
+                request.AssetPath,
+                "rename_category",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    EnsureManifestCategories(manifest);
+
+                    if (string.IsNullOrWhiteSpace(request.CategoryGuid) && string.IsNullOrWhiteSpace(request.CategoryName))
+                    {
+                        return "Category guid or category name is required.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(request.DisplayName))
+                    {
+                        return "Display name is required.";
+                    }
+
+                    if (!TryResolveScaffoldCategory(manifest, request.CategoryGuid, request.CategoryName, out ShaderGraphScaffoldCategory category))
+                    {
+                        return $"Could not resolve a scaffold category using categoryGuid='{request.CategoryGuid}' or categoryName='{request.CategoryName}'.";
+                    }
+
+                    if (string.Equals(category.guid, ScaffoldDefaultCategoryGuid, StringComparison.Ordinal))
+                    {
+                        return "The scaffold default category cannot be renamed.";
+                    }
+
+                    string displayName = request.DisplayName.Trim();
+                    if (manifest.categories.Any(entry =>
+                            !ReferenceEquals(entry, category) &&
+                            string.Equals(entry.name ?? string.Empty, displayName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return $"A scaffold category named '{displayName}' already exists.";
+                    }
+
+                    previousDisplayName = GetScaffoldCategoryDisplayName(category);
+                    resolvedCategoryGuid = category.guid ?? string.Empty;
+                    category.name = displayName;
+                    category.updatedUtc = UtcNow();
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    ShaderGraphScaffoldCategory renamedCategory = manifest.categories.First(category =>
+                        string.Equals(category.guid, resolvedCategoryGuid, StringComparison.Ordinal));
+
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "rename_category",
+                        new[]
+                        {
+                            $"Category '{previousDisplayName}' renamed in scaffold manifest.",
+                            "Scaffold category rename updates only the sidecar manifest.",
+                        },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = request.CategoryGuid?.Trim() ?? string.Empty,
+                        ["categoryName"] = request.CategoryName?.Trim() ?? string.Empty,
+                        ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                    };
+                    data["matchCount"] = 1;
+                    data["categoryCount"] = manifest.categories.Count;
+                    data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+
+                    var renamedCategoryData = BuildScaffoldCategoryData(manifest, renamedCategory);
+                    renamedCategoryData["previousDisplayName"] = previousDisplayName;
+                    data["renamedCategory"] = renamedCategoryData;
+                    return data;
+                });
         }
 
         public static ShaderGraphResponse ReadGraphSummary(
@@ -445,6 +610,9 @@ namespace ShaderGraphMcp.Editor.Helpers
                     existing.name = propertyName;
                     existing.type = propertyType;
                     existing.defaultValue = request.DefaultValue;
+                    existing.categoryGuid = string.IsNullOrWhiteSpace(existing.categoryGuid)
+                        ? ScaffoldDefaultCategoryGuid
+                        : existing.categoryGuid;
                     existing.updatedUtc = UtcNow();
 
                     return null;
@@ -643,6 +811,9 @@ namespace ShaderGraphMcp.Editor.Helpers
                         name = duplicatedDisplayName,
                         type = existing.type,
                         defaultValue = existing.defaultValue,
+                        categoryGuid = string.IsNullOrWhiteSpace(existing.categoryGuid)
+                            ? ScaffoldDefaultCategoryGuid
+                            : existing.categoryGuid,
                         updatedUtc = UtcNow(),
                     });
 
@@ -778,6 +949,142 @@ namespace ShaderGraphMcp.Editor.Helpers
                         "Scaffold mode treats the manifest property list as a single default category.",
                     };
                     data["reorderedProperty"] = BuildScaffoldPropertyData(reorderedProperty);
+                    return data;
+                }
+            );
+        }
+
+        public static ShaderGraphResponse MovePropertyToCategory(
+            MovePropertyToCategoryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Move property to category request is required.");
+            }
+
+            int previousCategoryIndex = -1;
+            int resolvedCategoryIndex = -1;
+            int previousGraphInputIndex = -1;
+            int resolvedGraphInputIndex = -1;
+            string previousCategoryGuid = string.Empty;
+            string resolvedCategoryGuid = string.Empty;
+
+            return MutateScaffold(
+                request.AssetPath,
+                "move_property_to_category",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    EnsureManifestCategories(manifest);
+
+                    if (string.IsNullOrWhiteSpace(request.PropertyName))
+                    {
+                        return "Property name is required.";
+                    }
+
+                    ShaderGraphScaffoldProperty property = manifest.properties.FirstOrDefault(
+                        entry => string.Equals(entry.name, request.PropertyName.Trim(), StringComparison.Ordinal));
+                    if (property == null)
+                    {
+                        return $"Property '{request.PropertyName.Trim()}' does not exist in the scaffold manifest.";
+                    }
+
+                    if (!TryResolveScaffoldCategory(manifest, request.CategoryGuid, request.CategoryName, out ShaderGraphScaffoldCategory resolvedCategory))
+                    {
+                        return $"Could not resolve a scaffold category using categoryGuid='{request.CategoryGuid}' or categoryName='{request.CategoryName}'.";
+                    }
+
+                    previousGraphInputIndex = manifest.properties.IndexOf(property);
+                    previousCategoryGuid = string.IsNullOrWhiteSpace(property.categoryGuid)
+                        ? ScaffoldDefaultCategoryGuid
+                        : property.categoryGuid;
+                    List<ShaderGraphScaffoldProperty> previousCategoryProperties = GetScaffoldPropertiesForCategory(manifest, previousCategoryGuid);
+                    previousCategoryIndex = previousCategoryProperties.FindIndex(entry => ReferenceEquals(entry, property));
+
+                    resolvedCategoryGuid = resolvedCategory.guid;
+                    manifest.properties.RemoveAt(previousGraphInputIndex);
+                    property.categoryGuid = resolvedCategoryGuid;
+
+                    List<ShaderGraphScaffoldProperty> targetCategoryProperties = GetScaffoldPropertiesForCategory(manifest, resolvedCategoryGuid);
+                    int requestedIndex = request.Index ?? targetCategoryProperties.Count;
+                    if (requestedIndex < 0 || requestedIndex > targetCategoryProperties.Count)
+                    {
+                        return
+                            $"Move property to category requires an index between 0 and {targetCategoryProperties.Count} for the resolved target category.";
+                    }
+
+                    int insertionGraphIndex;
+                    if (targetCategoryProperties.Count == 0)
+                    {
+                        insertionGraphIndex = manifest.properties.Count;
+                    }
+                    else if (requestedIndex >= targetCategoryProperties.Count)
+                    {
+                        ShaderGraphScaffoldProperty anchor = targetCategoryProperties[targetCategoryProperties.Count - 1];
+                        insertionGraphIndex = manifest.properties.IndexOf(anchor) + 1;
+                    }
+                    else
+                    {
+                        ShaderGraphScaffoldProperty anchor = targetCategoryProperties[requestedIndex];
+                        insertionGraphIndex = manifest.properties.IndexOf(anchor);
+                    }
+
+                    if (insertionGraphIndex < 0)
+                    {
+                        insertionGraphIndex = manifest.properties.Count;
+                    }
+
+                    manifest.properties.Insert(insertionGraphIndex, property);
+                    property.updatedUtc = UtcNow();
+
+                    resolvedGraphInputIndex = manifest.properties.IndexOf(property);
+                    resolvedCategoryIndex = GetScaffoldPropertiesForCategory(manifest, resolvedCategoryGuid)
+                        .FindIndex(entry => ReferenceEquals(entry, property));
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    ShaderGraphScaffoldProperty movedProperty = manifest.properties[resolvedGraphInputIndex];
+                    List<ShaderGraphScaffoldProperty> resolvedCategoryProperties = GetScaffoldPropertiesForCategory(manifest, resolvedCategoryGuid);
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "move_property_to_category",
+                        new[]
+                        {
+                            $"Property '{request.PropertyName}' moved to scaffold category '{resolvedCategoryGuid}'.",
+                            "Scaffold category-local order is derived from the manifest property list.",
+                        },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["propertyName"] = request.PropertyName?.Trim() ?? string.Empty,
+                        ["categoryGuid"] = request.CategoryGuid ?? string.Empty,
+                        ["categoryName"] = request.CategoryName ?? string.Empty,
+                        ["index"] = request.Index.HasValue ? request.Index.Value : resolvedCategoryIndex,
+                    };
+                    data["matchCount"] = 1;
+                    data["previousCategoryGuid"] = previousCategoryGuid;
+                    data["categoryGuid"] = resolvedCategoryGuid;
+                    data["previousIndex"] = previousCategoryIndex;
+                    data["newIndex"] = resolvedCategoryIndex;
+                    data["previousGraphInputIndex"] = previousGraphInputIndex;
+                    data["graphInputIndex"] = resolvedGraphInputIndex;
+                    data["categoryCount"] = manifest.categories.Count;
+                    data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+                    data["categoryPropertyOrder"] = BuildScaffoldPropertyOrder(resolvedCategoryProperties);
+                    data["moveCategorySemantics"] = new[]
+                    {
+                        "Index is 0-based within the resolved scaffold category.",
+                        "Scaffold category-local order is derived from the manifest property list.",
+                        "graphInputIndex reflects the manifest list index after the move.",
+                    };
+                    data["movedProperty"] = BuildScaffoldPropertyData(movedProperty);
                     return data;
                 }
             );
@@ -2055,6 +2362,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ["referenceName"] = property?.name ?? string.Empty,
                 ["resolvedPropertyType"] = property?.type ?? string.Empty,
                 ["defaultValue"] = property?.defaultValue ?? string.Empty,
+                ["categoryGuid"] = property?.categoryGuid ?? ScaffoldDefaultCategoryGuid,
                 ["summary"] = $"{property?.name ?? string.Empty} [{property?.type ?? string.Empty}]",
             };
         }
@@ -2064,6 +2372,85 @@ namespace ShaderGraphMcp.Editor.Helpers
             return (properties ?? Array.Empty<ShaderGraphScaffoldProperty>())
                 .Select(property => $"{property?.name ?? string.Empty} [{property?.type ?? string.Empty}]")
                 .ToArray();
+        }
+
+        private static Dictionary<string, object> BuildScaffoldCategoryData(
+            ShaderGraphScaffoldManifest manifest,
+            ShaderGraphScaffoldCategory category)
+        {
+            ShaderGraphScaffoldProperty[] properties = GetScaffoldPropertiesForCategory(manifest, category?.guid ?? string.Empty).ToArray();
+
+            return new Dictionary<string, object>
+            {
+                ["categoryGuid"] = category?.guid ?? string.Empty,
+                ["displayName"] = GetScaffoldCategoryDisplayName(category),
+                ["name"] = category?.name ?? string.Empty,
+                ["childCount"] = properties.Length,
+                ["propertyOrder"] = BuildScaffoldPropertyOrder(properties),
+            };
+        }
+
+        private static string[] BuildScaffoldCategoryOrder(IEnumerable<ShaderGraphScaffoldCategory> categories)
+        {
+            return (categories ?? Array.Empty<ShaderGraphScaffoldCategory>())
+                .Select(GetScaffoldCategoryDisplayName)
+                .ToArray();
+        }
+
+        private static string GetScaffoldCategoryDisplayName(ShaderGraphScaffoldCategory category)
+        {
+            string name = category?.name ?? string.Empty;
+            return string.IsNullOrWhiteSpace(name) ? "(Default Category)" : name;
+        }
+
+        private static List<ShaderGraphScaffoldProperty> GetScaffoldPropertiesForCategory(
+            ShaderGraphScaffoldManifest manifest,
+            string categoryGuid)
+        {
+            string resolvedCategoryGuid = string.IsNullOrWhiteSpace(categoryGuid)
+                ? ScaffoldDefaultCategoryGuid
+                : categoryGuid;
+
+            return (manifest?.properties ?? new List<ShaderGraphScaffoldProperty>())
+                .Where(property => string.Equals(
+                    property?.categoryGuid ?? ScaffoldDefaultCategoryGuid,
+                    resolvedCategoryGuid,
+                    StringComparison.Ordinal))
+                .ToList();
+        }
+
+        private static bool TryResolveScaffoldCategory(
+            ShaderGraphScaffoldManifest manifest,
+            string categoryGuid,
+            string categoryName,
+            out ShaderGraphScaffoldCategory category)
+        {
+            category = null;
+            if (manifest == null)
+            {
+                return false;
+            }
+
+            EnsureManifestCategories(manifest);
+
+            if (!string.IsNullOrWhiteSpace(categoryGuid))
+            {
+                category = manifest.categories.FirstOrDefault(entry =>
+                    string.Equals(entry.guid, categoryGuid.Trim(), StringComparison.Ordinal));
+                if (category != null)
+                {
+                    return true;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(categoryName))
+            {
+                return false;
+            }
+
+            category = manifest.categories.FirstOrDefault(entry =>
+                string.Equals(entry.name ?? string.Empty, categoryName.Trim(), StringComparison.OrdinalIgnoreCase));
+            return category != null;
         }
 
         private static string FormatScaffoldNodePosition(ShaderGraphScaffoldNode node)
@@ -2105,7 +2492,13 @@ namespace ShaderGraphMcp.Editor.Helpers
 
             string json = File.ReadAllText(absoluteManifestPath);
             manifest = JsonUtility.FromJson<ShaderGraphScaffoldManifest>(json);
-            return manifest != null && string.Equals(manifest.schema, ScaffoldSchema, StringComparison.Ordinal);
+            if (manifest == null || !string.Equals(manifest.schema, ScaffoldSchema, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            EnsureManifestCategories(manifest);
+            return true;
         }
 
         private static void WriteManifest(string absoluteManifestPath, ShaderGraphScaffoldManifest manifest)
@@ -2232,6 +2625,46 @@ namespace ShaderGraphMcp.Editor.Helpers
         {
             return DateTime.UtcNow.ToString("O");
         }
+
+        private static void EnsureManifestCategories(ShaderGraphScaffoldManifest manifest)
+        {
+            if (manifest == null)
+            {
+                return;
+            }
+
+            manifest.properties ??= new List<ShaderGraphScaffoldProperty>();
+            manifest.nodes ??= new List<ShaderGraphScaffoldNode>();
+            manifest.connections ??= new List<ShaderGraphScaffoldConnection>();
+            manifest.categories ??= new List<ShaderGraphScaffoldCategory>();
+
+            ShaderGraphScaffoldCategory defaultCategory = manifest.categories.FirstOrDefault(
+                category => string.Equals(category?.guid, ScaffoldDefaultCategoryGuid, StringComparison.Ordinal));
+            if (defaultCategory == null)
+            {
+                defaultCategory = new ShaderGraphScaffoldCategory
+                {
+                    guid = ScaffoldDefaultCategoryGuid,
+                    name = ScaffoldDefaultCategoryName,
+                    updatedUtc = manifest.createdUtc ?? UtcNow(),
+                };
+                manifest.categories.Insert(0, defaultCategory);
+            }
+
+            foreach (ShaderGraphScaffoldProperty property in manifest.properties)
+            {
+                if (property == null)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(property.categoryGuid) ||
+                    !manifest.categories.Any(category => string.Equals(category.guid, property.categoryGuid, StringComparison.Ordinal)))
+                {
+                    property.categoryGuid = ScaffoldDefaultCategoryGuid;
+                }
+            }
+        }
     }
 
     [Serializable]
@@ -2246,6 +2679,7 @@ namespace ShaderGraphMcp.Editor.Helpers
         public List<ShaderGraphScaffoldProperty> properties = new List<ShaderGraphScaffoldProperty>();
         public List<ShaderGraphScaffoldNode> nodes = new List<ShaderGraphScaffoldNode>();
         public List<ShaderGraphScaffoldConnection> connections = new List<ShaderGraphScaffoldConnection>();
+        public List<ShaderGraphScaffoldCategory> categories = new List<ShaderGraphScaffoldCategory>();
     }
 
     [Serializable]
@@ -2254,6 +2688,15 @@ namespace ShaderGraphMcp.Editor.Helpers
         public string name;
         public string type;
         public string defaultValue;
+        public string categoryGuid;
+        public string updatedUtc;
+    }
+
+    [Serializable]
+    public sealed class ShaderGraphScaffoldCategory
+    {
+        public string guid;
+        public string name;
         public string updatedUtc;
     }
 

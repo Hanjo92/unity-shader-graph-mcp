@@ -5,6 +5,8 @@ namespace ShaderGraphMcp.Editor.Models
     public enum ShaderGraphAction
     {
         CreateGraph,
+        CreateCategory,
+        RenameCategory,
         ReadGraphSummary,
         FindNode,
         FindProperty,
@@ -15,6 +17,7 @@ namespace ShaderGraphMcp.Editor.Models
         RenameProperty,
         DuplicateProperty,
         ReorderProperty,
+        MovePropertyToCategory,
         RenameNode,
         DuplicateNode,
         MoveNode,
@@ -109,6 +112,32 @@ namespace ShaderGraphMcp.Editor.Models
         public ReadGraphSummaryRequest(string assetPath)
             : base(ShaderGraphAction.ReadGraphSummary, assetPath)
         {
+        }
+    }
+
+    public sealed class CreateCategoryRequest : ShaderGraphRequest
+    {
+        public string Name { get; }
+
+        public CreateCategoryRequest(string assetPath, string name)
+            : base(ShaderGraphAction.CreateCategory, assetPath)
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? string.Empty : name.Trim();
+        }
+    }
+
+    public sealed class RenameCategoryRequest : ShaderGraphRequest
+    {
+        public string CategoryGuid { get; }
+        public string CategoryName { get; }
+        public string DisplayName { get; }
+
+        public RenameCategoryRequest(string assetPath, string categoryGuid, string categoryName, string displayName)
+            : base(ShaderGraphAction.RenameCategory, assetPath)
+        {
+            CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
+            CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
         }
     }
 
@@ -222,6 +251,23 @@ namespace ShaderGraphMcp.Editor.Models
             : base(ShaderGraphAction.ReorderProperty, assetPath)
         {
             PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
+            Index = index;
+        }
+    }
+
+    public sealed class MovePropertyToCategoryRequest : ShaderGraphRequest
+    {
+        public string PropertyName { get; }
+        public string CategoryGuid { get; }
+        public string CategoryName { get; }
+        public int? Index { get; }
+
+        public MovePropertyToCategoryRequest(string assetPath, string propertyName, string categoryGuid, string categoryName, int? index)
+            : base(ShaderGraphAction.MovePropertyToCategory, assetPath)
+        {
+            PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
+            CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
+            CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();
             Index = index;
         }
     }

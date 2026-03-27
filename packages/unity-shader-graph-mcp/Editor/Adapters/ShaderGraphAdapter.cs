@@ -5,6 +5,8 @@ namespace ShaderGraphMcp.Editor.Adapters
     public interface IShaderGraphAdapter
     {
         ShaderGraphResponse CreateGraph(CreateGraphRequest request);
+        ShaderGraphResponse CreateCategory(CreateCategoryRequest request);
+        ShaderGraphResponse RenameCategory(RenameCategoryRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
         ShaderGraphResponse FindProperty(FindPropertyRequest request);
@@ -15,6 +17,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse RenameProperty(RenamePropertyRequest request);
         ShaderGraphResponse DuplicateProperty(DuplicatePropertyRequest request);
         ShaderGraphResponse ReorderProperty(ReorderPropertyRequest request);
+        ShaderGraphResponse MovePropertyToCategory(MovePropertyToCategoryRequest request);
         ShaderGraphResponse RenameNode(RenameNodeRequest request);
         ShaderGraphResponse DuplicateNode(DuplicateNodeRequest request);
         ShaderGraphResponse MoveNode(MoveNodeRequest request);
@@ -46,6 +49,16 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse CreateGraph(CreateGraphRequest request)
         {
             return backend.CreateGraph(request);
+        }
+
+        public ShaderGraphResponse CreateCategory(CreateCategoryRequest request)
+        {
+            return backend.CreateCategory(request);
+        }
+
+        public ShaderGraphResponse RenameCategory(RenameCategoryRequest request)
+        {
+            return backend.RenameCategory(request);
         }
 
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
@@ -96,6 +109,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse ReorderProperty(ReorderPropertyRequest request)
         {
             return backend.ReorderProperty(request);
+        }
+
+        public ShaderGraphResponse MovePropertyToCategory(MovePropertyToCategoryRequest request)
+        {
+            return backend.MovePropertyToCategory(request);
         }
 
         public ShaderGraphResponse RenameNode(RenameNodeRequest request)

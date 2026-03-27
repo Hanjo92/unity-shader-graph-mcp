@@ -25,6 +25,8 @@ from ..unity_bridge import (
 
 SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "create_graph",
+    "create_category",
+    "rename_category",
     "read_graph_summary",
     "find_node",
     "find_property",
@@ -35,6 +37,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "rename_property",
     "duplicate_property",
     "reorder_property",
+    "move_property_to_category",
     "rename_node",
     "duplicate_node",
     "move_node",
@@ -69,9 +72,15 @@ def normalize_shadergraph_asset_request(
             f"Unsupported action '{action}'. Supported actions: {supported}."
         )
 
+    request_name = optional_text(_pick_value(request_payload, "name", "graphName"))
+    if action == "create_category":
+        request_name = optional_text(
+            _pick_value(request_payload, "categoryName", "category_name", "displayName", "display_name", "name")
+        )
+
     request = ShaderGraphAssetRequest(
         action=action,  # type: ignore[arg-type]
-        name=optional_text(_pick_value(request_payload, "name", "graphName")),
+        name=request_name,
         path=optional_text(_pick_value(request_payload, "path", "assetPath", "asset_path")),
         template=optional_text(_pick_value(request_payload, "template")),
         payload=dict(request_payload),
@@ -113,6 +122,30 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
 
     if request.action == "create_graph" and request.name is None:
         raise ShaderGraphRequestError("Missing required field 'name'.")
+
+    if request.action == "create_category":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        category_name = optional_text(
+            _pick_value(request.payload, "categoryName", "category_name", "displayName", "display_name", "name")
+        )
+        if category_name is None:
+            raise ShaderGraphRequestError("Missing required field 'categoryName', 'displayName', or 'name'.")
+        request.payload.setdefault("categoryName", category_name)
+
+    if request.action == "rename_category":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        category_guid = optional_text(_pick_value(request.payload, "categoryGuid", "category_guid"))
+        category_name = optional_text(_pick_value(request.payload, "categoryName", "category_name"))
+        if category_guid is None and category_name is None:
+            raise ShaderGraphRequestError("Missing required field 'categoryGuid' or 'categoryName'.")
+        display_name = optional_text(
+            _pick_value(request.payload, "newDisplayName", "new_display_name", "displayName", "display_name", "name")
+        )
+        if display_name is None:
+            raise ShaderGraphRequestError("Missing required field 'newDisplayName', 'displayName', or 'name'.")
+        request.payload.setdefault("displayName", display_name)
 
     if request.action == "read_graph_summary" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
@@ -184,6 +217,36 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         )
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+    if request.action == "move_property_to_category":
+        _require_payload_text(request.payload, "propertyName", "property_name")
+        category_guid = optional_text(_pick_value(request.payload, "categoryGuid", "category_guid"))
+        category_name = optional_text(
+            _pick_value(request.payload, "categoryName", "category_name", "displayName", "display_name", "name")
+        )
+        if category_guid is None and category_name is None:
+            raise ShaderGraphRequestError(
+                "move_property_to_category requires categoryGuid or categoryName/displayName/name."
+            )
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        index_value = _pick_value(
+            request.payload,
+            "newIndex",
+            "new_index",
+            "targetIndex",
+            "target_index",
+            "index",
+        )
+        if optional_text(index_value) is not None:
+            request.payload["index"] = _require_payload_int_text(
+                request.payload,
+                "newIndex",
+                "new_index",
+                "targetIndex",
+                "target_index",
+                "index",
+            )
 
     if request.action == "rename_node":
         _require_payload_text(request.payload, "nodeId", "node_id", "objectId", "object_id")
@@ -388,6 +451,8 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
     summary["assetPath"] = _derive_asset_path(request)
     summary.pop("payload", None)
     for key_group in (
+        ("categoryName", "category_name"),
+        ("categoryGuid", "category_guid"),
         ("propertyName", "property_name"),
         ("propertyType", "property_type"),
         ("referenceName", "reference_name", "newReferenceName", "new_reference_name"),

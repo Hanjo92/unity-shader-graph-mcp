@@ -97,6 +97,134 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesCreatedCategoryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "create category ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["categoryCount"] = 2,
+                    ["categoryOrder"] = new[] { "(Default Category)", "Surface Inputs" },
+                    ["categoryCreateSemantics"] = new[]
+                    {
+                        "Category names are compared case-insensitively for duplicate prevention.",
+                        "The created category is appended to GraphData.categories.",
+                    },
+                    ["createdCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-guid-1",
+                        ["displayName"] = "Surface Inputs",
+                        ["name"] = "Surface Inputs",
+                        ["childCount"] = 0,
+                        ["propertyOrder"] = new string[0],
+                        ["isDefaultCategory"] = false,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["categoryCount"], Is.EqualTo(2));
+
+            var categoryOrder = (string[])response.Data["categoryOrder"];
+            Assert.That(categoryOrder, Is.EquivalentTo(new[] { "(Default Category)", "Surface Inputs" }));
+
+            var createdCategory = (IReadOnlyDictionary<string, object>)response.Data["createdCategory"];
+            Assert.That(createdCategory["categoryGuid"], Is.EqualTo("category-guid-1"));
+            Assert.That(createdCategory["displayName"], Is.EqualTo("Surface Inputs"));
+            Assert.That(createdCategory["childCount"], Is.EqualTo(0));
+            Assert.That(createdCategory["isDefaultCategory"], Is.EqualTo(false));
+        }
+
+        [Test]
+        public void Ok_PreservesRenamedCategoryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "rename category ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["categoryCount"] = 2,
+                    ["categoryOrder"] = new[] { "(Default Category)", "Material Inputs" },
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["categoryName"] = "Surface Inputs",
+                        ["displayName"] = "Material Inputs",
+                    },
+                    ["renamedCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-guid-1",
+                        ["displayName"] = "Material Inputs",
+                        ["name"] = "Material Inputs",
+                        ["previousDisplayName"] = "Surface Inputs",
+                        ["childCount"] = 1,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["categoryCount"], Is.EqualTo(2));
+
+            var renamedCategory = (IReadOnlyDictionary<string, object>)response.Data["renamedCategory"];
+            Assert.That(renamedCategory["categoryGuid"], Is.EqualTo("category-guid-1"));
+            Assert.That(renamedCategory["displayName"], Is.EqualTo("Material Inputs"));
+            Assert.That(renamedCategory["previousDisplayName"], Is.EqualTo("Surface Inputs"));
+        }
+
+        [Test]
+        public void Ok_PreservesMovedPropertyToCategoryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "move property to category ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["previousCategoryGuid"] = "category-default",
+                    ["categoryGuid"] = "category-surface",
+                    ["previousIndex"] = 1,
+                    ["newIndex"] = 0,
+                    ["previousGraphInputIndex"] = 1,
+                    ["graphInputIndex"] = 1,
+                    ["categoryCount"] = 2,
+                    ["categoryOrder"] = new[] { "(Default Category)", "Surface Inputs" },
+                    ["categoryPropertyOrder"] = new[] { "Tint [Color]" },
+                    ["targetCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-surface",
+                        ["displayName"] = "Surface Inputs",
+                        ["childCount"] = 1,
+                    },
+                    ["movedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Tint",
+                        ["referenceName"] = "_Tint",
+                        ["categoryGuid"] = "category-surface",
+                        ["resolvedPropertyType"] = "Color",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["previousCategoryGuid"], Is.EqualTo("category-default"));
+            Assert.That(response.Data["categoryGuid"], Is.EqualTo("category-surface"));
+            Assert.That(response.Data["newIndex"], Is.EqualTo(0));
+
+            var movedProperty = (IReadOnlyDictionary<string, object>)response.Data["movedProperty"];
+            Assert.That(movedProperty["displayName"], Is.EqualTo("Tint"));
+            Assert.That(movedProperty["categoryGuid"], Is.EqualTo("category-surface"));
+        }
+
+        [Test]
         public void Ok_PreservesAddedNodeEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
