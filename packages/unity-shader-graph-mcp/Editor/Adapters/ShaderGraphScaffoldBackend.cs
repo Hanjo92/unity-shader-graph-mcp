@@ -37,6 +37,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.ReorderCategory(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse MergeCategory(MergeCategoryRequest request)
+        {
+            return ShaderGraphScaffoldStore.MergeCategory(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse ListCategories(ListCategoriesRequest request)
         {
             return ShaderGraphScaffoldStore.ListCategories(request, ExecutionKind);

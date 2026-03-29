@@ -30,6 +30,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "find_category",
                 "delete_category",
                 "reorder_category",
+                "merge_category",
                 "list_categories",
                 "read_graph_summary",
                 "find_node",
@@ -173,6 +174,22 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
 
         self.assertEqual(request.action, "list_categories")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+
+    def test_request_normalization_accepts_merge_category_with_alias_fields(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "merge_category",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "sourceDisplayName": "Surface Inputs",
+                "targetName": "Material Inputs",
+            }
+        )
+
+        self.assertEqual(request.action, "merge_category")
+        self.assertEqual(request.name, "Surface Inputs")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["sourceDisplayName"], "Surface Inputs")
+        self.assertEqual(request.payload["targetName"], "Material Inputs")
 
     def test_request_normalization_accepts_find_property_with_reference_name(self) -> None:
         request = normalize_shadergraph_asset_request(

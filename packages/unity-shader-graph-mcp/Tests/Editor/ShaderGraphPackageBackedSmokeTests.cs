@@ -645,6 +645,79 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_MergeCategory_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphMergeCategory", out _);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Tint", "Color", "#FFFFFFFF"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Exposure", "Float/Vector1", "0"));
+
+            ShaderGraphResponse createSourceCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(assetPath, "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createSourceCategoryResponse);
+
+            ShaderGraphResponse createTargetCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(assetPath, "Material Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createTargetCategoryResponse);
+
+            string sourceCategoryGuid = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(createSourceCategoryResponse.Data, "createdCategory"),
+                "categoryGuid");
+            string targetCategoryGuid = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(createTargetCategoryResponse.Data, "createdCategory"),
+                "categoryGuid");
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleMovePropertyToCategory(
+                    assetPath,
+                    "Tint",
+                    sourceCategoryGuid,
+                    null,
+                    0));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleMovePropertyToCategory(
+                    assetPath,
+                    "Exposure",
+                    sourceCategoryGuid,
+                    null,
+                    1));
+
+            ShaderGraphResponse mergeCategoryResponse = ShaderGraphAssetTool.HandleMergeCategory(
+                assetPath,
+                sourceCategoryGuid,
+                null,
+                targetCategoryGuid,
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(mergeCategoryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(mergeCategoryResponse.Data, "operation"), Is.EqualTo("merge_category"));
+            Assert.That(ShaderGraphTestAssets.GetInt(mergeCategoryResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(mergeCategoryResponse.Data, "sourceMatchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(mergeCategoryResponse.Data, "targetMatchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(mergeCategoryResponse.Data, "movedPropertyCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetString(mergeCategoryResponse.Data, "targetCategoryGuid"), Is.EqualTo(targetCategoryGuid));
+
+            var mergedFromCategory = ShaderGraphTestAssets.RequireDictionary(mergeCategoryResponse.Data, "mergedFromCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(mergedFromCategory, "categoryGuid"), Is.EqualTo(sourceCategoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(mergedFromCategory, "displayName"), Is.EqualTo("Surface Inputs"));
+            Assert.That(ShaderGraphTestAssets.GetInt(mergedFromCategory, "previousChildCount"), Is.EqualTo(2));
+
+            var mergedIntoCategory = ShaderGraphTestAssets.RequireDictionary(mergeCategoryResponse.Data, "mergedIntoCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(mergedIntoCategory, "categoryGuid"), Is.EqualTo(targetCategoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(mergedIntoCategory, "displayName"), Is.EqualTo("Material Inputs"));
+            Assert.That(ShaderGraphTestAssets.GetInt(mergedIntoCategory, "childCount"), Is.EqualTo(2));
+
+            var categoryOrder = ShaderGraphTestAssets.GetStringList(mergeCategoryResponse.Data, "categoryOrder");
+            Assert.That(categoryOrder, Does.Contain("Material Inputs"));
+            Assert.That(categoryOrder, Does.Not.Contain("Surface Inputs"));
+
+            var targetCategoryPropertyOrder = ShaderGraphTestAssets.GetStringList(mergeCategoryResponse.Data, "targetCategoryPropertyOrder");
+            Assert.That(targetCategoryPropertyOrder.Count, Is.EqualTo(2));
+            Assert.That(targetCategoryPropertyOrder[0], Does.Contain("Tint"));
+            Assert.That(targetCategoryPropertyOrder[1], Does.Contain("Exposure"));
+        }
+
+        [Test]
         public void BlankGraph_MovePropertyToCategory_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphMovePropertyToCategory", out _);

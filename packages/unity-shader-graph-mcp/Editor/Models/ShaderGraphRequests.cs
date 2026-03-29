@@ -10,6 +10,7 @@ namespace ShaderGraphMcp.Editor.Models
         FindCategory,
         DeleteCategory,
         ReorderCategory,
+        MergeCategory,
         ListCategories,
         ReadGraphSummary,
         FindNode,
@@ -183,6 +184,28 @@ namespace ShaderGraphMcp.Editor.Models
             CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
             CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();
             Index = index;
+        }
+    }
+
+    public sealed class MergeCategoryRequest : ShaderGraphRequest
+    {
+        public string SourceCategoryGuid { get; }
+        public string SourceCategoryName { get; }
+        public string TargetCategoryGuid { get; }
+        public string TargetCategoryName { get; }
+
+        public MergeCategoryRequest(
+            string assetPath,
+            string sourceCategoryGuid,
+            string sourceCategoryName,
+            string targetCategoryGuid,
+            string targetCategoryName)
+            : base(ShaderGraphAction.MergeCategory, assetPath)
+        {
+            SourceCategoryGuid = string.IsNullOrWhiteSpace(sourceCategoryGuid) ? string.Empty : sourceCategoryGuid.Trim();
+            SourceCategoryName = string.IsNullOrWhiteSpace(sourceCategoryName) ? string.Empty : sourceCategoryName.Trim();
+            TargetCategoryGuid = string.IsNullOrWhiteSpace(targetCategoryGuid) ? string.Empty : targetCategoryGuid.Trim();
+            TargetCategoryName = string.IsNullOrWhiteSpace(targetCategoryName) ? string.Empty : targetCategoryName.Trim();
         }
     }
 

@@ -220,6 +220,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateDeleteCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReorderCategory:
                     return TryCreateReorderCategoryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.MergeCategory:
+                    return TryCreateMergeCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ListCategories:
                     return TryCreateListCategoriesRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
@@ -466,6 +468,44 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new ListCategoriesRequest(assetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateMergeCategoryRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Merge category requires an asset path.";
+                return false;
+            }
+
+            string sourceCategoryGuid = FirstNonBlank(payload.sourceCategoryGuid);
+            string sourceCategoryName = FirstNonBlank(payload.sourceCategoryName, payload.sourceDisplayName, payload.sourceName);
+            if (string.IsNullOrWhiteSpace(sourceCategoryGuid) && string.IsNullOrWhiteSpace(sourceCategoryName))
+            {
+                request = null;
+                errorMessage = "Merge category requires sourceCategoryGuid or sourceCategoryName/sourceDisplayName/sourceName.";
+                return false;
+            }
+
+            string targetCategoryGuid = FirstNonBlank(payload.targetCategoryGuid);
+            string targetCategoryName = FirstNonBlank(payload.targetCategoryName, payload.targetDisplayName, payload.targetName);
+            if (string.IsNullOrWhiteSpace(targetCategoryGuid) && string.IsNullOrWhiteSpace(targetCategoryName))
+            {
+                request = null;
+                errorMessage = "Merge category requires targetCategoryGuid or targetCategoryName/targetDisplayName/targetName.";
+                return false;
+            }
+
+            request = new MergeCategoryRequest(
+                assetPath,
+                sourceCategoryGuid,
+                sourceCategoryName,
+                targetCategoryGuid,
+                targetCategoryName);
             errorMessage = null;
             return true;
         }
@@ -988,11 +1028,13 @@ namespace ShaderGraphMcp.Editor.Tools
                 case "find_category":
                     return ShaderGraphAction.FindCategory;
                 case "delete_category":
-                    return ShaderGraphAction.DeleteCategory;
-                case "reorder_category":
-                    return ShaderGraphAction.ReorderCategory;
-                case "list_categories":
-                    return ShaderGraphAction.ListCategories;
+                return ShaderGraphAction.DeleteCategory;
+            case "reorder_category":
+                return ShaderGraphAction.ReorderCategory;
+            case "merge_category":
+                return ShaderGraphAction.MergeCategory;
+            case "list_categories":
+                return ShaderGraphAction.ListCategories;
                 case "read_graph_summary":
                     return ShaderGraphAction.ReadGraphSummary;
                 case "find_node":
@@ -1452,11 +1494,19 @@ namespace ShaderGraphMcp.Editor.Tools
             public string path;
             public string name;
             public string categoryName;
+            public string sourceCategoryName;
+            public string sourceDisplayName;
+            public string sourceName;
+            public string targetCategoryName;
+            public string targetDisplayName;
+            public string targetName;
             public string template;
             public string propertyName;
             public string propertyType;
             public string defaultValue;
             public string categoryGuid;
+            public string sourceCategoryGuid;
+            public string targetCategoryGuid;
             public string referenceName;
             public string newReferenceName;
             public string index;

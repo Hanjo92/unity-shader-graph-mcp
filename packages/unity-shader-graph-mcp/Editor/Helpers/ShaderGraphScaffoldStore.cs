@@ -556,6 +556,154 @@ namespace ShaderGraphMcp.Editor.Helpers
                 });
         }
 
+        public static ShaderGraphResponse MergeCategory(
+            MergeCategoryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Merge category request is required.");
+            }
+
+            string sourceCategoryGuid = string.Empty;
+            string sourceCategoryDisplayName = string.Empty;
+            string targetCategoryGuid = string.Empty;
+            string targetCategoryDisplayName = string.Empty;
+            string[] sourcePropertyOrder = Array.Empty<string>();
+            int movedPropertyCount = 0;
+
+            return MutateScaffold(
+                request.AssetPath,
+                "merge_category",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    EnsureManifestCategories(manifest);
+
+                    if (string.IsNullOrWhiteSpace(request.SourceCategoryGuid) && string.IsNullOrWhiteSpace(request.SourceCategoryName))
+                    {
+                        return "Source category guid or category name is required.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(request.TargetCategoryGuid) && string.IsNullOrWhiteSpace(request.TargetCategoryName))
+                    {
+                        return "Target category guid or category name is required.";
+                    }
+
+                    if (!TryResolveScaffoldCategory(manifest, request.SourceCategoryGuid, request.SourceCategoryName, out ShaderGraphScaffoldCategory sourceCategory))
+                    {
+                        return $"Could not resolve a scaffold source category using categoryGuid='{request.SourceCategoryGuid}' or categoryName='{request.SourceCategoryName}'.";
+                    }
+
+                    if (!TryResolveScaffoldCategory(manifest, request.TargetCategoryGuid, request.TargetCategoryName, out ShaderGraphScaffoldCategory targetCategory))
+                    {
+                        return $"Could not resolve a scaffold target category using categoryGuid='{request.TargetCategoryGuid}' or categoryName='{request.TargetCategoryName}'.";
+                    }
+
+                    sourceCategoryGuid = sourceCategory.guid ?? string.Empty;
+                    sourceCategoryDisplayName = GetScaffoldCategoryDisplayName(sourceCategory);
+                    targetCategoryGuid = targetCategory.guid ?? string.Empty;
+                    targetCategoryDisplayName = GetScaffoldCategoryDisplayName(targetCategory);
+
+                    if (string.Equals(sourceCategoryGuid, ScaffoldDefaultCategoryGuid, StringComparison.Ordinal))
+                    {
+                        return "The scaffold default category cannot be merged into another category.";
+                    }
+
+                    if (string.Equals(sourceCategoryGuid, targetCategoryGuid, StringComparison.Ordinal))
+                    {
+                        return "Source and target categories must resolve to different categories.";
+                    }
+
+                    List<ShaderGraphScaffoldProperty> movedProperties = GetScaffoldPropertiesForCategory(manifest, sourceCategoryGuid);
+                    sourcePropertyOrder = BuildScaffoldPropertyOrder(movedProperties);
+                    movedPropertyCount = movedProperties.Count;
+
+                    foreach (ShaderGraphScaffoldProperty property in movedProperties)
+                    {
+                        manifest.properties.Remove(property);
+                        property.categoryGuid = targetCategoryGuid;
+                        property.updatedUtc = UtcNow();
+                    }
+
+                    List<ShaderGraphScaffoldProperty> targetCategoryProperties = GetScaffoldPropertiesForCategory(manifest, targetCategoryGuid);
+                    int insertionGraphIndex;
+                    if (targetCategoryProperties.Count == 0)
+                    {
+                        insertionGraphIndex = manifest.properties.Count;
+                    }
+                    else
+                    {
+                        ShaderGraphScaffoldProperty anchor = targetCategoryProperties[targetCategoryProperties.Count - 1];
+                        insertionGraphIndex = manifest.properties.IndexOf(anchor) + 1;
+                    }
+
+                    if (insertionGraphIndex < 0)
+                    {
+                        insertionGraphIndex = manifest.properties.Count;
+                    }
+
+                    manifest.properties.InsertRange(insertionGraphIndex, movedProperties);
+                    targetCategory.updatedUtc = UtcNow();
+                    manifest.categories.RemoveAll(entry =>
+                        string.Equals(entry?.guid, sourceCategoryGuid, StringComparison.Ordinal));
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    ShaderGraphScaffoldCategory resolvedTargetCategory = manifest.categories.First(category =>
+                        string.Equals(category.guid, targetCategoryGuid, StringComparison.Ordinal));
+
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "merge_category",
+                        new[]
+                        {
+                            $"Category '{sourceCategoryDisplayName}' merged into '{targetCategoryDisplayName}' in scaffold manifest.",
+                            "Scaffold merge appends source category properties to the target category order, then removes the source category.",
+                        },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["sourceCategoryGuid"] = request.SourceCategoryGuid?.Trim() ?? string.Empty,
+                        ["sourceCategoryName"] = request.SourceCategoryName?.Trim() ?? string.Empty,
+                        ["targetCategoryGuid"] = request.TargetCategoryGuid?.Trim() ?? string.Empty,
+                        ["targetCategoryName"] = request.TargetCategoryName?.Trim() ?? string.Empty,
+                    };
+                    data["matchCount"] = 1;
+                    data["sourceMatchCount"] = 1;
+                    data["targetMatchCount"] = 1;
+                    data["movedPropertyCount"] = movedPropertyCount;
+                    data["categoryCount"] = manifest.categories.Count;
+                    data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+                    data["mergeCategorySemantics"] = new[]
+                    {
+                        "Source and target categories must resolve to different categories.",
+                        "The default category cannot be merged into another category.",
+                        "Source category properties are appended to the target category order before the source category is removed.",
+                    };
+                    data["mergedFromCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = sourceCategoryGuid,
+                        ["displayName"] = sourceCategoryDisplayName,
+                        ["name"] = sourceCategoryDisplayName == "(Default Category)" ? string.Empty : sourceCategoryDisplayName,
+                        ["childCount"] = movedPropertyCount,
+                        ["previousChildCount"] = movedPropertyCount,
+                        ["propertyOrder"] = sourcePropertyOrder,
+                        ["isDefaultCategory"] = false,
+                    };
+                    data["mergedIntoCategory"] = BuildScaffoldCategoryData(manifest, resolvedTargetCategory);
+                    data["targetCategoryPropertyOrder"] = BuildScaffoldPropertyOrder(
+                        GetScaffoldPropertiesForCategory(manifest, targetCategoryGuid));
+                    return data;
+                });
+        }
+
         public static ShaderGraphResponse ListCategories(
             ListCategoriesRequest request,
             ShaderGraphExecutionKind executionKind)

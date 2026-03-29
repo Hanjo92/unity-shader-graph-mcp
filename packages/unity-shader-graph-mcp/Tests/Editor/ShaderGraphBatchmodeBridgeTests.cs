@@ -202,6 +202,31 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsMergeCategoryRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""merge_category"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""sourceDisplayName"": ""Surface Inputs"",
+                ""targetName"": ""Material Inputs""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var mergeCategoryRequest = request as MergeCategoryRequest;
+            Assert.That(mergeCategoryRequest, Is.Not.Null);
+            Assert.That(mergeCategoryRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(mergeCategoryRequest.SourceCategoryGuid, Is.Empty);
+            Assert.That(mergeCategoryRequest.SourceCategoryName, Is.EqualTo("Surface Inputs"));
+            Assert.That(mergeCategoryRequest.TargetCategoryGuid, Is.Empty);
+            Assert.That(mergeCategoryRequest.TargetCategoryName, Is.EqualTo("Material Inputs"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsMovePropertyToCategoryRequest_WithAliasFields()
         {
             string json = @"{

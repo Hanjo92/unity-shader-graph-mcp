@@ -59,6 +59,12 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "categoryName": "Surface Inputs",
         "newIndex": 1,
     },
+    "merge_category": {
+        "action": "merge_category",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "sourceCategoryName": "Surface Inputs",
+        "targetCategoryName": "Material Inputs",
+    },
     "list_categories": {
         "action": "list_categories",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -258,6 +264,9 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "find_category", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "merge_category", "path": "Assets/X.shadergraph", "sourceCategoryName": "A"})
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "delete_category", "path": "Assets/X.shadergraph"})

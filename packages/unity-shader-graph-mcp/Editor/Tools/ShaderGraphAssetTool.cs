@@ -37,6 +37,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.DeleteCategory(deleteCategoryRequest);
                 case ReorderCategoryRequest reorderCategoryRequest:
                     return Adapter.ReorderCategory(reorderCategoryRequest);
+                case MergeCategoryRequest mergeCategoryRequest:
+                    return Adapter.MergeCategory(mergeCategoryRequest);
                 case ListCategoriesRequest listCategoriesRequest:
                     return Adapter.ListCategories(listCategoriesRequest);
                 case ReadGraphSummaryRequest readGraphSummaryRequest:
@@ -87,7 +89,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, create_category, rename_category, find_category, delete_category, reorder_category, list_categories, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, reorder_property, move_property_to_category, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, reconnect_connection, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, create_category, rename_category, find_category, delete_category, reorder_category, merge_category, list_categories, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, reorder_property, move_property_to_category, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, reconnect_connection, save_graph."
                     );
             }
         }
@@ -134,6 +136,21 @@ namespace ShaderGraphMcp.Editor.Tools
             int index)
         {
             return Handle(new ReorderCategoryRequest(assetPath, categoryGuid, categoryName, index));
+        }
+
+        public static ShaderGraphResponse HandleMergeCategory(
+            string assetPath,
+            string sourceCategoryGuid,
+            string sourceCategoryName,
+            string targetCategoryGuid,
+            string targetCategoryName)
+        {
+            return Handle(new MergeCategoryRequest(
+                assetPath,
+                sourceCategoryGuid,
+                sourceCategoryName,
+                targetCategoryGuid,
+                targetCategoryName));
         }
 
         public static ShaderGraphResponse HandleListCategories(string assetPath)

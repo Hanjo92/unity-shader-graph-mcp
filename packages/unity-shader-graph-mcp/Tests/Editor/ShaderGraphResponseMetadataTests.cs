@@ -330,6 +330,57 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesMergedCategoryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "merge category ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["sourceMatchCount"] = 1,
+                    ["targetMatchCount"] = 1,
+                    ["movedPropertyCount"] = 2,
+                    ["categoryCount"] = 2,
+                    ["categoryOrder"] = new[] { "(Default Category)", "Material Inputs" },
+                    ["targetCategoryGuid"] = "category-material",
+                    ["targetCategoryPropertyOrder"] = new[] { "Tint [Color]", "Exposure [Float]" },
+                    ["mergedFromCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-surface",
+                        ["displayName"] = "Surface Inputs",
+                        ["previousChildCount"] = 2,
+                        ["propertyOrder"] = new[] { "Tint [Color]", "Exposure [Float]" },
+                    },
+                    ["mergedIntoCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-material",
+                        ["displayName"] = "Material Inputs",
+                        ["childCount"] = 2,
+                        ["previousChildCount"] = 0,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["sourceMatchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["targetMatchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["movedPropertyCount"], Is.EqualTo(2));
+            Assert.That(response.Data["targetCategoryGuid"], Is.EqualTo("category-material"));
+
+            var mergedFromCategory = (IReadOnlyDictionary<string, object>)response.Data["mergedFromCategory"];
+            Assert.That(mergedFromCategory["categoryGuid"], Is.EqualTo("category-surface"));
+            Assert.That(mergedFromCategory["displayName"], Is.EqualTo("Surface Inputs"));
+            Assert.That(mergedFromCategory["previousChildCount"], Is.EqualTo(2));
+
+            var mergedIntoCategory = (IReadOnlyDictionary<string, object>)response.Data["mergedIntoCategory"];
+            Assert.That(mergedIntoCategory["categoryGuid"], Is.EqualTo("category-material"));
+            Assert.That(mergedIntoCategory["displayName"], Is.EqualTo("Material Inputs"));
+            Assert.That(mergedIntoCategory["childCount"], Is.EqualTo(2));
+        }
+
+        [Test]
         public void Ok_PreservesMovedPropertyToCategoryEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

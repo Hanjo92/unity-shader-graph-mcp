@@ -78,6 +78,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse MergeCategory(MergeCategoryRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.MergeCategory(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse ListCategories(ListCategoriesRequest request)
         {
             return ShaderGraphPackageGraphInspector.ListCategories(
@@ -1594,6 +1603,282 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Loaded Shader Graph category list from '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse MergeCategory(
+            MergeCategoryRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Merge category request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out string failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "merge_category"
+            );
+
+            string requestedSourceCategoryGuid = request.SourceCategoryGuid?.Trim() ?? string.Empty;
+            string requestedSourceCategoryName = request.SourceCategoryName?.Trim() ?? string.Empty;
+            string requestedTargetCategoryGuid = request.TargetCategoryGuid?.Trim() ?? string.Empty;
+            string requestedTargetCategoryName = request.TargetCategoryName?.Trim() ?? string.Empty;
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["sourceCategoryGuid"] = requestedSourceCategoryGuid,
+                    ["sourceCategoryName"] = requestedSourceCategoryName,
+                    ["targetCategoryGuid"] = requestedTargetCategoryGuid,
+                    ["targetCategoryName"] = requestedTargetCategoryName,
+                },
+            };
+
+            if (string.IsNullOrWhiteSpace(requestedSourceCategoryGuid) && string.IsNullOrWhiteSpace(requestedSourceCategoryName))
+            {
+                data["sourceMatchCount"] = 0;
+                return ShaderGraphResponse.Fail("Source category guid or category name is required.", data);
+            }
+
+            if (string.IsNullOrWhiteSpace(requestedTargetCategoryGuid) && string.IsNullOrWhiteSpace(requestedTargetCategoryName))
+            {
+                data["targetMatchCount"] = 0;
+                return ShaderGraphResponse.Fail("Target category guid or category name is required.", data);
+            }
+
+            IReadOnlyList<object> categories = EnumerateMember(graphData, "categories");
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    requestedSourceCategoryGuid,
+                    requestedSourceCategoryName,
+                    out object resolvedSourceCategory,
+                    out string resolvedSourceCategoryGuid,
+                    out IReadOnlyList<object> sourceCategoryProperties,
+                    out string sourceCategoryFailure))
+            {
+                data["sourceMatchCount"] = 0;
+                data["targetMatchCount"] = 0;
+                data["categoryCount"] = categories.Count;
+                data["categoryOrder"] = BuildCategoryOrder(categories);
+                data["candidateCategories"] = categories.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Could not resolve a Shader Graph source category using categoryGuid='{requestedSourceCategoryGuid}' or categoryName='{requestedSourceCategoryName}' in '{assetPath}': {sourceCategoryFailure}",
+                    data
+                );
+            }
+
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    requestedTargetCategoryGuid,
+                    requestedTargetCategoryName,
+                    out object resolvedTargetCategory,
+                    out string resolvedTargetCategoryGuid,
+                    out IReadOnlyList<object> targetCategoryProperties,
+                    out string targetCategoryFailure))
+            {
+                data["sourceMatchCount"] = 1;
+                data["targetMatchCount"] = 0;
+                data["categoryCount"] = categories.Count;
+                data["categoryOrder"] = BuildCategoryOrder(categories);
+                data["candidateCategories"] = categories.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                data["mergedFromCategory"] = BuildCategoryLookupData(resolvedSourceCategory);
+                return ShaderGraphResponse.Fail(
+                    $"Could not resolve a Shader Graph target category using categoryGuid='{requestedTargetCategoryGuid}' or categoryName='{requestedTargetCategoryName}' in '{assetPath}': {targetCategoryFailure}",
+                    data
+                );
+            }
+
+            data["sourceMatchCount"] = 1;
+            data["targetMatchCount"] = 1;
+
+            if (string.Equals(resolvedSourceCategoryGuid, resolvedTargetCategoryGuid, StringComparison.Ordinal))
+            {
+                data["mergedFromCategory"] = BuildCategoryLookupData(resolvedSourceCategory);
+                data["mergedIntoCategory"] = BuildCategoryLookupData(resolvedTargetCategory);
+                return ShaderGraphResponse.Fail(
+                    "Source and target categories must resolve to different categories.",
+                    data
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(GetStringProperty(resolvedSourceCategory, "name")))
+            {
+                data["mergedFromCategory"] = BuildCategoryLookupData(resolvedSourceCategory);
+                data["mergedIntoCategory"] = BuildCategoryLookupData(resolvedTargetCategory);
+                return ShaderGraphResponse.Fail(
+                    "The default Shader Graph category cannot be merged into another category.",
+                    data
+                );
+            }
+
+            string sourceCategoryDisplayName = GetCategoryDisplayName(resolvedSourceCategory);
+            var mergedFromCategory = BuildCategoryLookupData(resolvedSourceCategory);
+            mergedFromCategory["previousChildCount"] = sourceCategoryProperties.Count;
+            mergedFromCategory["propertyOrder"] = BuildCategoryPropertyOrder(sourceCategoryProperties);
+
+            var mergedIntoCategoryBefore = BuildCategoryLookupData(resolvedTargetCategory);
+            mergedIntoCategoryBefore["previousChildCount"] = targetCategoryProperties.Count;
+
+            int movedPropertyCount = 0;
+            foreach (object shaderInput in sourceCategoryProperties.ToArray())
+            {
+                if (!TryInvokeGraphInsertItemIntoCategory(graphData, resolvedTargetCategoryGuid, shaderInput, -1, out string moveFailure))
+                {
+                    data["movedPropertyCount"] = movedPropertyCount;
+                    data["mergedFromCategory"] = mergedFromCategory;
+                    data["mergedIntoCategory"] = mergedIntoCategoryBefore;
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to move Shader Graph properties from category '{sourceCategoryDisplayName}' into '{GetCategoryDisplayName(resolvedTargetCategory)}' in '{assetPath}': {moveFailure}",
+                        data
+                    );
+                }
+
+                movedPropertyCount += 1;
+            }
+
+            if (!TryInvokeGraphRemoveCategory(graphData, resolvedSourceCategoryGuid, out string removeCategoryFailure))
+            {
+                data["movedPropertyCount"] = movedPropertyCount;
+                data["mergedFromCategory"] = mergedFromCategory;
+                data["mergedIntoCategory"] = mergedIntoCategoryBefore;
+                return ShaderGraphResponse.Fail(
+                    $"Unable to remove source Shader Graph category '{sourceCategoryDisplayName}' after merge in '{assetPath}': {removeCategoryFailure}",
+                    data
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after merging category '{sourceCategoryDisplayName}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after merging category '{sourceCategoryDisplayName}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "merge_category"
+            );
+
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    resolvedTargetCategoryGuid,
+                    null,
+                    out object finalTargetCategory,
+                    out string finalTargetCategoryGuid,
+                    out IReadOnlyList<object> finalTargetCategoryProperties,
+                    out string finalTargetCategoryFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Category merge succeeded, but the final target category context could not be resolved for '{GetCategoryDisplayName(resolvedTargetCategory)}': {finalTargetCategoryFailure}",
+                    new Dictionary<string, object>(snapshot.ToDictionary())
+                    {
+                        ["query"] = new Dictionary<string, object>
+                        {
+                            ["sourceCategoryGuid"] = requestedSourceCategoryGuid,
+                            ["sourceCategoryName"] = requestedSourceCategoryName,
+                            ["targetCategoryGuid"] = requestedTargetCategoryGuid,
+                            ["targetCategoryName"] = requestedTargetCategoryName,
+                        },
+                        ["sourceMatchCount"] = 1,
+                        ["targetMatchCount"] = 1,
+                        ["movedPropertyCount"] = movedPropertyCount,
+                    }
+                );
+            }
+
+            categories = EnumerateMember(graphData, "categories");
+            var mergedIntoCategory = BuildCategoryLookupData(finalTargetCategory);
+            mergedIntoCategory["previousChildCount"] = targetCategoryProperties.Count;
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["sourceCategoryGuid"] = requestedSourceCategoryGuid,
+                    ["sourceCategoryName"] = requestedSourceCategoryName,
+                    ["targetCategoryGuid"] = requestedTargetCategoryGuid,
+                    ["targetCategoryName"] = requestedTargetCategoryName,
+                },
+                ["matchCount"] = 1,
+                ["sourceMatchCount"] = 1,
+                ["targetMatchCount"] = 1,
+                ["movedPropertyCount"] = movedPropertyCount,
+                ["categoryCount"] = categories.Count,
+                ["categoryOrder"] = BuildCategoryOrder(categories),
+                ["mergeCategorySemantics"] = new[]
+                {
+                    "Source and target categories must resolve to different categories.",
+                    "The default category cannot be merged into another category.",
+                    "Source category properties are appended to the target category before the source category is removed.",
+                },
+                ["mergedFromCategory"] = mergedFromCategory,
+                ["mergedIntoCategory"] = mergedIntoCategory,
+                ["targetCategoryGuid"] = finalTargetCategoryGuid,
+                ["targetCategoryPropertyOrder"] = BuildCategoryPropertyOrder(finalTargetCategoryProperties),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Merged Shader Graph category '{sourceCategoryDisplayName}' into '{GetCategoryDisplayName(finalTargetCategory)}' in '{assetPath}'.",
                 data
             );
         }
