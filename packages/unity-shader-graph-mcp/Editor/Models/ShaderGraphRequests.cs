@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace ShaderGraphMcp.Editor.Models
@@ -12,6 +14,7 @@ namespace ShaderGraphMcp.Editor.Models
         ReorderCategory,
         MergeCategory,
         DuplicateCategory,
+        SplitCategory,
         ListCategories,
         ReadGraphSummary,
         FindNode,
@@ -222,6 +225,51 @@ namespace ShaderGraphMcp.Editor.Models
             CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
             CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
+        }
+    }
+
+    public sealed class SplitCategoryRequest : ShaderGraphRequest
+    {
+        public string SourceCategoryGuid { get; }
+        public string SourceCategoryName { get; }
+        public string DisplayName { get; }
+        public IReadOnlyList<string> PropertyNames { get; }
+
+        public SplitCategoryRequest(
+            string assetPath,
+            string sourceCategoryGuid,
+            string sourceCategoryName,
+            string displayName,
+            IEnumerable<string> propertyNames)
+            : base(ShaderGraphAction.SplitCategory, assetPath)
+        {
+            SourceCategoryGuid = string.IsNullOrWhiteSpace(sourceCategoryGuid) ? string.Empty : sourceCategoryGuid.Trim();
+            SourceCategoryName = string.IsNullOrWhiteSpace(sourceCategoryName) ? string.Empty : sourceCategoryName.Trim();
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
+            PropertyNames = NormalizePropertyNames(propertyNames);
+        }
+
+        private static IReadOnlyList<string> NormalizePropertyNames(IEnumerable<string> propertyNames)
+        {
+            if (propertyNames == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            var normalized = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string propertyName in propertyNames)
+            {
+                string trimmed = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed) || !seen.Add(trimmed))
+                {
+                    continue;
+                }
+
+                normalized.Add(trimmed);
+            }
+
+            return normalized;
         }
     }
 

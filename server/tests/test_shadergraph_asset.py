@@ -32,6 +32,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "reorder_category",
                 "merge_category",
                 "duplicate_category",
+                "split_category",
                 "list_categories",
                 "read_graph_summary",
                 "find_node",
@@ -207,6 +208,24 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["sourceDisplayName"], "Surface Inputs")
         self.assertEqual(request.payload["newDisplayName"], "Surface Inputs Copy")
+
+    def test_request_normalization_accepts_split_category_with_property_name_list(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "split_category",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "sourceDisplayName": "Surface Inputs",
+                "newDisplayName": "Surface Inputs Primary",
+                "propertyNames": ["Tint", "Exposure"],
+            }
+        )
+
+        self.assertEqual(request.action, "split_category")
+        self.assertEqual(request.name, "Surface Inputs")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["sourceDisplayName"], "Surface Inputs")
+        self.assertEqual(request.payload["newDisplayName"], "Surface Inputs Primary")
+        self.assertEqual(request.payload["propertyNames"], ["Tint", "Exposure"])
 
     def test_request_normalization_accepts_find_property_with_reference_name(self) -> None:
         request = normalize_shadergraph_asset_request(

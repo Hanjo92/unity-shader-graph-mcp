@@ -47,6 +47,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.DuplicateCategory(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse SplitCategory(SplitCategoryRequest request)
+        {
+            return ShaderGraphScaffoldStore.SplitCategory(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse ListCategories(ListCategoriesRequest request)
         {
             return ShaderGraphScaffoldStore.ListCategories(request, ExecutionKind);

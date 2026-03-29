@@ -224,6 +224,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateMergeCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DuplicateCategory:
                     return TryCreateDuplicateCategoryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.SplitCategory:
+                    return TryCreateSplitCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ListCategories:
                     return TryCreateListCategoriesRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
@@ -537,6 +539,52 @@ namespace ShaderGraphMcp.Editor.Tools
 
             string displayName = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.targetCategoryName, payload.targetDisplayName, payload.targetName, payload.name);
             request = new DuplicateCategoryRequest(assetPath, categoryGuid, categoryName, displayName);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateSplitCategoryRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Split category requires an asset path.";
+                return false;
+            }
+
+            string sourceCategoryGuid = FirstNonBlank(payload.categoryGuid, payload.sourceCategoryGuid);
+            string sourceCategoryName = FirstNonBlank(
+                payload.categoryName,
+                payload.sourceCategoryName,
+                payload.sourceDisplayName,
+                payload.sourceName);
+            if (string.IsNullOrWhiteSpace(sourceCategoryGuid) && string.IsNullOrWhiteSpace(sourceCategoryName))
+            {
+                request = null;
+                errorMessage = "Split category requires categoryGuid/sourceCategoryGuid or categoryName/sourceCategoryName/sourceDisplayName/sourceName.";
+                return false;
+            }
+
+            string displayName = FirstNonBlank(
+                payload.newDisplayName,
+                payload.targetCategoryName,
+                payload.targetDisplayName,
+                payload.targetName,
+                payload.displayName,
+                payload.name);
+            string[] propertyNames = CollectTextValues(
+                payload.propertyName,
+                payload.propertyNames,
+                payload.properties);
+            if (propertyNames.Length == 0)
+            {
+                request = null;
+                errorMessage = "Split category requires propertyName or propertyNames/properties.";
+                return false;
+            }
+
+            request = new SplitCategoryRequest(assetPath, sourceCategoryGuid, sourceCategoryName, displayName, propertyNames);
             errorMessage = null;
             return true;
         }
@@ -1066,6 +1114,8 @@ namespace ShaderGraphMcp.Editor.Tools
                 return ShaderGraphAction.MergeCategory;
             case "duplicate_category":
                 return ShaderGraphAction.DuplicateCategory;
+            case "split_category":
+                return ShaderGraphAction.SplitCategory;
             case "list_categories":
                 return ShaderGraphAction.ListCategories;
                 case "read_graph_summary":
@@ -1204,8 +1254,6 @@ namespace ShaderGraphMcp.Editor.Tools
                         {
                             return argArray[index + 1];
                         }
-
-                        return string.Empty;
                     }
 
                     string prefix = $"{optionName}=";
@@ -1217,6 +1265,46 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             return null;
+        }
+
+        private static string[] CollectTextValues(string singleValue, params string[][] valueSets)
+        {
+            var values = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void AddValue(string value)
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    return;
+                }
+
+                string trimmed = value.Trim();
+                if (seen.Add(trimmed))
+                {
+                    values.Add(trimmed);
+                }
+            }
+
+            AddValue(singleValue);
+
+            if (valueSets != null)
+            {
+                foreach (string[] valueSet in valueSets)
+                {
+                    if (valueSet == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (string value in valueSet)
+                    {
+                        AddValue(value);
+                    }
+                }
+            }
+
+            return values.ToArray();
         }
 
         private static bool TryReadAllText(string filePath, out string content, out string errorMessage)
@@ -1535,6 +1623,8 @@ namespace ShaderGraphMcp.Editor.Tools
             public string targetName;
             public string template;
             public string propertyName;
+            public string[] propertyNames;
+            public string[] properties;
             public string propertyType;
             public string defaultValue;
             public string categoryGuid;

@@ -71,6 +71,13 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "sourceCategoryName": "Surface Inputs",
         "newDisplayName": "Surface Inputs Copy",
     },
+    "split_category": {
+        "action": "split_category",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "sourceCategoryName": "Surface Inputs",
+        "newDisplayName": "Surface Inputs Primary",
+        "propertyNames": ["Tint", "Exposure"],
+    },
     "list_categories": {
         "action": "list_categories",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -276,6 +283,9 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "duplicate_category", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "split_category", "path": "Assets/X.shadergraph", "sourceCategoryName": "A"})
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "delete_category", "path": "Assets/X.shadergraph"})

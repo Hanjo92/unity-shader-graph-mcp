@@ -32,6 +32,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "reorder_category",
     "merge_category",
     "duplicate_category",
+    "split_category",
     "list_categories",
     "read_graph_summary",
     "find_node",
@@ -121,6 +122,20 @@ def normalize_shadergraph_asset_request(
                 "source_name",
             )
         )
+    if action == "split_category":
+        request_name = optional_text(
+            _pick_value(
+                request_payload,
+                "categoryName",
+                "category_name",
+                "sourceCategoryName",
+                "source_category_name",
+                "sourceDisplayName",
+                "source_display_name",
+                "sourceName",
+                "source_name",
+            )
+        )
 
     request = ShaderGraphAssetRequest(
         action=action,  # type: ignore[arg-type]
@@ -159,6 +174,31 @@ def _pick_value(payload: Mapping[str, Any], *keys: str) -> Any:
             else:
                 return value
     return None
+
+
+def _pick_text_sequence(payload: Mapping[str, Any], *keys: str) -> list[str]:
+    values: list[str] = []
+    seen: set[str] = set()
+    for key in keys:
+        if key not in payload or payload[key] is None:
+            continue
+
+        candidate = payload[key]
+        if isinstance(candidate, str):
+            text = optional_text(candidate)
+            if text is not None and text.lower() not in seen:
+                seen.add(text.lower())
+                values.append(text)
+            continue
+
+        if isinstance(candidate, (list, tuple)):
+            for item in candidate:
+                text = optional_text(item)
+                if text is not None and text.lower() not in seen:
+                    seen.add(text.lower())
+                    values.append(text)
+
+    return values
 
 
 def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> None:
@@ -320,6 +360,44 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if not has_lookup:
             raise ShaderGraphRequestError(
                 "duplicate_category requires at least one source category lookup: categoryGuid, categoryName, sourceCategoryGuid, sourceCategoryName, sourceDisplayName, sourceName."
+            )
+
+    if request.action == "split_category":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        has_lookup = any(
+            optional_text(_pick_value(request.payload, key)) is not None
+            for key in (
+                "categoryGuid",
+                "category_guid",
+                "categoryName",
+                "category_name",
+                "sourceCategoryGuid",
+                "source_category_guid",
+                "sourceCategoryName",
+                "source_category_name",
+                "sourceDisplayName",
+                "source_display_name",
+                "sourceName",
+                "source_name",
+            )
+        )
+        if not has_lookup:
+            raise ShaderGraphRequestError(
+                "split_category requires at least one source category lookup: categoryGuid, categoryName, sourceCategoryGuid, sourceCategoryName, sourceDisplayName, sourceName."
+            )
+
+        property_names = _pick_text_sequence(
+            request.payload,
+            "propertyName",
+            "property_name",
+            "propertyNames",
+            "property_names",
+            "properties",
+        )
+        if not property_names:
+            raise ShaderGraphRequestError(
+                "split_category requires propertyName or propertyNames/properties."
             )
 
     if request.action == "list_categories" and request.path is None:

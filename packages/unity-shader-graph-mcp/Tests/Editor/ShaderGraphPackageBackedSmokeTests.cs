@@ -784,6 +784,68 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_SplitCategory_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphSplitCategory", out _);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Tint", "Color", "#FFFFFFFF"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Exposure", "Float/Vector1", "0"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Metallic", "Float/Vector1", "0"));
+
+            ShaderGraphResponse createCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(assetPath, "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createCategoryResponse);
+
+            string sourceCategoryGuid = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(createCategoryResponse.Data, "createdCategory"),
+                "categoryGuid");
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleMovePropertyToCategory(assetPath, "Tint", sourceCategoryGuid, null, 0));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleMovePropertyToCategory(assetPath, "Exposure", sourceCategoryGuid, null, 1));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleMovePropertyToCategory(assetPath, "Metallic", sourceCategoryGuid, null, 2));
+
+            ShaderGraphResponse splitCategoryResponse = ShaderGraphAssetTool.HandleSplitCategory(
+                assetPath,
+                sourceCategoryGuid,
+                null,
+                "Surface Inputs Primary",
+                "Tint",
+                "Exposure");
+            ShaderGraphTestAssets.RequirePackageReady(splitCategoryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(splitCategoryResponse.Data, "operation"), Is.EqualTo("split_category"));
+            Assert.That(ShaderGraphTestAssets.GetInt(splitCategoryResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(splitCategoryResponse.Data, "movedPropertyCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(splitCategoryResponse.Data, "sourceCategoryPreviousChildCount"), Is.EqualTo(3));
+
+            var splitFromCategory = ShaderGraphTestAssets.RequireDictionary(splitCategoryResponse.Data, "splitFromCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(splitFromCategory, "categoryGuid"), Is.EqualTo(sourceCategoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(splitFromCategory, "displayName"), Is.EqualTo("Surface Inputs"));
+
+            var splitIntoCategory = ShaderGraphTestAssets.RequireDictionary(splitCategoryResponse.Data, "splitIntoCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(splitIntoCategory, "displayName"), Is.EqualTo("Surface Inputs Primary"));
+            Assert.That(ShaderGraphTestAssets.GetString(splitIntoCategory, "categoryGuid"), Is.Not.Empty);
+
+            var categoryOrder = ShaderGraphTestAssets.GetStringList(splitCategoryResponse.Data, "categoryOrder");
+            Assert.That(categoryOrder, Does.Contain("Surface Inputs"));
+            Assert.That(categoryOrder, Does.Contain("Surface Inputs Primary"));
+
+            var sourceCategoryPropertyOrder = ShaderGraphTestAssets.GetStringList(splitCategoryResponse.Data, "sourceCategoryPropertyOrder");
+            Assert.That(sourceCategoryPropertyOrder.Count, Is.EqualTo(1));
+            Assert.That(sourceCategoryPropertyOrder[0], Does.Contain("Metallic"));
+
+            var targetCategoryPropertyOrder = ShaderGraphTestAssets.GetStringList(splitCategoryResponse.Data, "targetCategoryPropertyOrder");
+            Assert.That(targetCategoryPropertyOrder.Count, Is.EqualTo(2));
+            Assert.That(targetCategoryPropertyOrder[0], Does.Contain("Tint"));
+            Assert.That(targetCategoryPropertyOrder[1], Does.Contain("Exposure"));
+        }
+
+        [Test]
         public void BlankGraph_MovePropertyToCategory_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphMovePropertyToCategory", out _);

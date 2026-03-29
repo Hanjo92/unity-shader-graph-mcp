@@ -12,6 +12,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse ReorderCategory(ReorderCategoryRequest request);
         ShaderGraphResponse MergeCategory(MergeCategoryRequest request);
         ShaderGraphResponse DuplicateCategory(DuplicateCategoryRequest request);
+        ShaderGraphResponse SplitCategory(SplitCategoryRequest request);
         ShaderGraphResponse ListCategories(ListCategoriesRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
@@ -90,6 +91,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse DuplicateCategory(DuplicateCategoryRequest request)
         {
             return backend.DuplicateCategory(request);
+        }
+
+        public ShaderGraphResponse SplitCategory(SplitCategoryRequest request)
+        {
+            return backend.SplitCategory(request);
         }
 
         public ShaderGraphResponse ListCategories(ListCategoriesRequest request)

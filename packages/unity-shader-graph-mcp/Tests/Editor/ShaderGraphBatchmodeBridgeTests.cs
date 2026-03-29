@@ -251,6 +251,32 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsSplitCategoryRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""split_category"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""sourceDisplayName"": ""Surface Inputs"",
+                ""newDisplayName"": ""Surface Inputs Primary"",
+                ""propertyNames"": [""Tint"", ""Exposure""]
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var splitCategoryRequest = request as SplitCategoryRequest;
+            Assert.That(splitCategoryRequest, Is.Not.Null);
+            Assert.That(splitCategoryRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(splitCategoryRequest.SourceCategoryGuid, Is.Empty);
+            Assert.That(splitCategoryRequest.SourceCategoryName, Is.EqualTo("Surface Inputs"));
+            Assert.That(splitCategoryRequest.DisplayName, Is.EqualTo("Surface Inputs Primary"));
+            Assert.That(splitCategoryRequest.PropertyNames, Is.EquivalentTo(new[] { "Tint", "Exposure" }));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsMovePropertyToCategoryRequest_WithAliasFields()
         {
             string json = @"{

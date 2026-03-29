@@ -829,6 +829,157 @@ namespace ShaderGraphMcp.Editor.Helpers
                 });
         }
 
+        public static ShaderGraphResponse SplitCategory(
+            SplitCategoryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Split category request is required.");
+            }
+
+            string sourceCategoryGuid = string.Empty;
+            string sourceCategoryDisplayName = string.Empty;
+            string splitCategoryGuid = string.Empty;
+            string splitCategoryDisplayName = string.Empty;
+            int sourceCategoryPreviousChildCount = 0;
+            int movedPropertyCount = 0;
+            var movedProperties = new List<ShaderGraphScaffoldProperty>();
+
+            return MutateScaffold(
+                request.AssetPath,
+                "split_category",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    EnsureManifestCategories(manifest);
+
+                    if (string.IsNullOrWhiteSpace(request.SourceCategoryGuid) && string.IsNullOrWhiteSpace(request.SourceCategoryName))
+                    {
+                        return "Source category guid or category name is required.";
+                    }
+
+                    if (request.PropertyNames == null || request.PropertyNames.Count == 0)
+                    {
+                        return "At least one property name is required to split a category.";
+                    }
+
+                    if (!TryResolveScaffoldCategory(manifest, request.SourceCategoryGuid, request.SourceCategoryName, out ShaderGraphScaffoldCategory sourceCategory))
+                    {
+                        return $"Could not resolve a scaffold source category using categoryGuid='{request.SourceCategoryGuid}' or categoryName='{request.SourceCategoryName}'.";
+                    }
+
+                    sourceCategoryGuid = sourceCategory.guid ?? string.Empty;
+                    sourceCategoryDisplayName = GetScaffoldCategoryDisplayName(sourceCategory);
+                    splitCategoryDisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+                        ? BuildSplitDisplayName(sourceCategoryDisplayName)
+                        : request.DisplayName.Trim();
+
+                    if (manifest.categories.Any(category =>
+                            string.Equals(GetScaffoldCategoryDisplayName(category), splitCategoryDisplayName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return $"A scaffold category named '{splitCategoryDisplayName}' already exists.";
+                    }
+
+                    List<ShaderGraphScaffoldProperty> sourceCategoryProperties = GetScaffoldPropertiesForCategory(manifest, sourceCategoryGuid);
+                    sourceCategoryPreviousChildCount = sourceCategoryProperties.Count;
+
+                    foreach (string propertyName in request.PropertyNames)
+                    {
+                        ShaderGraphScaffoldProperty[] matches = sourceCategoryProperties
+                            .Where(property => PropertyMatchesQuery(property, propertyName, null, null, null))
+                            .ToArray();
+
+                        if (matches.Length == 0)
+                        {
+                            return $"Could not find scaffold property '{propertyName}' in category '{sourceCategoryDisplayName}'.";
+                        }
+
+                        if (matches.Length > 1)
+                        {
+                            return $"Property query '{propertyName}' matched multiple scaffold properties in category '{sourceCategoryDisplayName}'.";
+                        }
+
+                        ShaderGraphScaffoldProperty property = matches[0];
+                        sourceCategoryProperties.Remove(property);
+                        movedProperties.Add(property);
+                    }
+
+                    if (movedProperties.Count == 0)
+                    {
+                        return $"No scaffold properties were selected for split from category '{sourceCategoryDisplayName}'.";
+                    }
+
+                    var splitCategory = new ShaderGraphScaffoldCategory
+                    {
+                        guid = $"scaffold-category-{Guid.NewGuid():N}",
+                        name = splitCategoryDisplayName,
+                        updatedUtc = UtcNow(),
+                    };
+                    splitCategoryGuid = splitCategory.guid;
+                    manifest.categories.Add(splitCategory);
+
+                    foreach (ShaderGraphScaffoldProperty property in movedProperties)
+                    {
+                        manifest.properties.Remove(property);
+                        property.categoryGuid = splitCategoryGuid;
+                        property.updatedUtc = UtcNow();
+                    }
+
+                    manifest.properties.AddRange(movedProperties);
+                    movedPropertyCount = movedProperties.Count;
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    ShaderGraphScaffoldCategory resolvedSourceCategory = manifest.categories.First(category =>
+                        string.Equals(category.guid, sourceCategoryGuid, StringComparison.Ordinal));
+                    ShaderGraphScaffoldCategory resolvedSplitCategory = manifest.categories.First(category =>
+                        string.Equals(category.guid, splitCategoryGuid, StringComparison.Ordinal));
+
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "split_category",
+                        new[]
+                        {
+                            $"Category '{sourceCategoryDisplayName}' split into '{splitCategoryDisplayName}' in scaffold manifest.",
+                            "Scaffold split_category creates a new category and moves the selected source category properties into it.",
+                        },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["sourceCategoryGuid"] = request.SourceCategoryGuid?.Trim() ?? string.Empty,
+                        ["sourceCategoryName"] = request.SourceCategoryName?.Trim() ?? string.Empty,
+                        ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                        ["propertyNames"] = request.PropertyNames.ToArray(),
+                    };
+                    data["matchCount"] = 1;
+                    data["movedPropertyCount"] = movedPropertyCount;
+                    data["categoryCount"] = manifest.categories.Count;
+                    data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+                    data["splitCategorySemantics"] = new[]
+                    {
+                        "Creates a new category with the requested displayName or appends 'Split' to the source category displayName.",
+                        "Moves the selected source category properties into the new category in the requested propertyNames order.",
+                        "The source category remains in place even when all of its properties are moved out.",
+                    };
+                    data["splitFromCategory"] = BuildScaffoldCategoryData(manifest, resolvedSourceCategory);
+                    data["splitIntoCategory"] = BuildScaffoldCategoryData(manifest, resolvedSplitCategory);
+                    data["sourceCategoryPreviousChildCount"] = sourceCategoryPreviousChildCount;
+                    data["sourceCategoryPropertyOrder"] = BuildScaffoldPropertyOrder(
+                        GetScaffoldPropertiesForCategory(manifest, sourceCategoryGuid));
+                    data["targetCategoryPropertyOrder"] = BuildScaffoldPropertyOrder(
+                        GetScaffoldPropertiesForCategory(manifest, splitCategoryGuid));
+                    data["movedProperties"] = movedProperties.Select(BuildScaffoldPropertyData).Cast<object>().ToArray();
+                    return data;
+                });
+        }
+
         public static ShaderGraphResponse ListCategories(
             ListCategoriesRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -3254,6 +3405,14 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ? (string.IsNullOrWhiteSpace(nodeType) ? "Node" : nodeType.Trim())
                 : displayName.Trim();
             return label + " Copy";
+        }
+
+        private static string BuildSplitDisplayName(string displayName)
+        {
+            string label = string.IsNullOrWhiteSpace(displayName)
+                ? "Category"
+                : displayName.Trim();
+            return label + " Split";
         }
 
         private static string UtcNow()

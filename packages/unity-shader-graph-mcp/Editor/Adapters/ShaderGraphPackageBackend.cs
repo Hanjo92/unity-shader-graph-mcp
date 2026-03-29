@@ -96,6 +96,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse SplitCategory(SplitCategoryRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.SplitCategory(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse ListCategories(ListCategoriesRequest request)
         {
             return ShaderGraphPackageGraphInspector.ListCategories(
@@ -2202,6 +2211,328 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Duplicated Shader Graph category '{sourceCategoryDisplayName}' as '{GetCategoryDisplayName(finalDuplicatedCategory)}' in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse SplitCategory(
+            SplitCategoryRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Split category request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out string failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "split_category"
+            );
+
+            string requestedSourceCategoryGuid = request.SourceCategoryGuid?.Trim() ?? string.Empty;
+            string requestedSourceCategoryName = request.SourceCategoryName?.Trim() ?? string.Empty;
+            string[] requestedPropertyNames = request.PropertyNames?.ToArray() ?? Array.Empty<string>();
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["sourceCategoryGuid"] = requestedSourceCategoryGuid,
+                    ["sourceCategoryName"] = requestedSourceCategoryName,
+                    ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                    ["propertyNames"] = requestedPropertyNames,
+                },
+            };
+
+            if (string.IsNullOrWhiteSpace(requestedSourceCategoryGuid) && string.IsNullOrWhiteSpace(requestedSourceCategoryName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Source category guid or category name is required.", data);
+            }
+
+            if (requestedPropertyNames.Length == 0)
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("At least one property name is required to split a category.", data);
+            }
+
+            IReadOnlyList<object> categories = EnumerateMember(graphData, "categories");
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    requestedSourceCategoryGuid,
+                    requestedSourceCategoryName,
+                    out object sourceCategory,
+                    out string sourceCategoryGuid,
+                    out IReadOnlyList<object> sourceCategoryProperties,
+                    out string sourceCategoryFailure))
+            {
+                data["matchCount"] = 0;
+                data["categoryCount"] = categories.Count;
+                data["categoryOrder"] = BuildCategoryOrder(categories);
+                data["candidateCategories"] = categories.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Could not resolve a Shader Graph source category using categoryGuid='{requestedSourceCategoryGuid}' or categoryName='{requestedSourceCategoryName}' in '{assetPath}': {sourceCategoryFailure}",
+                    data
+                );
+            }
+
+            string sourceCategoryDisplayName = GetCategoryDisplayName(sourceCategory);
+            string splitCategoryDisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+                ? BuildSplitDisplayName(sourceCategoryDisplayName)
+                : request.DisplayName.Trim();
+
+            object[] duplicateMatches = categories
+                .Where(category => CategoryMatchesName(category, splitCategoryDisplayName))
+                .ToArray();
+            if (duplicateMatches.Length > 0)
+            {
+                data["matchCount"] = 1;
+                data["categoryCount"] = categories.Count;
+                data["categoryOrder"] = BuildCategoryOrder(categories);
+                data["splitFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                data["candidateCategories"] = duplicateMatches.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"A Shader Graph category named '{splitCategoryDisplayName}' already exists in '{assetPath}'.",
+                    data
+                );
+            }
+
+            var selectedProperties = new List<object>();
+            var remainingSourceProperties = sourceCategoryProperties.ToList();
+            foreach (string requestedPropertyName in requestedPropertyNames)
+            {
+                object[] propertyMatches = remainingSourceProperties
+                    .Where(property => PropertyMatchesName(property, requestedPropertyName))
+                    .ToArray();
+
+                if (propertyMatches.Length == 0)
+                {
+                    data["matchCount"] = 1;
+                    data["splitFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                    data["sourceCategoryPropertyOrder"] = BuildCategoryPropertyOrder(sourceCategoryProperties);
+                    return ShaderGraphResponse.Fail(
+                        $"Could not find Shader Graph property '{requestedPropertyName}' in category '{sourceCategoryDisplayName}' for split in '{assetPath}'.",
+                        data
+                    );
+                }
+
+                if (propertyMatches.Length > 1)
+                {
+                    data["matchCount"] = 1;
+                    data["splitFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                    data["sourceCategoryPropertyOrder"] = BuildCategoryPropertyOrder(sourceCategoryProperties);
+                    data["candidateProperties"] = propertyMatches.Select(BuildPropertyLookupData).Cast<object>().ToArray();
+                    return ShaderGraphResponse.Fail(
+                        $"Property query '{requestedPropertyName}' matched multiple Shader Graph properties inside category '{sourceCategoryDisplayName}' in '{assetPath}'.",
+                        data
+                    );
+                }
+
+                object selectedProperty = propertyMatches[0];
+                selectedProperties.Add(selectedProperty);
+                remainingSourceProperties.Remove(selectedProperty);
+            }
+
+            if (!TryCreateCategoryData(splitCategoryDisplayName, out object createdCategory, out string createCategoryFailure))
+            {
+                data["matchCount"] = 1;
+                data["splitFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                return ShaderGraphResponse.Fail(
+                    $"Unable to create Shader Graph category '{splitCategoryDisplayName}': {createCategoryFailure}",
+                    data
+                );
+            }
+
+            if (!TryInvokeGraphAddCategory(graphData, createdCategory, out string addCategoryFailure))
+            {
+                data["matchCount"] = 1;
+                data["splitFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                return ShaderGraphResponse.Fail(
+                    $"Unable to add Shader Graph category '{splitCategoryDisplayName}' to '{assetPath}': {addCategoryFailure}",
+                    data
+                );
+            }
+
+            string splitCategoryGuid = GetStringProperty(createdCategory, "categoryGuid", "objectId");
+            if (!string.IsNullOrWhiteSpace(splitCategoryGuid))
+            {
+                if (TryInvokeGraphChangeCategoryName(graphData, splitCategoryGuid, splitCategoryDisplayName, out string renameCategoryFailure))
+                {
+                    loadNotes.Add("GraphData.ChangeCategoryName(...) invoked successfully.");
+                }
+                else if (!string.IsNullOrWhiteSpace(renameCategoryFailure))
+                {
+                    loadNotes.Add($"GraphData.ChangeCategoryName(...) could not be invoked: {renameCategoryFailure}");
+                }
+            }
+
+            foreach (object shaderInput in selectedProperties)
+            {
+                if (!TryInvokeGraphInsertItemIntoCategory(graphData, splitCategoryGuid, shaderInput, -1, out string moveFailure))
+                {
+                    data["matchCount"] = 1;
+                    data["splitFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                    data["splitIntoCategory"] = BuildCategoryLookupData(createdCategory);
+                    data["movedPropertyCount"] = selectedProperties.Count;
+                    data["movedProperties"] = selectedProperties.Select(BuildPropertyLookupData).Cast<object>().ToArray();
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to move Shader Graph properties into split category '{splitCategoryDisplayName}' in '{assetPath}': {moveFailure}",
+                        data
+                    );
+                }
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after splitting category '{sourceCategoryDisplayName}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after splitting category '{sourceCategoryDisplayName}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "split_category"
+            );
+
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    sourceCategoryGuid,
+                    null,
+                    out object finalSourceCategory,
+                    out string finalSourceCategoryGuid,
+                    out IReadOnlyList<object> finalSourceCategoryProperties,
+                    out string finalSourceFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Category split succeeded, but the final source category context could not be resolved for '{sourceCategoryDisplayName}': {finalSourceFailure}",
+                    new Dictionary<string, object>(snapshot.ToDictionary())
+                    {
+                        ["query"] = new Dictionary<string, object>
+                        {
+                            ["sourceCategoryGuid"] = requestedSourceCategoryGuid,
+                            ["sourceCategoryName"] = requestedSourceCategoryName,
+                            ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                            ["propertyNames"] = requestedPropertyNames,
+                        },
+                        ["matchCount"] = 1,
+                    }
+                );
+            }
+
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    splitCategoryGuid,
+                    null,
+                    out object finalSplitCategory,
+                    out string finalSplitCategoryGuid,
+                    out IReadOnlyList<object> finalSplitCategoryProperties,
+                    out string finalSplitFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Category split succeeded, but the final split category context could not be resolved for '{splitCategoryDisplayName}': {finalSplitFailure}",
+                    new Dictionary<string, object>(snapshot.ToDictionary())
+                    {
+                        ["query"] = new Dictionary<string, object>
+                        {
+                            ["sourceCategoryGuid"] = requestedSourceCategoryGuid,
+                            ["sourceCategoryName"] = requestedSourceCategoryName,
+                            ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                            ["propertyNames"] = requestedPropertyNames,
+                        },
+                        ["matchCount"] = 1,
+                    }
+                );
+            }
+
+            categories = EnumerateMember(graphData, "categories");
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["sourceCategoryGuid"] = requestedSourceCategoryGuid,
+                    ["sourceCategoryName"] = requestedSourceCategoryName,
+                    ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                    ["propertyNames"] = requestedPropertyNames,
+                },
+                ["matchCount"] = 1,
+                ["movedPropertyCount"] = selectedProperties.Count,
+                ["categoryCount"] = categories.Count,
+                ["categoryOrder"] = BuildCategoryOrder(categories),
+                ["splitCategorySemantics"] = new[]
+                {
+                    "Creates a new category with the requested displayName or appends 'Split' to the source category displayName.",
+                    "Moves the selected source category properties into the new category in the requested propertyNames order.",
+                    "The source category remains in place even when all of its properties are moved out.",
+                },
+                ["splitFromCategory"] = BuildCategoryLookupData(finalSourceCategory),
+                ["splitIntoCategory"] = BuildCategoryLookupData(finalSplitCategory),
+                ["sourceCategoryGuid"] = finalSourceCategoryGuid,
+                ["targetCategoryGuid"] = finalSplitCategoryGuid,
+                ["sourceCategoryPreviousChildCount"] = sourceCategoryProperties.Count,
+                ["sourceCategoryPropertyOrder"] = BuildCategoryPropertyOrder(finalSourceCategoryProperties),
+                ["targetCategoryPropertyOrder"] = BuildCategoryPropertyOrder(finalSplitCategoryProperties),
+                ["movedProperties"] = selectedProperties.Select(BuildPropertyLookupData).Cast<object>().ToArray(),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Split Shader Graph category '{sourceCategoryDisplayName}' into '{GetCategoryDisplayName(finalSplitCategory)}' in '{assetPath}'.",
                 data
             );
         }
@@ -7728,6 +8059,14 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ? (string.IsNullOrWhiteSpace(canonicalNodeType) ? "Node" : canonicalNodeType)
                 : displayName.Trim();
             return label + " Copy";
+        }
+
+        private static string BuildSplitDisplayName(string displayName)
+        {
+            string label = string.IsNullOrWhiteSpace(displayName)
+                ? "Category"
+                : displayName.Trim();
+            return label + " Split";
         }
 
         private static IReadOnlyList<ShaderGraphNodeDescriptor> GetDiscoveredNodeCatalog()

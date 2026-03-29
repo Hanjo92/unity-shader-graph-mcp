@@ -433,6 +433,58 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesSplitCategoryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "split category ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["movedPropertyCount"] = 2,
+                    ["categoryCount"] = 3,
+                    ["categoryOrder"] = new[] { "(Default Category)", "Surface Inputs", "Surface Inputs Primary" },
+                    ["sourceCategoryPreviousChildCount"] = 3,
+                    ["sourceCategoryPropertyOrder"] = new[] { "Metallic [Float/Vector1]" },
+                    ["targetCategoryPropertyOrder"] = new[] { "Tint [Color]", "Exposure [Float/Vector1]" },
+                    ["splitFromCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-surface",
+                        ["displayName"] = "Surface Inputs",
+                        ["childCount"] = 1,
+                    },
+                    ["splitIntoCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-surface-primary",
+                        ["displayName"] = "Surface Inputs Primary",
+                        ["childCount"] = 2,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["movedPropertyCount"], Is.EqualTo(2));
+            Assert.That(response.Data["categoryCount"], Is.EqualTo(3));
+            Assert.That(response.Data["sourceCategoryPreviousChildCount"], Is.EqualTo(3));
+
+            var splitFromCategory = (IReadOnlyDictionary<string, object>)response.Data["splitFromCategory"];
+            Assert.That(splitFromCategory["categoryGuid"], Is.EqualTo("category-surface"));
+            Assert.That(splitFromCategory["displayName"], Is.EqualTo("Surface Inputs"));
+
+            var splitIntoCategory = (IReadOnlyDictionary<string, object>)response.Data["splitIntoCategory"];
+            Assert.That(splitIntoCategory["categoryGuid"], Is.EqualTo("category-surface-primary"));
+            Assert.That(splitIntoCategory["displayName"], Is.EqualTo("Surface Inputs Primary"));
+
+            var sourceCategoryPropertyOrder = (string[])response.Data["sourceCategoryPropertyOrder"];
+            Assert.That(sourceCategoryPropertyOrder[0], Does.Contain("Metallic"));
+
+            var targetCategoryPropertyOrder = (string[])response.Data["targetCategoryPropertyOrder"];
+            Assert.That(targetCategoryPropertyOrder[0], Does.Contain("Tint"));
+            Assert.That(targetCategoryPropertyOrder[1], Does.Contain("Exposure"));
+        }
+
+        [Test]
         public void Ok_PreservesMovedPropertyToCategoryEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

@@ -13,6 +13,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse ReorderCategory(ReorderCategoryRequest request);
         ShaderGraphResponse MergeCategory(MergeCategoryRequest request);
         ShaderGraphResponse DuplicateCategory(DuplicateCategoryRequest request);
+        ShaderGraphResponse SplitCategory(SplitCategoryRequest request);
         ShaderGraphResponse ListCategories(ListCategoriesRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
