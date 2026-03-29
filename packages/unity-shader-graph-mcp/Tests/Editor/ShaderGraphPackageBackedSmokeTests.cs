@@ -617,6 +617,34 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_ListCategories_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphListCategories", out _);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleCreateCategory(assetPath, "Surface Inputs"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleCreateCategory(assetPath, "Math Inputs"));
+
+            ShaderGraphResponse response = ShaderGraphAssetTool.HandleListCategories(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(response);
+
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "operation"), Is.EqualTo("list_categories"));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "categoryCount"), Is.EqualTo(3));
+
+            var categoryOrder = ShaderGraphTestAssets.GetStringList(response.Data, "categoryOrder");
+            Assert.That(categoryOrder.Count, Is.EqualTo(3));
+            Assert.That(categoryOrder[0], Is.EqualTo("(Default Category)"));
+            Assert.That(categoryOrder, Does.Contain("Surface Inputs"));
+            Assert.That(categoryOrder, Does.Contain("Math Inputs"));
+
+            Assert.That(response.Data.TryGetValue("categories", out object rawCategories), Is.True);
+            var categories = rawCategories as object[];
+            Assert.That(categories, Is.Not.Null);
+            Assert.That(categories.Length, Is.EqualTo(3));
+        }
+
+        [Test]
         public void BlankGraph_MovePropertyToCategory_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphMovePropertyToCategory", out _);

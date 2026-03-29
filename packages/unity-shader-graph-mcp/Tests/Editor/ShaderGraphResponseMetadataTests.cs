@@ -285,6 +285,51 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesCategoryListEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "list categories ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["categoryCount"] = 2,
+                    ["categoryOrder"] = new[] { "(Default Category)", "Surface Inputs" },
+                    ["categoryListSemantics"] = new[]
+                    {
+                        "categories contains every GraphData blackboard category, including the default category.",
+                        "categoryOrder reflects the current GraphData.categories list order.",
+                    },
+                    ["categories"] = new object[]
+                    {
+                        new Dictionary<string, object>
+                        {
+                            ["categoryGuid"] = "category-default",
+                            ["displayName"] = "(Default Category)",
+                            ["childCount"] = 1,
+                            ["isDefaultCategory"] = true,
+                        },
+                        new Dictionary<string, object>
+                        {
+                            ["categoryGuid"] = "category-surface",
+                            ["displayName"] = "Surface Inputs",
+                            ["childCount"] = 0,
+                            ["isDefaultCategory"] = false,
+                        },
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["categoryCount"], Is.EqualTo(2));
+            var categories = (object[])response.Data["categories"];
+            Assert.That(categories.Length, Is.EqualTo(2));
+
+            var firstCategory = (IReadOnlyDictionary<string, object>)categories[0];
+            Assert.That(firstCategory["displayName"], Is.EqualTo("(Default Category)"));
+            Assert.That(firstCategory["isDefaultCategory"], Is.EqualTo(true));
+        }
+
+        [Test]
         public void Ok_PreservesMovedPropertyToCategoryEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

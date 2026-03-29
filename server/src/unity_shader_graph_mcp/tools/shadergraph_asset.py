@@ -30,6 +30,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "find_category",
     "delete_category",
     "reorder_category",
+    "list_categories",
     "read_graph_summary",
     "find_node",
     "find_property",
@@ -229,6 +230,9 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
             "target_index",
             "index",
         )
+
+    if request.action == "list_categories" and request.path is None:
+        raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
     if request.action == "read_graph_summary" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")

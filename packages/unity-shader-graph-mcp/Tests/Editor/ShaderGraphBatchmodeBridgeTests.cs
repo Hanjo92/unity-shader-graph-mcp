@@ -183,6 +183,25 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsListCategoriesRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""list_categories"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var listCategoriesRequest = request as ListCategoriesRequest;
+            Assert.That(listCategoriesRequest, Is.Not.Null);
+            Assert.That(listCategoriesRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsMovePropertyToCategoryRequest_WithAliasFields()
         {
             string json = @"{

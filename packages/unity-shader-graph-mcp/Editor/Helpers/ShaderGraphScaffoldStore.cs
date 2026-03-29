@@ -556,6 +556,65 @@ namespace ShaderGraphMcp.Editor.Helpers
                 });
         }
 
+        public static ShaderGraphResponse ListCategories(
+            ListCategoriesRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("List categories request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            if (!TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Scaffold manifest not found for '{assetPath}'."
+                );
+            }
+
+            EnsureManifestCategories(manifest);
+
+            var data = BuildSummaryData(
+                manifest,
+                assetPath,
+                absoluteAssetPath,
+                true,
+                true,
+                executionKind,
+                "list_categories",
+                new[] { "Scaffold category list uses the sidecar manifest." },
+                null
+            );
+            data["categoryCount"] = manifest.categories.Count;
+            data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+            data["categories"] = manifest.categories.Select(category => BuildScaffoldCategoryData(manifest, category)).Cast<object>().ToArray();
+            data["categoryListSemantics"] = new[]
+            {
+                "categories contains every scaffold category, including the default category.",
+                "categoryOrder reflects the manifest category list order.",
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Loaded scaffold category list from '{assetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse ReadGraphSummary(
             ReadGraphSummaryRequest request,
             ShaderGraphExecutionKind executionKind)

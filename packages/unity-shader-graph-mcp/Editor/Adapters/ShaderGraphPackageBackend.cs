@@ -78,6 +78,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse ListCategories(ListCategoriesRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ListCategories(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
         {
             return ShaderGraphPackageGraphInspector.ReadGraphSummary(
@@ -1514,6 +1523,77 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Reordered Shader Graph category '{GetCategoryDisplayName(finalCategory)}' to index {newIndex} in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse ListCategories(
+            ListCategoriesRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("List categories request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out string failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "list_categories"
+            );
+
+            IReadOnlyList<object> categories = EnumerateMember(graphData, "categories");
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["categoryCount"] = categories.Count,
+                ["categoryOrder"] = BuildCategoryOrder(categories),
+                ["categories"] = categories.Select(BuildCategoryLookupData).Cast<object>().ToArray(),
+                ["categoryListSemantics"] = new[]
+                {
+                    "categories contains every GraphData blackboard category, including the default category.",
+                    "categoryOrder reflects the current GraphData.categories list order.",
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Loaded Shader Graph category list from '{assetPath}'.",
                 data
             );
         }

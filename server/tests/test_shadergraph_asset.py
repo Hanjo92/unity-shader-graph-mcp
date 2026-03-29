@@ -30,6 +30,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "find_category",
                 "delete_category",
                 "reorder_category",
+                "list_categories",
                 "read_graph_summary",
                 "find_node",
                 "find_property",
@@ -161,6 +162,17 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["displayName"], "Surface Inputs")
         self.assertEqual(request.payload["index"], "1")
+
+    def test_request_normalization_accepts_list_categories_with_asset_path(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "list_categories",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+            }
+        )
+
+        self.assertEqual(request.action, "list_categories")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
 
     def test_request_normalization_accepts_find_property_with_reference_name(self) -> None:
         request = normalize_shadergraph_asset_request(

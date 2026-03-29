@@ -220,6 +220,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateDeleteCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReorderCategory:
                     return TryCreateReorderCategoryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.ListCategories:
+                    return TryCreateListCategoriesRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindNode:
@@ -449,6 +451,21 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new ReorderCategoryRequest(assetPath, categoryGuid, categoryName, index);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateListCategoriesRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "List categories requires an asset path.";
+                return false;
+            }
+
+            request = new ListCategoriesRequest(assetPath);
             errorMessage = null;
             return true;
         }
@@ -974,6 +991,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.DeleteCategory;
                 case "reorder_category":
                     return ShaderGraphAction.ReorderCategory;
+                case "list_categories":
+                    return ShaderGraphAction.ListCategories;
                 case "read_graph_summary":
                     return ShaderGraphAction.ReadGraphSummary;
                 case "find_node":

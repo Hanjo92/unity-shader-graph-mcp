@@ -59,6 +59,10 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "categoryName": "Surface Inputs",
         "newIndex": 1,
     },
+    "list_categories": {
+        "action": "list_categories",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    },
     "read_graph_summary": {
         "action": "read_graph_summary",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",

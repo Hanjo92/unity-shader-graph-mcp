@@ -10,6 +10,7 @@ namespace ShaderGraphMcp.Editor.Models
         FindCategory,
         DeleteCategory,
         ReorderCategory,
+        ListCategories,
         ReadGraphSummary,
         FindNode,
         FindProperty,
@@ -182,6 +183,14 @@ namespace ShaderGraphMcp.Editor.Models
             CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
             CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();
             Index = index;
+        }
+    }
+
+    public sealed class ListCategoriesRequest : ShaderGraphRequest
+    {
+        public ListCategoriesRequest(string assetPath)
+            : base(ShaderGraphAction.ListCategories, assetPath)
+        {
         }
     }
 
