@@ -216,6 +216,40 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesDeletedCategoryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "delete category ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["movedPropertyCount"] = 1,
+                    ["categoryCount"] = 1,
+                    ["categoryOrder"] = new[] { "(Default Category)" },
+                    ["defaultCategoryGuid"] = "category-default",
+                    ["defaultCategoryPropertyOrder"] = new[] { "Tint [Color]" },
+                    ["deletedCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-surface",
+                        ["displayName"] = "Surface Inputs",
+                        ["previousChildCount"] = 1,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["movedPropertyCount"], Is.EqualTo(1));
+            Assert.That(response.Data["categoryCount"], Is.EqualTo(1));
+
+            var deletedCategory = (IReadOnlyDictionary<string, object>)response.Data["deletedCategory"];
+            Assert.That(deletedCategory["categoryGuid"], Is.EqualTo("category-surface"));
+            Assert.That(deletedCategory["displayName"], Is.EqualTo("Surface Inputs"));
+            Assert.That(deletedCategory["previousChildCount"], Is.EqualTo(1));
+        }
+
+        [Test]
         public void Ok_PreservesMovedPropertyToCategoryEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

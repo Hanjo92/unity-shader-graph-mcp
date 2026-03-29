@@ -9,6 +9,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse CreateCategory(CreateCategoryRequest request);
         ShaderGraphResponse RenameCategory(RenameCategoryRequest request);
         ShaderGraphResponse FindCategory(FindCategoryRequest request);
+        ShaderGraphResponse DeleteCategory(DeleteCategoryRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
         ShaderGraphResponse FindProperty(FindPropertyRequest request);

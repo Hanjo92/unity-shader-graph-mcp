@@ -48,6 +48,11 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
         "categoryName": "Surface Inputs",
     },
+    "delete_category": {
+        "action": "delete_category",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "categoryName": "Surface Inputs",
+    },
     "read_graph_summary": {
         "action": "read_graph_summary",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -243,6 +248,9 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "find_category", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "delete_category", "path": "Assets/X.shadergraph"})
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "add_property", "path": "Assets/X.shadergraph"})

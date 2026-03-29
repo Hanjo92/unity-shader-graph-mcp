@@ -27,6 +27,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.FindCategory(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse DeleteCategory(DeleteCategoryRequest request)
+        {
+            return ShaderGraphScaffoldStore.DeleteCategory(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
         {
             return ShaderGraphScaffoldStore.ReadGraphSummary(request, ExecutionKind);

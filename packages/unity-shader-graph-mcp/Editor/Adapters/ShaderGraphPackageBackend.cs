@@ -60,6 +60,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse DeleteCategory(DeleteCategoryRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.DeleteCategory(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
         {
             return ShaderGraphPackageGraphInspector.ReadGraphSummary(
@@ -1022,6 +1031,254 @@ namespace ShaderGraphMcp.Editor.Adapters
             data["foundCategory"] = BuildCategoryLookupData(matches[0]);
             return ShaderGraphResponse.Ok(
                 $"Found Shader Graph category '{GetCategoryDisplayName(matches[0])}' in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse DeleteCategory(
+            DeleteCategoryRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Delete category request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out string failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "delete_category"
+            );
+
+            string requestedCategoryGuid = request.CategoryGuid?.Trim() ?? string.Empty;
+            string requestedCategoryName = request.CategoryName?.Trim() ?? string.Empty;
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["categoryGuid"] = requestedCategoryGuid,
+                    ["categoryName"] = requestedCategoryName,
+                },
+            };
+
+            if (string.IsNullOrWhiteSpace(requestedCategoryGuid) && string.IsNullOrWhiteSpace(requestedCategoryName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Category guid or category name is required.", data);
+            }
+
+            IReadOnlyList<object> categories = EnumerateMember(graphData, "categories");
+            object[] matches = !string.IsNullOrWhiteSpace(requestedCategoryGuid)
+                ? categories.Where(category =>
+                    string.Equals(
+                        GetStringProperty(category, "categoryGuid", "objectId"),
+                        requestedCategoryGuid,
+                        StringComparison.Ordinal))
+                    .ToArray()
+                : categories.Where(category => CategoryMatchesName(category, requestedCategoryName)).ToArray();
+
+            data["matchCount"] = matches.Length;
+            if (matches.Length == 0)
+            {
+                data["candidateCategories"] = categories.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                data["categoryCount"] = categories.Count;
+                data["categoryOrder"] = BuildCategoryOrder(categories);
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph category using categoryGuid='{requestedCategoryGuid}' or categoryName='{requestedCategoryName}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateCategories"] = matches.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                data["categoryCount"] = categories.Count;
+                data["categoryOrder"] = BuildCategoryOrder(categories);
+                return ShaderGraphResponse.Fail(
+                    $"Category query for '{requestedCategoryName}' matched multiple Shader Graph categories in '{assetPath}'.",
+                    data
+                );
+            }
+
+            object resolvedCategory = matches[0];
+            string resolvedCategoryGuid = GetStringProperty(resolvedCategory, "categoryGuid", "objectId");
+            string deletedCategoryDisplayName = GetCategoryDisplayName(resolvedCategory);
+            var deletedCategory = BuildCategoryLookupData(resolvedCategory);
+            object[] categoryProperties = GetCategoryChildren(resolvedCategory).ToArray();
+            deletedCategory["previousChildCount"] = categoryProperties.Length;
+
+            if (string.IsNullOrWhiteSpace(GetStringProperty(resolvedCategory, "name")))
+            {
+                data["deletedCategory"] = deletedCategory;
+                return ShaderGraphResponse.Fail(
+                    "The default Shader Graph category cannot be deleted through this action.",
+                    data
+                );
+            }
+
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    null,
+                    "(Default Category)",
+                    out object defaultCategory,
+                    out string defaultCategoryGuid,
+                    out _,
+                    out string defaultCategoryFailure))
+            {
+                if (!TryInvokeGraphAddDefaultCategory(graphData, out string addDefaultCategoryFailure))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to resolve the default Shader Graph category before deleting '{deletedCategoryDisplayName}': {defaultCategoryFailure}. Fallback add failed: {addDefaultCategoryFailure}",
+                        data
+                    );
+                }
+
+                if (!TryResolveCategoryContext(
+                        graphData,
+                        null,
+                        "(Default Category)",
+                        out defaultCategory,
+                        out defaultCategoryGuid,
+                        out _,
+                        out defaultCategoryFailure))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to resolve the default Shader Graph category before deleting '{deletedCategoryDisplayName}': {defaultCategoryFailure}",
+                        data
+                    );
+                }
+            }
+
+            int movedPropertyCount = 0;
+            foreach (object shaderInput in categoryProperties)
+            {
+                if (!TryInvokeGraphInsertItemIntoCategory(graphData, defaultCategoryGuid, shaderInput, -1, out string moveFailure))
+                {
+                    data["deletedCategory"] = deletedCategory;
+                    data["movedPropertyCount"] = movedPropertyCount;
+                    data["defaultCategory"] = BuildCategoryLookupData(defaultCategory);
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to move Shader Graph properties out of category '{deletedCategoryDisplayName}' before deletion: {moveFailure}",
+                        data
+                    );
+                }
+
+                movedPropertyCount += 1;
+            }
+
+            if (!TryInvokeGraphRemoveCategory(graphData, resolvedCategoryGuid, out string removeCategoryFailure))
+            {
+                data["deletedCategory"] = deletedCategory;
+                data["movedPropertyCount"] = movedPropertyCount;
+                data["defaultCategory"] = BuildCategoryLookupData(defaultCategory);
+                return ShaderGraphResponse.Fail(
+                    $"Unable to delete Shader Graph category '{deletedCategoryDisplayName}' in '{assetPath}': {removeCategoryFailure}",
+                    data
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after deleting category '{deletedCategoryDisplayName}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after deleting category '{deletedCategoryDisplayName}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "delete_category"
+            );
+
+            TryResolveCategoryContext(
+                graphData,
+                defaultCategoryGuid,
+                null,
+                out object finalDefaultCategory,
+                out string finalDefaultCategoryGuid,
+                out IReadOnlyList<object> finalDefaultCategoryProperties,
+                out _);
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["categoryGuid"] = requestedCategoryGuid,
+                    ["categoryName"] = requestedCategoryName,
+                },
+                ["matchCount"] = 1,
+                ["movedPropertyCount"] = movedPropertyCount,
+                ["categoryCount"] = CountEnumerableProperty(graphData, "categories"),
+                ["categoryOrder"] = BuildCategoryOrder(EnumerateMember(graphData, "categories")),
+                ["categoryDeleteSemantics"] = new[]
+                {
+                    "The default category cannot be deleted.",
+                    "Properties from the deleted category are reassigned to the default category before deletion.",
+                },
+                ["deletedCategory"] = deletedCategory,
+                ["defaultCategoryGuid"] = finalDefaultCategoryGuid,
+                ["defaultCategoryPropertyOrder"] = BuildCategoryPropertyOrder(finalDefaultCategoryProperties),
+                ["defaultCategory"] = BuildCategoryLookupData(finalDefaultCategory ?? defaultCategory),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Deleted Shader Graph category '{deletedCategoryDisplayName}' in '{assetPath}'.",
                 data
             );
         }
@@ -8827,6 +9084,44 @@ namespace ShaderGraphMcp.Editor.Adapters
             try
             {
                 changeCategoryNameMethod.Invoke(graphData, new object[] { categoryGuid, newName });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryInvokeGraphRemoveCategory(
+            object graphData,
+            string categoryGuid,
+            out string failureReason)
+        {
+            failureReason = null;
+
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(categoryGuid))
+            {
+                failureReason = "Category guid is required.";
+                return false;
+            }
+
+            MethodInfo removeCategoryMethod = FindMethod(graphData.GetType(), "RemoveCategory", 1);
+            if (removeCategoryMethod == null)
+            {
+                failureReason = $"Method 'RemoveCategory' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                removeCategoryMethod.Invoke(graphData, new object[] { categoryGuid });
                 return true;
             }
             catch (Exception ex)

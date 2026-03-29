@@ -137,6 +137,28 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsDeleteCategoryRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""delete_category"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""categoryName"": ""Surface Inputs""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var deleteCategoryRequest = request as DeleteCategoryRequest;
+            Assert.That(deleteCategoryRequest, Is.Not.Null);
+            Assert.That(deleteCategoryRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(deleteCategoryRequest.CategoryGuid, Is.Empty);
+            Assert.That(deleteCategoryRequest.CategoryName, Is.EqualTo("Surface Inputs"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsMovePropertyToCategoryRequest_WithAliasFields()
         {
             string json = @"{

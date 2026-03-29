@@ -363,6 +363,100 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse DeleteCategory(
+            DeleteCategoryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Delete category request is required.");
+            }
+
+            string deletedCategoryGuid = string.Empty;
+            string deletedCategoryDisplayName = string.Empty;
+            int movedPropertyCount = 0;
+
+            return MutateScaffold(
+                request.AssetPath,
+                "delete_category",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    EnsureManifestCategories(manifest);
+
+                    if (string.IsNullOrWhiteSpace(request.CategoryGuid) && string.IsNullOrWhiteSpace(request.CategoryName))
+                    {
+                        return "Category guid or category name is required.";
+                    }
+
+                    if (!TryResolveScaffoldCategory(manifest, request.CategoryGuid, request.CategoryName, out ShaderGraphScaffoldCategory category))
+                    {
+                        return $"Could not resolve a scaffold category using categoryGuid='{request.CategoryGuid}' or categoryName='{request.CategoryName}'.";
+                    }
+
+                    if (string.Equals(category.guid, ScaffoldDefaultCategoryGuid, StringComparison.Ordinal))
+                    {
+                        return "The scaffold default category cannot be deleted.";
+                    }
+
+                    deletedCategoryGuid = category.guid ?? string.Empty;
+                    deletedCategoryDisplayName = GetScaffoldCategoryDisplayName(category);
+
+                    foreach (ShaderGraphScaffoldProperty property in manifest.properties.Where(entry =>
+                                 string.Equals(
+                                     entry?.categoryGuid ?? ScaffoldDefaultCategoryGuid,
+                                     deletedCategoryGuid,
+                                     StringComparison.Ordinal)))
+                    {
+                        property.categoryGuid = ScaffoldDefaultCategoryGuid;
+                        property.updatedUtc = UtcNow();
+                        movedPropertyCount += 1;
+                    }
+
+                    manifest.categories.RemoveAll(entry =>
+                        string.Equals(entry?.guid, deletedCategoryGuid, StringComparison.Ordinal));
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "delete_category",
+                        new[]
+                        {
+                            $"Category '{deletedCategoryDisplayName}' removed from scaffold manifest.",
+                            "Properties that belonged to the deleted category were reassigned to the default scaffold category.",
+                        },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = request.CategoryGuid?.Trim() ?? string.Empty,
+                        ["categoryName"] = request.CategoryName?.Trim() ?? string.Empty,
+                    };
+                    data["matchCount"] = 1;
+                    data["movedPropertyCount"] = movedPropertyCount;
+                    data["categoryCount"] = manifest.categories.Count;
+                    data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+                    data["categoryDeleteSemantics"] = new[]
+                    {
+                        "The default category cannot be deleted.",
+                        "Properties from the deleted scaffold category are reassigned to the default category.",
+                    };
+                    data["deletedCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = deletedCategoryGuid,
+                        ["displayName"] = deletedCategoryDisplayName,
+                        ["name"] = deletedCategoryDisplayName == "(Default Category)" ? string.Empty : deletedCategoryDisplayName,
+                    };
+                    return data;
+                });
+        }
+
         public static ShaderGraphResponse ReadGraphSummary(
             ReadGraphSummaryRequest request,
             ShaderGraphExecutionKind executionKind)

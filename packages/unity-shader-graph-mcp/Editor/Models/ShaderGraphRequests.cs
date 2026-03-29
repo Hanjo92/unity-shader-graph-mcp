@@ -8,6 +8,7 @@ namespace ShaderGraphMcp.Editor.Models
         CreateCategory,
         RenameCategory,
         FindCategory,
+        DeleteCategory,
         ReadGraphSummary,
         FindNode,
         FindProperty,
@@ -149,6 +150,19 @@ namespace ShaderGraphMcp.Editor.Models
 
         public FindCategoryRequest(string assetPath, string categoryGuid, string categoryName)
             : base(ShaderGraphAction.FindCategory, assetPath)
+        {
+            CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
+            CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();
+        }
+    }
+
+    public sealed class DeleteCategoryRequest : ShaderGraphRequest
+    {
+        public string CategoryGuid { get; }
+        public string CategoryName { get; }
+
+        public DeleteCategoryRequest(string assetPath, string categoryGuid, string categoryName)
+            : base(ShaderGraphAction.DeleteCategory, assetPath)
         {
             CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
             CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();

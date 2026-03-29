@@ -517,6 +517,52 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_DeleteCategory_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphDeleteCategory", out _);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Tint", "Color", "#FFFFFFFF"));
+
+            ShaderGraphResponse createCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(
+                assetPath,
+                "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createCategoryResponse);
+
+            string categoryGuid = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(createCategoryResponse.Data, "createdCategory"),
+                "categoryGuid");
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleMovePropertyToCategory(
+                    assetPath,
+                    "Tint",
+                    categoryGuid,
+                    null,
+                    0));
+
+            ShaderGraphResponse deleteCategoryResponse = ShaderGraphAssetTool.HandleDeleteCategory(
+                assetPath,
+                categoryGuid,
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(deleteCategoryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(deleteCategoryResponse.Data, "operation"), Is.EqualTo("delete_category"));
+            Assert.That(ShaderGraphTestAssets.GetInt(deleteCategoryResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(deleteCategoryResponse.Data, "movedPropertyCount"), Is.EqualTo(1));
+
+            var deletedCategory = ShaderGraphTestAssets.RequireDictionary(deleteCategoryResponse.Data, "deletedCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(deletedCategory, "categoryGuid"), Is.EqualTo(categoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(deletedCategory, "displayName"), Is.EqualTo("Surface Inputs"));
+
+            var categoryOrder = ShaderGraphTestAssets.GetStringList(deleteCategoryResponse.Data, "categoryOrder");
+            Assert.That(categoryOrder, Does.Not.Contain("Surface Inputs"));
+
+            var defaultCategoryPropertyOrder = ShaderGraphTestAssets.GetStringList(deleteCategoryResponse.Data, "defaultCategoryPropertyOrder");
+            Assert.That(defaultCategoryPropertyOrder.Any(entry => entry.Contains("Tint")), Is.True);
+        }
+
+        [Test]
         public void BlankGraph_MovePropertyToCategory_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphMovePropertyToCategory", out _);
