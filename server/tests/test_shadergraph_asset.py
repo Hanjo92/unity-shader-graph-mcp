@@ -27,6 +27,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "create_graph",
                 "create_category",
                 "rename_category",
+                "find_category",
                 "read_graph_summary",
                 "find_node",
                 "find_property",
@@ -116,6 +117,19 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["categoryName"], "Surface Inputs")
         self.assertEqual(request.payload["newDisplayName"], "Material Inputs")
+
+    def test_request_normalization_accepts_find_category_with_display_name(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "find_category",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "displayName": "(Default Category)",
+            }
+        )
+
+        self.assertEqual(request.action, "find_category")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["displayName"], "(Default Category)")
 
     def test_request_normalization_accepts_find_property_with_reference_name(self) -> None:
         request = normalize_shadergraph_asset_request(

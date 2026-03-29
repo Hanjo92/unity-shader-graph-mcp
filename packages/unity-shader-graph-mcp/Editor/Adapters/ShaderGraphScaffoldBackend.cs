@@ -22,6 +22,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.RenameCategory(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse FindCategory(FindCategoryRequest request)
+        {
+            return ShaderGraphScaffoldStore.FindCategory(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
         {
             return ShaderGraphScaffoldStore.ReadGraphSummary(request, ExecutionKind);

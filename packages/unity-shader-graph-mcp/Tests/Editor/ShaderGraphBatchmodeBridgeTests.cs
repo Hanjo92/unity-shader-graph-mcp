@@ -115,6 +115,28 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsFindCategoryRequest_FromDisplayNameAlias()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""find_category"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""displayName"": ""(Default Category)""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var findCategoryRequest = request as FindCategoryRequest;
+            Assert.That(findCategoryRequest, Is.Not.Null);
+            Assert.That(findCategoryRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(findCategoryRequest.CategoryGuid, Is.Empty);
+            Assert.That(findCategoryRequest.CategoryName, Is.EqualTo("(Default Category)"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsMovePropertyToCategoryRequest_WithAliasFields()
         {
             string json = @"{

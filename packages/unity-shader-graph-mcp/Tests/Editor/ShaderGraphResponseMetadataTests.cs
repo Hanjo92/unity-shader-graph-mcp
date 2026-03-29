@@ -178,6 +178,44 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesFoundCategoryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "find category ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["matchStrategy"] = "categoryName/displayName",
+                    ["categoryCount"] = 2,
+                    ["categoryOrder"] = new[] { "(Default Category)", "Surface Inputs" },
+                    ["query"] = new Dictionary<string, object>
+                    {
+                        ["categoryName"] = "Surface Inputs",
+                    },
+                    ["foundCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-guid-1",
+                        ["displayName"] = "Surface Inputs",
+                        ["name"] = "Surface Inputs",
+                        ["childCount"] = 1,
+                        ["isDefaultCategory"] = false,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["matchStrategy"], Is.EqualTo("categoryName/displayName"));
+            Assert.That(response.Data["categoryCount"], Is.EqualTo(2));
+
+            var foundCategory = (IReadOnlyDictionary<string, object>)response.Data["foundCategory"];
+            Assert.That(foundCategory["categoryGuid"], Is.EqualTo("category-guid-1"));
+            Assert.That(foundCategory["displayName"], Is.EqualTo("Surface Inputs"));
+            Assert.That(foundCategory["isDefaultCategory"], Is.EqualTo(false));
+        }
+
+        [Test]
         public void Ok_PreservesMovedPropertyToCategoryEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

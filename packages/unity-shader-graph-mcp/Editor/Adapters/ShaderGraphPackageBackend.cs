@@ -51,6 +51,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse FindCategory(FindCategoryRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.FindCategory(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
         {
             return ShaderGraphPackageGraphInspector.ReadGraphSummary(
@@ -902,6 +911,117 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Renamed Shader Graph category '{previousDisplayName}' to '{GetCategoryDisplayName(finalCategory)}' in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse FindCategory(
+            FindCategoryRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Find category request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out string failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "find_category"
+            );
+
+            string requestedCategoryGuid = request.CategoryGuid?.Trim() ?? string.Empty;
+            string requestedCategoryName = request.CategoryName?.Trim() ?? string.Empty;
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["categoryGuid"] = requestedCategoryGuid,
+                    ["categoryName"] = requestedCategoryName,
+                },
+            };
+
+            if (string.IsNullOrWhiteSpace(requestedCategoryGuid) && string.IsNullOrWhiteSpace(requestedCategoryName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Category guid or category name is required.", data);
+            }
+
+            IReadOnlyList<object> categories = EnumerateMember(graphData, "categories");
+            object[] matches = !string.IsNullOrWhiteSpace(requestedCategoryGuid)
+                ? categories.Where(category =>
+                    string.Equals(
+                        GetStringProperty(category, "categoryGuid", "objectId"),
+                        requestedCategoryGuid,
+                        StringComparison.Ordinal))
+                    .ToArray()
+                : categories.Where(category => CategoryMatchesName(category, requestedCategoryName)).ToArray();
+
+            data["matchCount"] = matches.Length;
+            data["matchStrategy"] = !string.IsNullOrWhiteSpace(requestedCategoryGuid)
+                ? "categoryGuid"
+                : "categoryName/displayName";
+            data["categoryCount"] = categories.Count;
+            data["categoryOrder"] = BuildCategoryOrder(categories);
+
+            if (matches.Length == 0)
+            {
+                data["candidateCategories"] = categories.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph category using categoryGuid='{requestedCategoryGuid}' or categoryName='{requestedCategoryName}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateCategories"] = matches.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Category query for '{requestedCategoryName}' matched multiple Shader Graph categories in '{assetPath}'.",
+                    data
+                );
+            }
+
+            data["foundCategory"] = BuildCategoryLookupData(matches[0]);
+            return ShaderGraphResponse.Ok(
+                $"Found Shader Graph category '{GetCategoryDisplayName(matches[0])}' in '{assetPath}'.",
                 data
             );
         }
@@ -5722,10 +5842,15 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
+            string requestedName = requestedCategoryName.Trim();
             return string.Equals(
-                GetStringProperty(category, "name"),
-                requestedCategoryName.Trim(),
-                StringComparison.OrdinalIgnoreCase);
+                       GetStringProperty(category, "name"),
+                       requestedName,
+                       StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(
+                       GetCategoryDisplayName(category),
+                       requestedName,
+                       StringComparison.OrdinalIgnoreCase);
         }
 
         private static string GetCategoryDisplayName(object category)

@@ -27,6 +27,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "create_graph",
     "create_category",
     "rename_category",
+    "find_category",
     "read_graph_summary",
     "find_node",
     "find_property",
@@ -74,6 +75,10 @@ def normalize_shadergraph_asset_request(
 
     request_name = optional_text(_pick_value(request_payload, "name", "graphName"))
     if action == "create_category":
+        request_name = optional_text(
+            _pick_value(request_payload, "categoryName", "category_name", "displayName", "display_name", "name")
+        )
+    if action == "find_category":
         request_name = optional_text(
             _pick_value(request_payload, "categoryName", "category_name", "displayName", "display_name", "name")
         )
@@ -146,6 +151,26 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if display_name is None:
             raise ShaderGraphRequestError("Missing required field 'newDisplayName', 'displayName', or 'name'.")
         request.payload.setdefault("displayName", display_name)
+
+    if request.action == "find_category":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        has_lookup = any(
+            optional_text(_pick_value(request.payload, key)) is not None
+            for key in (
+                "categoryGuid",
+                "category_guid",
+                "categoryName",
+                "category_name",
+                "displayName",
+                "display_name",
+                "name",
+            )
+        )
+        if not has_lookup:
+            raise ShaderGraphRequestError(
+                "find_category requires at least one of: categoryGuid, categoryName, displayName, name."
+            )
 
     if request.action == "read_graph_summary" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")

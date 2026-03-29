@@ -265,6 +265,104 @@ namespace ShaderGraphMcp.Editor.Helpers
                 });
         }
 
+        public static ShaderGraphResponse FindCategory(
+            FindCategoryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Find category request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            if (!TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Scaffold manifest not found for '{assetPath}'."
+                );
+            }
+
+            EnsureManifestCategories(manifest);
+
+            string requestedCategoryGuid = request.CategoryGuid?.Trim() ?? string.Empty;
+            string requestedCategoryName = request.CategoryName?.Trim() ?? string.Empty;
+            var data = BuildSummaryData(
+                manifest,
+                assetPath,
+                absoluteAssetPath,
+                true,
+                true,
+                executionKind,
+                "find_category",
+                new[] { "Scaffold category lookup uses the sidecar manifest." },
+                null
+            );
+            data["query"] = new Dictionary<string, object>
+            {
+                ["categoryGuid"] = requestedCategoryGuid,
+                ["categoryName"] = requestedCategoryName,
+            };
+
+            if (string.IsNullOrWhiteSpace(requestedCategoryGuid) && string.IsNullOrWhiteSpace(requestedCategoryName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Category guid or category name is required.", data);
+            }
+
+            ShaderGraphScaffoldCategory[] matches = !string.IsNullOrWhiteSpace(requestedCategoryGuid)
+                ? manifest.categories
+                    .Where(category => string.Equals(category.guid, requestedCategoryGuid, StringComparison.Ordinal))
+                    .ToArray()
+                : manifest.categories
+                    .Where(category => ScaffoldCategoryMatchesName(category, requestedCategoryName))
+                    .ToArray();
+
+            data["matchCount"] = matches.Length;
+            data["matchStrategy"] = !string.IsNullOrWhiteSpace(requestedCategoryGuid)
+                ? "categoryGuid"
+                : "categoryName/displayName";
+            data["categoryCount"] = manifest.categories.Count;
+            data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+
+            if (matches.Length == 0)
+            {
+                data["candidateCategories"] = manifest.categories.Select(category => BuildScaffoldCategoryData(manifest, category)).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a scaffold category using categoryGuid='{requestedCategoryGuid}' or categoryName='{requestedCategoryName}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateCategories"] = matches.Select(category => BuildScaffoldCategoryData(manifest, category)).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Category query for '{requestedCategoryName}' matched multiple scaffold categories in '{assetPath}'.",
+                    data
+                );
+            }
+
+            data["foundCategory"] = BuildScaffoldCategoryData(manifest, matches[0]);
+            return ShaderGraphResponse.Ok(
+                $"Found scaffold category '{GetScaffoldCategoryDisplayName(matches[0])}' in '{assetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse ReadGraphSummary(
             ReadGraphSummaryRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -2449,8 +2547,20 @@ namespace ShaderGraphMcp.Editor.Helpers
             }
 
             category = manifest.categories.FirstOrDefault(entry =>
-                string.Equals(entry.name ?? string.Empty, categoryName.Trim(), StringComparison.OrdinalIgnoreCase));
+                ScaffoldCategoryMatchesName(entry, categoryName));
             return category != null;
+        }
+
+        private static bool ScaffoldCategoryMatchesName(ShaderGraphScaffoldCategory category, string categoryName)
+        {
+            if (category == null || string.IsNullOrWhiteSpace(categoryName))
+            {
+                return false;
+            }
+
+            string requestedCategoryName = categoryName.Trim();
+            return string.Equals(category.name ?? string.Empty, requestedCategoryName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(GetScaffoldCategoryDisplayName(category), requestedCategoryName, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string FormatScaffoldNodePosition(ShaderGraphScaffoldNode node)

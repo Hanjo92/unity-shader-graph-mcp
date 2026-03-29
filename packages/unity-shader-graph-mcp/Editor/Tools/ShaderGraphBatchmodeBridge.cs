@@ -214,6 +214,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateCreateCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameCategory:
                     return TryCreateRenameCategoryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.FindCategory:
+                    return TryCreateFindCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindNode:
@@ -363,6 +365,30 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new RenameCategoryRequest(assetPath, categoryGuid, categoryName, displayName);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateFindCategoryRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Find category requires an asset path.";
+                return false;
+            }
+
+            string categoryGuid = FirstNonBlank(payload.categoryGuid);
+            string categoryName = FirstNonBlank(payload.categoryName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(categoryGuid) && string.IsNullOrWhiteSpace(categoryName))
+            {
+                request = null;
+                errorMessage = "Find category requires categoryGuid or categoryName/displayName/name.";
+                return false;
+            }
+
+            request = new FindCategoryRequest(assetPath, categoryGuid, categoryName);
             errorMessage = null;
             return true;
         }
@@ -882,6 +908,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.CreateCategory;
                 case "rename_category":
                     return ShaderGraphAction.RenameCategory;
+                case "find_category":
+                    return ShaderGraphAction.FindCategory;
                 case "read_graph_summary":
                     return ShaderGraphAction.ReadGraphSummary;
                 case "find_node":

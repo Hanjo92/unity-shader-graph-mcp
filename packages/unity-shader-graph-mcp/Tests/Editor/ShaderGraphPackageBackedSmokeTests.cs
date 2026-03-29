@@ -476,6 +476,47 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_FindCategory_ByGuidAndDisplayName_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphFindCategory", out _);
+
+            ShaderGraphResponse createCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(
+                assetPath,
+                "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createCategoryResponse);
+
+            string categoryGuid = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(createCategoryResponse.Data, "createdCategory"),
+                "categoryGuid");
+
+            ShaderGraphResponse findByGuidResponse = ShaderGraphAssetTool.HandleFindCategory(
+                assetPath,
+                categoryGuid,
+                null);
+            ShaderGraphTestAssets.RequirePackageReady(findByGuidResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(findByGuidResponse.Data, "operation"), Is.EqualTo("find_category"));
+            Assert.That(ShaderGraphTestAssets.GetInt(findByGuidResponse.Data, "matchCount"), Is.EqualTo(1));
+
+            var foundByGuid = ShaderGraphTestAssets.RequireDictionary(findByGuidResponse.Data, "foundCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(foundByGuid, "categoryGuid"), Is.EqualTo(categoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(foundByGuid, "displayName"), Is.EqualTo("Surface Inputs"));
+
+            ShaderGraphResponse findByNameResponse = ShaderGraphAssetTool.HandleFindCategory(
+                assetPath,
+                null,
+                "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(findByNameResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetInt(findByNameResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetString(findByNameResponse.Data, "matchStrategy"), Is.EqualTo("categoryName/displayName"));
+
+            var foundByName = ShaderGraphTestAssets.RequireDictionary(findByNameResponse.Data, "foundCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(foundByName, "categoryGuid"), Is.EqualTo(categoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(foundByName, "displayName"), Is.EqualTo("Surface Inputs"));
+        }
+
+        [Test]
         public void BlankGraph_MovePropertyToCategory_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphMovePropertyToCategory", out _);
