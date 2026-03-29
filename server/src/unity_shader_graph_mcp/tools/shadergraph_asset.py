@@ -29,6 +29,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "rename_category",
     "find_category",
     "delete_category",
+    "reorder_category",
     "read_graph_summary",
     "find_node",
     "find_property",
@@ -84,6 +85,10 @@ def normalize_shadergraph_asset_request(
             _pick_value(request_payload, "categoryName", "category_name", "displayName", "display_name", "name")
         )
     if action == "delete_category":
+        request_name = optional_text(
+            _pick_value(request_payload, "categoryName", "category_name", "displayName", "display_name", "name")
+        )
+    if action == "reorder_category":
         request_name = optional_text(
             _pick_value(request_payload, "categoryName", "category_name", "displayName", "display_name", "name")
         )
@@ -196,6 +201,34 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
             raise ShaderGraphRequestError(
                 "delete_category requires at least one of: categoryGuid, categoryName, displayName, name."
             )
+
+    if request.action == "reorder_category":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        has_lookup = any(
+            optional_text(_pick_value(request.payload, key)) is not None
+            for key in (
+                "categoryGuid",
+                "category_guid",
+                "categoryName",
+                "category_name",
+                "displayName",
+                "display_name",
+                "name",
+            )
+        )
+        if not has_lookup:
+            raise ShaderGraphRequestError(
+                "reorder_category requires at least one of: categoryGuid, categoryName, displayName, name."
+            )
+        request.payload["index"] = _require_payload_int_text(
+            request.payload,
+            "newIndex",
+            "new_index",
+            "targetIndex",
+            "target_index",
+            "index",
+        )
 
     if request.action == "read_graph_summary" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")

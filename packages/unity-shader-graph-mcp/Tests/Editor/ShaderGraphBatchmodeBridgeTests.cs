@@ -159,6 +159,30 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsReorderCategoryRequest_WithIndexAliases()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""reorder_category"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""displayName"": ""Surface Inputs"",
+                ""targetIndex"": ""1""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var reorderCategoryRequest = request as ReorderCategoryRequest;
+            Assert.That(reorderCategoryRequest, Is.Not.Null);
+            Assert.That(reorderCategoryRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(reorderCategoryRequest.CategoryGuid, Is.Empty);
+            Assert.That(reorderCategoryRequest.CategoryName, Is.EqualTo("Surface Inputs"));
+            Assert.That(reorderCategoryRequest.Index, Is.EqualTo(1));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsMovePropertyToCategoryRequest_WithAliasFields()
         {
             string json = @"{

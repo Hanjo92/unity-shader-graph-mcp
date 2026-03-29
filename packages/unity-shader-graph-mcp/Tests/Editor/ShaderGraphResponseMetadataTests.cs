@@ -250,6 +250,41 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesReorderedCategoryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "reorder category ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["previousIndex"] = 2,
+                    ["newIndex"] = 1,
+                    ["categoryCount"] = 3,
+                    ["categoryOrder"] = new[] { "(Default Category)", "Math Inputs", "Surface Inputs" },
+                    ["reorderedCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-math",
+                        ["displayName"] = "Math Inputs",
+                        ["childCount"] = 0,
+                        ["isDefaultCategory"] = false,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["previousIndex"], Is.EqualTo(2));
+            Assert.That(response.Data["newIndex"], Is.EqualTo(1));
+            Assert.That(response.Data["categoryCount"], Is.EqualTo(3));
+
+            var reorderedCategory = (IReadOnlyDictionary<string, object>)response.Data["reorderedCategory"];
+            Assert.That(reorderedCategory["categoryGuid"], Is.EqualTo("category-math"));
+            Assert.That(reorderedCategory["displayName"], Is.EqualTo("Math Inputs"));
+            Assert.That(reorderedCategory["isDefaultCategory"], Is.EqualTo(false));
+        }
+
+        [Test]
         public void Ok_PreservesMovedPropertyToCategoryEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

@@ -69,6 +69,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse ReorderCategory(ReorderCategoryRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ReorderCategory(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
         {
             return ShaderGraphPackageGraphInspector.ReadGraphSummary(
@@ -1279,6 +1288,232 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Deleted Shader Graph category '{deletedCategoryDisplayName}' in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse ReorderCategory(
+            ReorderCategoryRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Reorder category request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out string failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "reorder_category"
+            );
+
+            string requestedCategoryGuid = request.CategoryGuid?.Trim() ?? string.Empty;
+            string requestedCategoryName = request.CategoryName?.Trim() ?? string.Empty;
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["categoryGuid"] = requestedCategoryGuid,
+                    ["categoryName"] = requestedCategoryName,
+                    ["index"] = request.Index,
+                },
+            };
+
+            if (string.IsNullOrWhiteSpace(requestedCategoryGuid) && string.IsNullOrWhiteSpace(requestedCategoryName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Category guid or category name is required.", data);
+            }
+
+            IReadOnlyList<object> categories = EnumerateMember(graphData, "categories");
+            object[] matches = !string.IsNullOrWhiteSpace(requestedCategoryGuid)
+                ? categories.Where(category =>
+                    string.Equals(
+                        GetStringProperty(category, "categoryGuid", "objectId"),
+                        requestedCategoryGuid,
+                        StringComparison.Ordinal))
+                    .ToArray()
+                : categories.Where(category => CategoryMatchesName(category, requestedCategoryName)).ToArray();
+
+            data["matchCount"] = matches.Length;
+            data["categoryCount"] = categories.Count;
+            data["categoryOrder"] = BuildCategoryOrder(categories);
+
+            if (matches.Length == 0)
+            {
+                data["candidateCategories"] = categories.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Could not find a Shader Graph category using categoryGuid='{requestedCategoryGuid}' or categoryName='{requestedCategoryName}' in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (matches.Length > 1)
+            {
+                data["candidateCategories"] = matches.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Category query for '{requestedCategoryName}' matched multiple Shader Graph categories in '{assetPath}'.",
+                    data
+                );
+            }
+
+            object resolvedCategory = matches[0];
+            string resolvedCategoryGuid = GetStringProperty(resolvedCategory, "categoryGuid", "objectId");
+            int previousIndex = FindCategoryIndex(categories, resolvedCategoryGuid);
+            if (previousIndex < 0)
+            {
+                data["reorderedCategory"] = BuildCategoryLookupData(resolvedCategory);
+                return ShaderGraphResponse.Fail(
+                    $"Resolved Shader Graph category '{GetCategoryDisplayName(resolvedCategory)}' was not found in the category list for '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (request.Index < 0 || request.Index >= categories.Count)
+            {
+                data["previousIndex"] = previousIndex;
+                data["reorderedCategory"] = BuildCategoryLookupData(resolvedCategory);
+                return ShaderGraphResponse.Fail(
+                    $"Reorder category requires an index between 0 and {Math.Max(categories.Count - 1, 0)}.",
+                    data
+                );
+            }
+
+            if (request.Index != previousIndex)
+            {
+                int rawMoveIndex = TranslateDesiredGraphCategoryIndexToMoveIndex(previousIndex, request.Index, categories.Count);
+                if (!TryInvokeGraphMoveCategory(graphData, resolvedCategory, rawMoveIndex, out string moveFailure))
+                {
+                    data["previousIndex"] = previousIndex;
+                    data["reorderedCategory"] = BuildCategoryLookupData(resolvedCategory);
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to reorder Shader Graph category '{GetCategoryDisplayName(resolvedCategory)}' in '{assetPath}': {moveFailure}",
+                        data
+                    );
+                }
+            }
+            else
+            {
+                loadNotes.Add("Requested reorder index already matched the category's current index.");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after reordering category '{GetCategoryDisplayName(resolvedCategory)}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after reordering category '{GetCategoryDisplayName(resolvedCategory)}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "reorder_category"
+            );
+
+            categories = EnumerateMember(graphData, "categories");
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    resolvedCategoryGuid,
+                    null,
+                    out object finalCategory,
+                    out string finalCategoryGuid,
+                    out _,
+                    out string finalCategoryFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Category reorder succeeded, but the final category context could not be resolved for '{GetCategoryDisplayName(resolvedCategory)}': {finalCategoryFailure}",
+                    new Dictionary<string, object>(snapshot.ToDictionary())
+                    {
+                        ["query"] = new Dictionary<string, object>
+                        {
+                            ["categoryGuid"] = requestedCategoryGuid,
+                            ["categoryName"] = requestedCategoryName,
+                            ["index"] = request.Index,
+                        },
+                        ["matchCount"] = 1,
+                    });
+            }
+
+            int newIndex = FindCategoryIndex(categories, finalCategoryGuid);
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["categoryGuid"] = requestedCategoryGuid,
+                    ["categoryName"] = requestedCategoryName,
+                    ["index"] = request.Index,
+                },
+                ["matchCount"] = 1,
+                ["previousIndex"] = previousIndex,
+                ["newIndex"] = newIndex,
+                ["categoryCount"] = categories.Count,
+                ["categoryOrder"] = BuildCategoryOrder(categories),
+                ["reorderCategorySemantics"] = new[]
+                {
+                    "Index is 0-based within the GraphData.categories list.",
+                    "The default category participates in categoryOrder and can be moved.",
+                },
+                ["reorderedCategory"] = BuildCategoryLookupData(finalCategory),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Reordered Shader Graph category '{GetCategoryDisplayName(finalCategory)}' to index {newIndex} in '{assetPath}'.",
                 data
             );
         }
@@ -6192,6 +6427,27 @@ namespace ShaderGraphMcp.Editor.Adapters
             return true;
         }
 
+        private static int FindCategoryIndex(IReadOnlyList<object> categories, string categoryGuid)
+        {
+            if (categories == null || string.IsNullOrWhiteSpace(categoryGuid))
+            {
+                return -1;
+            }
+
+            for (int index = 0; index < categories.Count; index += 1)
+            {
+                if (string.Equals(
+                        GetStringProperty(categories[index], "categoryGuid", "objectId"),
+                        categoryGuid,
+                        StringComparison.Ordinal))
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
         private static Dictionary<string, object> BuildPropertyQuery(
             string queryPropertyName,
             string queryDisplayName,
@@ -6367,6 +6623,21 @@ namespace ShaderGraphMcp.Editor.Adapters
             if (desiredIndex >= Math.Max(categoryCount - 1, 0))
             {
                 return -1;
+            }
+
+            return desiredIndex + 1;
+        }
+
+        private static int TranslateDesiredGraphCategoryIndexToMoveIndex(int previousIndex, int desiredIndex, int categoryCount)
+        {
+            if (desiredIndex <= previousIndex)
+            {
+                return desiredIndex;
+            }
+
+            if (desiredIndex >= Math.Max(categoryCount - 1, 0))
+            {
+                return categoryCount;
             }
 
             return desiredIndex + 1;
@@ -9859,6 +10130,45 @@ namespace ShaderGraphMcp.Editor.Adapters
             try
             {
                 moveMethod.Invoke(graphData, new object[] { shaderInput, newIndex, categoryGuid });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryInvokeGraphMoveCategory(
+            object graphData,
+            object category,
+            int newIndex,
+            out string failureReason)
+        {
+            failureReason = null;
+
+            if (graphData == null)
+            {
+                failureReason = "GraphData instance is null.";
+                return false;
+            }
+
+            if (category == null)
+            {
+                failureReason = "Category instance is null.";
+                return false;
+            }
+
+            MethodInfo moveMethod = FindMethod(graphData.GetType(), "MoveCategory", 2);
+            if (moveMethod == null)
+            {
+                failureReason = $"Method 'MoveCategory' was not found on {graphData.GetType().FullName}.";
+                return false;
+            }
+
+            try
+            {
+                moveMethod.Invoke(graphData, new object[] { category, newIndex });
                 return true;
             }
             catch (Exception ex)

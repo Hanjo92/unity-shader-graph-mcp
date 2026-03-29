@@ -32,6 +32,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.DeleteCategory(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse ReorderCategory(ReorderCategoryRequest request)
+        {
+            return ShaderGraphScaffoldStore.ReorderCategory(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
         {
             return ShaderGraphScaffoldStore.ReadGraphSummary(request, ExecutionKind);

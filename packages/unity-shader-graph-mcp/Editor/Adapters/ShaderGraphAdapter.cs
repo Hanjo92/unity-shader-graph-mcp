@@ -9,6 +9,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse RenameCategory(RenameCategoryRequest request);
         ShaderGraphResponse FindCategory(FindCategoryRequest request);
         ShaderGraphResponse DeleteCategory(DeleteCategoryRequest request);
+        ShaderGraphResponse ReorderCategory(ReorderCategoryRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
         ShaderGraphResponse FindProperty(FindPropertyRequest request);
@@ -71,6 +72,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse DeleteCategory(DeleteCategoryRequest request)
         {
             return backend.DeleteCategory(request);
+        }
+
+        public ShaderGraphResponse ReorderCategory(ReorderCategoryRequest request)
+        {
+            return backend.ReorderCategory(request);
         }
 
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)

@@ -563,6 +563,60 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_ReorderCategory_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphReorderCategory", out _);
+
+            ShaderGraphResponse createSurfaceCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(
+                assetPath,
+                "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createSurfaceCategoryResponse);
+
+            ShaderGraphResponse createMathCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(
+                assetPath,
+                "Math Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createMathCategoryResponse);
+
+            string mathCategoryGuid = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(createMathCategoryResponse.Data, "createdCategory"),
+                "categoryGuid");
+
+            ShaderGraphResponse reorderToMiddleResponse = ShaderGraphAssetTool.HandleReorderCategory(
+                assetPath,
+                mathCategoryGuid,
+                null,
+                1);
+            ShaderGraphTestAssets.RequirePackageReady(reorderToMiddleResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(reorderToMiddleResponse.Data, "operation"), Is.EqualTo("reorder_category"));
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToMiddleResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToMiddleResponse.Data, "previousIndex"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToMiddleResponse.Data, "newIndex"), Is.EqualTo(1));
+
+            var reorderedCategory = ShaderGraphTestAssets.RequireDictionary(reorderToMiddleResponse.Data, "reorderedCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(reorderedCategory, "categoryGuid"), Is.EqualTo(mathCategoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(reorderedCategory, "displayName"), Is.EqualTo("Math Inputs"));
+
+            var categoryOrder = ShaderGraphTestAssets.GetStringList(reorderToMiddleResponse.Data, "categoryOrder");
+            Assert.That(categoryOrder.Count, Is.EqualTo(3));
+            Assert.That(categoryOrder[1], Is.EqualTo("Math Inputs"));
+
+            ShaderGraphResponse reorderToBackResponse = ShaderGraphAssetTool.HandleReorderCategory(
+                assetPath,
+                mathCategoryGuid,
+                null,
+                2);
+            ShaderGraphTestAssets.RequirePackageReady(reorderToBackResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToBackResponse.Data, "previousIndex"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(reorderToBackResponse.Data, "newIndex"), Is.EqualTo(2));
+
+            var reorderedBackOrder = ShaderGraphTestAssets.GetStringList(reorderToBackResponse.Data, "categoryOrder");
+            Assert.That(reorderedBackOrder.Count, Is.EqualTo(3));
+            Assert.That(reorderedBackOrder[2], Is.EqualTo("Math Inputs"));
+        }
+
+        [Test]
         public void BlankGraph_MovePropertyToCategory_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphMovePropertyToCategory", out _);

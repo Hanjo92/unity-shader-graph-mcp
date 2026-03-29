@@ -9,6 +9,7 @@ namespace ShaderGraphMcp.Editor.Models
         RenameCategory,
         FindCategory,
         DeleteCategory,
+        ReorderCategory,
         ReadGraphSummary,
         FindNode,
         FindProperty,
@@ -166,6 +167,21 @@ namespace ShaderGraphMcp.Editor.Models
         {
             CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
             CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();
+        }
+    }
+
+    public sealed class ReorderCategoryRequest : ShaderGraphRequest
+    {
+        public string CategoryGuid { get; }
+        public string CategoryName { get; }
+        public int Index { get; }
+
+        public ReorderCategoryRequest(string assetPath, string categoryGuid, string categoryName, int index)
+            : base(ShaderGraphAction.ReorderCategory, assetPath)
+        {
+            CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
+            CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();
+            Index = index;
         }
     }
 

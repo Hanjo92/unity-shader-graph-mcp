@@ -11,6 +11,7 @@ ShaderGraphAction = Literal[
     "rename_category",
     "find_category",
     "delete_category",
+    "reorder_category",
     "read_graph_summary",
     "find_node",
     "find_property",

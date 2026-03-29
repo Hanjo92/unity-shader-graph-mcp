@@ -457,6 +457,105 @@ namespace ShaderGraphMcp.Editor.Helpers
                 });
         }
 
+        public static ShaderGraphResponse ReorderCategory(
+            ReorderCategoryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Reorder category request is required.");
+            }
+
+            string resolvedCategoryGuid = string.Empty;
+            string previousDisplayName = string.Empty;
+            int previousIndex = -1;
+
+            return MutateScaffold(
+                request.AssetPath,
+                "reorder_category",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    EnsureManifestCategories(manifest);
+
+                    if (string.IsNullOrWhiteSpace(request.CategoryGuid) && string.IsNullOrWhiteSpace(request.CategoryName))
+                    {
+                        return "Category guid or category name is required.";
+                    }
+
+                    if (!TryResolveScaffoldCategory(manifest, request.CategoryGuid, request.CategoryName, out ShaderGraphScaffoldCategory category))
+                    {
+                        return $"Could not resolve a scaffold category using categoryGuid='{request.CategoryGuid}' or categoryName='{request.CategoryName}'.";
+                    }
+
+                    int categoryCount = manifest.categories.Count;
+                    if (request.Index < 0 || request.Index >= categoryCount)
+                    {
+                        return $"Reorder category requires an index between 0 and {System.Math.Max(categoryCount - 1, 0)}.";
+                    }
+
+                    previousIndex = manifest.categories.FindIndex(entry =>
+                        string.Equals(entry?.guid, category.guid, StringComparison.Ordinal));
+                    if (previousIndex < 0)
+                    {
+                        return "Resolved scaffold category was not found in the manifest category list.";
+                    }
+
+                    resolvedCategoryGuid = category.guid ?? string.Empty;
+                    previousDisplayName = GetScaffoldCategoryDisplayName(category);
+
+                    if (previousIndex == request.Index)
+                    {
+                        return null;
+                    }
+
+                    manifest.categories.RemoveAt(previousIndex);
+                    manifest.categories.Insert(request.Index, category);
+                    category.updatedUtc = UtcNow();
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    ShaderGraphScaffoldCategory reorderedCategory = manifest.categories.First(category =>
+                        string.Equals(category.guid, resolvedCategoryGuid, StringComparison.Ordinal));
+                    int newIndex = manifest.categories.FindIndex(category =>
+                        string.Equals(category.guid, resolvedCategoryGuid, StringComparison.Ordinal));
+
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "reorder_category",
+                        new[]
+                        {
+                            $"Category '{previousDisplayName}' reordered in scaffold manifest.",
+                            "Scaffold category order is derived directly from the manifest category list.",
+                        },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = request.CategoryGuid?.Trim() ?? string.Empty,
+                        ["categoryName"] = request.CategoryName?.Trim() ?? string.Empty,
+                        ["index"] = request.Index,
+                    };
+                    data["matchCount"] = 1;
+                    data["previousIndex"] = previousIndex;
+                    data["newIndex"] = newIndex;
+                    data["categoryCount"] = manifest.categories.Count;
+                    data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+                    data["reorderCategorySemantics"] = new[]
+                    {
+                        "Index is 0-based within the scaffold category list.",
+                        "The default category participates in categoryOrder and can be moved.",
+                    };
+                    data["reorderedCategory"] = BuildScaffoldCategoryData(manifest, reorderedCategory);
+                    return data;
+                });
+        }
+
         public static ShaderGraphResponse ReadGraphSummary(
             ReadGraphSummaryRequest request,
             ShaderGraphExecutionKind executionKind)

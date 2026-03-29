@@ -218,6 +218,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateFindCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DeleteCategory:
                     return TryCreateDeleteCategoryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.ReorderCategory:
+                    return TryCreateReorderCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindNode:
@@ -415,6 +417,38 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new DeleteCategoryRequest(assetPath, categoryGuid, categoryName);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateReorderCategoryRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Reorder category requires an asset path.";
+                return false;
+            }
+
+            string categoryGuid = FirstNonBlank(payload.categoryGuid);
+            string categoryName = FirstNonBlank(payload.categoryName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(categoryGuid) && string.IsNullOrWhiteSpace(categoryName))
+            {
+                request = null;
+                errorMessage = "Reorder category requires categoryGuid or categoryName/displayName/name.";
+                return false;
+            }
+
+            string indexText = FirstNonBlank(payload.newIndex, payload.targetIndex, payload.index);
+            if (!int.TryParse(indexText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int index))
+            {
+                request = null;
+                errorMessage = "Reorder category requires index/newIndex/targetIndex.";
+                return false;
+            }
+
+            request = new ReorderCategoryRequest(assetPath, categoryGuid, categoryName, index);
             errorMessage = null;
             return true;
         }
@@ -938,6 +972,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.FindCategory;
                 case "delete_category":
                     return ShaderGraphAction.DeleteCategory;
+                case "reorder_category":
+                    return ShaderGraphAction.ReorderCategory;
                 case "read_graph_summary":
                     return ShaderGraphAction.ReadGraphSummary;
                 case "find_node":
