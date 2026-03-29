@@ -222,6 +222,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateReorderCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.MergeCategory:
                     return TryCreateMergeCategoryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.DuplicateCategory:
+                    return TryCreateDuplicateCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ListCategories:
                     return TryCreateListCategoriesRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
@@ -506,6 +508,35 @@ namespace ShaderGraphMcp.Editor.Tools
                 sourceCategoryName,
                 targetCategoryGuid,
                 targetCategoryName);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateDuplicateCategoryRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Duplicate category requires an asset path.";
+                return false;
+            }
+
+            string categoryGuid = FirstNonBlank(payload.categoryGuid, payload.sourceCategoryGuid);
+            string categoryName = FirstNonBlank(
+                payload.categoryName,
+                payload.sourceCategoryName,
+                payload.sourceDisplayName,
+                payload.sourceName);
+            if (string.IsNullOrWhiteSpace(categoryGuid) && string.IsNullOrWhiteSpace(categoryName))
+            {
+                request = null;
+                errorMessage = "Duplicate category requires categoryGuid or categoryName/sourceCategoryName/sourceDisplayName/sourceName.";
+                return false;
+            }
+
+            string displayName = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.targetCategoryName, payload.targetDisplayName, payload.targetName, payload.name);
+            request = new DuplicateCategoryRequest(assetPath, categoryGuid, categoryName, displayName);
             errorMessage = null;
             return true;
         }
@@ -1033,6 +1064,8 @@ namespace ShaderGraphMcp.Editor.Tools
                 return ShaderGraphAction.ReorderCategory;
             case "merge_category":
                 return ShaderGraphAction.MergeCategory;
+            case "duplicate_category":
+                return ShaderGraphAction.DuplicateCategory;
             case "list_categories":
                 return ShaderGraphAction.ListCategories;
                 case "read_graph_summary":

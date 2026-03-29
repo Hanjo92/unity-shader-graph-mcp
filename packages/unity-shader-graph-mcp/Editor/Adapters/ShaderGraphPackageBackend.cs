@@ -87,6 +87,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse DuplicateCategory(DuplicateCategoryRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.DuplicateCategory(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse ListCategories(ListCategoriesRequest request)
         {
             return ShaderGraphPackageGraphInspector.ListCategories(
@@ -1879,6 +1888,320 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Merged Shader Graph category '{sourceCategoryDisplayName}' into '{GetCategoryDisplayName(finalTargetCategory)}' in '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse DuplicateCategory(
+            DuplicateCategoryRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Duplicate category request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out string failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "duplicate_category"
+            );
+
+            string requestedCategoryGuid = request.CategoryGuid?.Trim() ?? string.Empty;
+            string requestedCategoryName = request.CategoryName?.Trim() ?? string.Empty;
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["categoryGuid"] = requestedCategoryGuid,
+                    ["categoryName"] = requestedCategoryName,
+                    ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                },
+            };
+
+            if (string.IsNullOrWhiteSpace(requestedCategoryGuid) && string.IsNullOrWhiteSpace(requestedCategoryName))
+            {
+                data["matchCount"] = 0;
+                return ShaderGraphResponse.Fail("Category guid or category name is required.", data);
+            }
+
+            IReadOnlyList<object> categories = EnumerateMember(graphData, "categories");
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    requestedCategoryGuid,
+                    requestedCategoryName,
+                    out object sourceCategory,
+                    out string sourceCategoryGuid,
+                    out IReadOnlyList<object> sourceCategoryProperties,
+                    out string sourceCategoryFailure))
+            {
+                data["matchCount"] = 0;
+                data["categoryCount"] = categories.Count;
+                data["categoryOrder"] = BuildCategoryOrder(categories);
+                data["candidateCategories"] = categories.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"Could not resolve a Shader Graph category using categoryGuid='{requestedCategoryGuid}' or categoryName='{requestedCategoryName}' in '{assetPath}': {sourceCategoryFailure}",
+                    data
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(GetStringProperty(sourceCategory, "name")))
+            {
+                data["matchCount"] = 1;
+                data["duplicatedFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                return ShaderGraphResponse.Fail(
+                    "The default Shader Graph category cannot be duplicated through this action.",
+                    data
+                );
+            }
+
+            string sourceCategoryDisplayName = GetCategoryDisplayName(sourceCategory);
+            string duplicatedCategoryDisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+                ? BuildDuplicateDisplayName(sourceCategoryDisplayName, "Category")
+                : request.DisplayName.Trim();
+
+            object[] duplicateMatches = categories
+                .Where(category => CategoryMatchesName(category, duplicatedCategoryDisplayName))
+                .ToArray();
+            if (duplicateMatches.Length > 0)
+            {
+                data["matchCount"] = 1;
+                data["categoryCount"] = categories.Count;
+                data["categoryOrder"] = BuildCategoryOrder(categories);
+                data["duplicatedFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                data["candidateCategories"] = duplicateMatches.Select(BuildCategoryLookupData).Cast<object>().ToArray();
+                return ShaderGraphResponse.Fail(
+                    $"A Shader Graph category named '{duplicatedCategoryDisplayName}' already exists in '{assetPath}'.",
+                    data
+                );
+            }
+
+            if (!TryCreateCategoryData(duplicatedCategoryDisplayName, out object createdCategory, out string createCategoryFailure))
+            {
+                data["matchCount"] = 1;
+                data["duplicatedFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                return ShaderGraphResponse.Fail(
+                    $"Unable to create Shader Graph category '{duplicatedCategoryDisplayName}': {createCategoryFailure}",
+                    data
+                );
+            }
+
+            if (!TryInvokeGraphAddCategory(graphData, createdCategory, out string addCategoryFailure))
+            {
+                data["matchCount"] = 1;
+                data["duplicatedFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                return ShaderGraphResponse.Fail(
+                    $"Unable to add Shader Graph category '{duplicatedCategoryDisplayName}' to '{assetPath}': {addCategoryFailure}",
+                    data
+                );
+            }
+
+            string duplicatedCategoryGuid = GetStringProperty(createdCategory, "categoryGuid", "objectId");
+            if (!string.IsNullOrWhiteSpace(duplicatedCategoryGuid))
+            {
+                if (TryInvokeGraphChangeCategoryName(graphData, duplicatedCategoryGuid, duplicatedCategoryDisplayName, out string renameCategoryFailure))
+                {
+                    loadNotes.Add("GraphData.ChangeCategoryName(...) invoked successfully.");
+                }
+                else if (!string.IsNullOrWhiteSpace(renameCategoryFailure))
+                {
+                    loadNotes.Add($"GraphData.ChangeCategoryName(...) could not be invoked: {renameCategoryFailure}");
+                }
+            }
+
+            var duplicatedProperties = new List<object>();
+            foreach (object sourceProperty in sourceCategoryProperties)
+            {
+                if (!TryResolvePropertyTypeFromInstance(sourceProperty, out string canonicalPropertyType, out Type shaderInputType, out string propertyTypeFailure))
+                {
+                    data["matchCount"] = 1;
+                    data["duplicatedFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                    data["duplicatedCategory"] = BuildCategoryLookupData(createdCategory);
+                    data["duplicatedPropertyCount"] = duplicatedProperties.Count;
+                    data["duplicatedProperties"] = duplicatedProperties.Cast<object>().ToArray();
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to resolve the Shader Graph property type while duplicating category '{sourceCategoryDisplayName}': {propertyTypeFailure}",
+                        data
+                    );
+                }
+
+                if (!TryInvokeGraphAddCopyOfShaderInput(graphData, sourceProperty, out object duplicatedProperty, out string duplicateFailure))
+                {
+                    data["matchCount"] = 1;
+                    data["duplicatedFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                    data["duplicatedCategory"] = BuildCategoryLookupData(createdCategory);
+                    data["duplicatedPropertyCount"] = duplicatedProperties.Count;
+                    data["duplicatedProperties"] = duplicatedProperties.Cast<object>().ToArray();
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to duplicate a Shader Graph property while copying category '{sourceCategoryDisplayName}' in '{assetPath}': {duplicateFailure}",
+                        data
+                    );
+                }
+
+                string duplicatedDisplayName = BuildDuplicateDisplayName(
+                    GetStringProperty(sourceProperty, "displayName", "name"),
+                    canonicalPropertyType);
+                if (!string.IsNullOrWhiteSpace(duplicatedDisplayName))
+                {
+                    if (TryInvokeInstanceMethod(
+                            duplicatedProperty,
+                            "SetDisplayNameAndSanitizeForGraph",
+                            new object[] { graphData, duplicatedDisplayName },
+                            out string renameDisplayFailure))
+                    {
+                        loadNotes.Add($"Duplicated category property display name set to '{duplicatedDisplayName}' via SetDisplayNameAndSanitizeForGraph().");
+                    }
+                    else
+                    {
+                        SetMemberValue(duplicatedProperty, "displayName", duplicatedDisplayName);
+                        SetMemberValue(duplicatedProperty, "name", duplicatedDisplayName);
+                        loadNotes.Add(
+                            $"Duplicated category property display name set to '{duplicatedDisplayName}' via raw member update because SetDisplayNameAndSanitizeForGraph() was unavailable: {renameDisplayFailure}");
+                    }
+                }
+
+                if (!TryInvokeGraphInsertItemIntoCategory(graphData, duplicatedCategoryGuid, duplicatedProperty, -1, out string moveFailure))
+                {
+                    data["matchCount"] = 1;
+                    data["duplicatedFromCategory"] = BuildCategoryLookupData(sourceCategory);
+                    data["duplicatedCategory"] = BuildCategoryLookupData(createdCategory);
+                    data["duplicatedPropertyCount"] = duplicatedProperties.Count;
+                    data["duplicatedProperties"] = duplicatedProperties.Cast<object>().ToArray();
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to place duplicated Shader Graph property '{duplicatedDisplayName}' into category '{duplicatedCategoryDisplayName}' in '{assetPath}': {moveFailure}",
+                        data
+                    );
+                }
+
+                duplicatedProperties.Add(BuildDuplicatedPropertyData(
+                    duplicatedProperty,
+                    sourceProperty,
+                    canonicalPropertyType,
+                    shaderInputType));
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after duplicating category '{sourceCategoryDisplayName}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after duplicating category '{sourceCategoryDisplayName}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "duplicate_category"
+            );
+
+            if (!TryResolveCategoryContext(
+                    graphData,
+                    duplicatedCategoryGuid,
+                    null,
+                    out object finalDuplicatedCategory,
+                    out string finalDuplicatedCategoryGuid,
+                    out IReadOnlyList<object> finalDuplicatedCategoryProperties,
+                    out string finalCategoryFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Category duplication succeeded, but the final duplicated category context could not be resolved for '{duplicatedCategoryDisplayName}': {finalCategoryFailure}",
+                    new Dictionary<string, object>(snapshot.ToDictionary())
+                    {
+                        ["query"] = new Dictionary<string, object>
+                        {
+                            ["categoryGuid"] = requestedCategoryGuid,
+                            ["categoryName"] = requestedCategoryName,
+                            ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                        },
+                        ["matchCount"] = 1,
+                        ["duplicatedPropertyCount"] = duplicatedProperties.Count,
+                    }
+                );
+            }
+
+            categories = EnumerateMember(graphData, "categories");
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["categoryGuid"] = requestedCategoryGuid,
+                    ["categoryName"] = requestedCategoryName,
+                    ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                },
+                ["matchCount"] = 1,
+                ["categoryCount"] = categories.Count,
+                ["categoryOrder"] = BuildCategoryOrder(categories),
+                ["duplicatedPropertyCount"] = duplicatedProperties.Count,
+                ["duplicationStrategy"] = new[]
+                {
+                    "Creates a new category with the requested displayName or appends 'Copy' to the source category displayName.",
+                    "Duplicates each source category property via GraphData.AddCopyOfShaderInput(source, -1).",
+                    "Duplicated category properties receive 'Copy' display names and are appended to the duplicated category order.",
+                },
+                ["duplicatedFromCategory"] = BuildCategoryLookupData(sourceCategory),
+                ["duplicatedCategory"] = BuildCategoryLookupData(finalDuplicatedCategory),
+                ["duplicatedCategoryGuid"] = finalDuplicatedCategoryGuid,
+                ["categoryPropertyOrder"] = BuildCategoryPropertyOrder(finalDuplicatedCategoryProperties),
+                ["duplicatedProperties"] = duplicatedProperties.Cast<object>().ToArray(),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Duplicated Shader Graph category '{sourceCategoryDisplayName}' as '{GetCategoryDisplayName(finalDuplicatedCategory)}' in '{assetPath}'.",
                 data
             );
         }

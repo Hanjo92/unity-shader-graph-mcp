@@ -11,6 +11,7 @@ namespace ShaderGraphMcp.Editor.Models
         DeleteCategory,
         ReorderCategory,
         MergeCategory,
+        DuplicateCategory,
         ListCategories,
         ReadGraphSummary,
         FindNode,
@@ -206,6 +207,21 @@ namespace ShaderGraphMcp.Editor.Models
             SourceCategoryName = string.IsNullOrWhiteSpace(sourceCategoryName) ? string.Empty : sourceCategoryName.Trim();
             TargetCategoryGuid = string.IsNullOrWhiteSpace(targetCategoryGuid) ? string.Empty : targetCategoryGuid.Trim();
             TargetCategoryName = string.IsNullOrWhiteSpace(targetCategoryName) ? string.Empty : targetCategoryName.Trim();
+        }
+    }
+
+    public sealed class DuplicateCategoryRequest : ShaderGraphRequest
+    {
+        public string CategoryGuid { get; }
+        public string CategoryName { get; }
+        public string DisplayName { get; }
+
+        public DuplicateCategoryRequest(string assetPath, string categoryGuid, string categoryName, string displayName)
+            : base(ShaderGraphAction.DuplicateCategory, assetPath)
+        {
+            CategoryGuid = string.IsNullOrWhiteSpace(categoryGuid) ? string.Empty : categoryGuid.Trim();
+            CategoryName = string.IsNullOrWhiteSpace(categoryName) ? string.Empty : categoryName.Trim();
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
         }
     }
 

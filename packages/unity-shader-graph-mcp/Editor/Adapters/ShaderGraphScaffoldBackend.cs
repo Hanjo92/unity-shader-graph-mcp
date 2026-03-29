@@ -42,6 +42,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.MergeCategory(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse DuplicateCategory(DuplicateCategoryRequest request)
+        {
+            return ShaderGraphScaffoldStore.DuplicateCategory(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse ListCategories(ListCategoriesRequest request)
         {
             return ShaderGraphScaffoldStore.ListCategories(request, ExecutionKind);

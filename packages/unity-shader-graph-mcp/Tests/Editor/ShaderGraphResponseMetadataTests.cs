@@ -381,6 +381,58 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesDuplicatedCategoryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "duplicate category ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["matchCount"] = 1,
+                    ["categoryCount"] = 3,
+                    ["categoryOrder"] = new[] { "(Default Category)", "Surface Inputs", "Surface Inputs Copy" },
+                    ["duplicatedPropertyCount"] = 2,
+                    ["categoryPropertyOrder"] = new[] { "Tint Copy [Color]", "Exposure Copy [Float/Vector1]" },
+                    ["duplicationStrategy"] = new[]
+                    {
+                        "Creates a new category with the requested displayName or appends 'Copy' to the source category displayName.",
+                        "Duplicates each source category property via GraphData.AddCopyOfShaderInput(source, -1).",
+                        "Duplicated category properties receive 'Copy' display names and are appended to the duplicated category order.",
+                    },
+                    ["duplicatedFromCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-surface",
+                        ["displayName"] = "Surface Inputs",
+                        ["childCount"] = 2,
+                    },
+                    ["duplicatedCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = "category-surface-copy",
+                        ["displayName"] = "Surface Inputs Copy",
+                        ["childCount"] = 2,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+            Assert.That(response.Data["categoryCount"], Is.EqualTo(3));
+            Assert.That(response.Data["duplicatedPropertyCount"], Is.EqualTo(2));
+
+            var duplicatedFromCategory = (IReadOnlyDictionary<string, object>)response.Data["duplicatedFromCategory"];
+            Assert.That(duplicatedFromCategory["categoryGuid"], Is.EqualTo("category-surface"));
+            Assert.That(duplicatedFromCategory["displayName"], Is.EqualTo("Surface Inputs"));
+
+            var duplicatedCategory = (IReadOnlyDictionary<string, object>)response.Data["duplicatedCategory"];
+            Assert.That(duplicatedCategory["categoryGuid"], Is.EqualTo("category-surface-copy"));
+            Assert.That(duplicatedCategory["displayName"], Is.EqualTo("Surface Inputs Copy"));
+
+            var categoryPropertyOrder = (string[])response.Data["categoryPropertyOrder"];
+            Assert.That(categoryPropertyOrder[0], Does.Contain("Tint Copy"));
+            Assert.That(categoryPropertyOrder[1], Does.Contain("Exposure Copy"));
+        }
+
+        [Test]
         public void Ok_PreservesMovedPropertyToCategoryEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

@@ -704,6 +704,131 @@ namespace ShaderGraphMcp.Editor.Helpers
                 });
         }
 
+        public static ShaderGraphResponse DuplicateCategory(
+            DuplicateCategoryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Duplicate category request is required.");
+            }
+
+            string sourceCategoryGuid = string.Empty;
+            string sourceCategoryDisplayName = string.Empty;
+            string duplicatedCategoryGuid = string.Empty;
+            string duplicatedCategoryDisplayName = string.Empty;
+            int duplicatedPropertyCount = 0;
+
+            return MutateScaffold(
+                request.AssetPath,
+                "duplicate_category",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    EnsureManifestCategories(manifest);
+
+                    if (string.IsNullOrWhiteSpace(request.CategoryGuid) && string.IsNullOrWhiteSpace(request.CategoryName))
+                    {
+                        return "Category guid or category name is required.";
+                    }
+
+                    if (!TryResolveScaffoldCategory(manifest, request.CategoryGuid, request.CategoryName, out ShaderGraphScaffoldCategory sourceCategory))
+                    {
+                        return $"Could not resolve a scaffold category using categoryGuid='{request.CategoryGuid}' or categoryName='{request.CategoryName}'.";
+                    }
+
+                    if (string.Equals(sourceCategory.guid, ScaffoldDefaultCategoryGuid, StringComparison.Ordinal))
+                    {
+                        return "The scaffold default category cannot be duplicated through this action.";
+                    }
+
+                    sourceCategoryGuid = sourceCategory.guid ?? string.Empty;
+                    sourceCategoryDisplayName = GetScaffoldCategoryDisplayName(sourceCategory);
+                    duplicatedCategoryDisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+                        ? BuildDuplicateDisplayName(sourceCategoryDisplayName, "Category")
+                        : request.DisplayName.Trim();
+
+                    if (manifest.categories.Any(category =>
+                            string.Equals(category.name ?? string.Empty, duplicatedCategoryDisplayName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return $"A scaffold category named '{duplicatedCategoryDisplayName}' already exists.";
+                    }
+
+                    var duplicatedCategory = new ShaderGraphScaffoldCategory
+                    {
+                        guid = $"scaffold-category-{Guid.NewGuid():N}",
+                        name = duplicatedCategoryDisplayName,
+                        updatedUtc = UtcNow(),
+                    };
+                    duplicatedCategoryGuid = duplicatedCategory.guid;
+                    manifest.categories.Add(duplicatedCategory);
+
+                    List<ShaderGraphScaffoldProperty> sourceProperties = GetScaffoldPropertiesForCategory(manifest, sourceCategoryGuid);
+                    foreach (ShaderGraphScaffoldProperty property in sourceProperties)
+                    {
+                        manifest.properties.Add(new ShaderGraphScaffoldProperty
+                        {
+                            name = BuildDuplicateDisplayName(property?.name, property?.type),
+                            type = property?.type,
+                            defaultValue = property?.defaultValue,
+                            categoryGuid = duplicatedCategoryGuid,
+                            updatedUtc = UtcNow(),
+                        });
+                        duplicatedPropertyCount += 1;
+                    }
+
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    ShaderGraphScaffoldCategory duplicatedCategory = manifest.categories.First(category =>
+                        string.Equals(category.guid, duplicatedCategoryGuid, StringComparison.Ordinal));
+
+                    var data = BuildSummaryData(
+                        manifest,
+                        NormalizeAssetPath(request.AssetPath),
+                        ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
+                        true,
+                        true,
+                        executionKind,
+                        "duplicate_category",
+                        new[]
+                        {
+                            $"Category '{sourceCategoryDisplayName}' duplicated in scaffold manifest.",
+                            "Scaffold duplication creates a new category and duplicates the source category properties with 'Copy' display names.",
+                        },
+                        null
+                    );
+                    data["query"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = request.CategoryGuid?.Trim() ?? string.Empty,
+                        ["categoryName"] = request.CategoryName?.Trim() ?? string.Empty,
+                        ["displayName"] = request.DisplayName?.Trim() ?? string.Empty,
+                    };
+                    data["matchCount"] = 1;
+                    data["categoryCount"] = manifest.categories.Count;
+                    data["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories);
+                    data["duplicatedPropertyCount"] = duplicatedPropertyCount;
+                    data["duplicationStrategy"] = new[]
+                    {
+                        "Creates a new category with the requested displayName or appends 'Copy' to the source category displayName.",
+                        "Duplicates each source category property into the new category.",
+                        "Scaffold properties use displayName as referenceName.",
+                    };
+                    data["duplicatedFromCategory"] = new Dictionary<string, object>
+                    {
+                        ["categoryGuid"] = sourceCategoryGuid,
+                        ["displayName"] = sourceCategoryDisplayName,
+                        ["name"] = sourceCategoryDisplayName,
+                        ["previousChildCount"] = duplicatedPropertyCount,
+                        ["isDefaultCategory"] = false,
+                    };
+                    data["duplicatedCategory"] = BuildScaffoldCategoryData(manifest, duplicatedCategory);
+                    data["categoryPropertyOrder"] = BuildScaffoldPropertyOrder(
+                        GetScaffoldPropertiesForCategory(manifest, duplicatedCategoryGuid));
+                    return data;
+                });
+        }
+
         public static ShaderGraphResponse ListCategories(
             ListCategoriesRequest request,
             ShaderGraphExecutionKind executionKind)

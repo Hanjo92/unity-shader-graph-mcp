@@ -227,6 +227,30 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsDuplicateCategoryRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""duplicate_category"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""sourceDisplayName"": ""Surface Inputs"",
+                ""newDisplayName"": ""Surface Inputs Copy""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var duplicateCategoryRequest = request as DuplicateCategoryRequest;
+            Assert.That(duplicateCategoryRequest, Is.Not.Null);
+            Assert.That(duplicateCategoryRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(duplicateCategoryRequest.CategoryGuid, Is.Empty);
+            Assert.That(duplicateCategoryRequest.CategoryName, Is.EqualTo("Surface Inputs"));
+            Assert.That(duplicateCategoryRequest.DisplayName, Is.EqualTo("Surface Inputs Copy"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsMovePropertyToCategoryRequest_WithAliasFields()
         {
             string json = @"{

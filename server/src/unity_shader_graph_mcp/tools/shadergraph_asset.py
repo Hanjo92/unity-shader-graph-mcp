@@ -31,6 +31,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "delete_category",
     "reorder_category",
     "merge_category",
+    "duplicate_category",
     "list_categories",
     "read_graph_summary",
     "find_node",
@@ -98,6 +99,20 @@ def normalize_shadergraph_asset_request(
         request_name = optional_text(
             _pick_value(
                 request_payload,
+                "sourceCategoryName",
+                "source_category_name",
+                "sourceDisplayName",
+                "source_display_name",
+                "sourceName",
+                "source_name",
+            )
+        )
+    if action == "duplicate_category":
+        request_name = optional_text(
+            _pick_value(
+                request_payload,
+                "categoryName",
+                "category_name",
                 "sourceCategoryName",
                 "source_category_name",
                 "sourceDisplayName",
@@ -280,6 +295,31 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if not has_target_lookup:
             raise ShaderGraphRequestError(
                 "merge_category requires at least one target category lookup: targetCategoryGuid, targetCategoryName, targetDisplayName, targetName."
+            )
+
+    if request.action == "duplicate_category":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        has_lookup = any(
+            optional_text(_pick_value(request.payload, key)) is not None
+            for key in (
+                "categoryGuid",
+                "category_guid",
+                "categoryName",
+                "category_name",
+                "sourceCategoryGuid",
+                "source_category_guid",
+                "sourceCategoryName",
+                "source_category_name",
+                "sourceDisplayName",
+                "source_display_name",
+                "sourceName",
+                "source_name",
+            )
+        )
+        if not has_lookup:
+            raise ShaderGraphRequestError(
+                "duplicate_category requires at least one source category lookup: categoryGuid, categoryName, sourceCategoryGuid, sourceCategoryName, sourceDisplayName, sourceName."
             )
 
     if request.action == "list_categories" and request.path is None:

@@ -718,6 +718,72 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_DuplicateCategory_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphDuplicateCategory", out _);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Tint", "Color", "#FFFFFFFF"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Exposure", "Float/Vector1", "0"));
+
+            ShaderGraphResponse createCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(assetPath, "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createCategoryResponse);
+
+            string sourceCategoryGuid = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(createCategoryResponse.Data, "createdCategory"),
+                "categoryGuid");
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleMovePropertyToCategory(
+                    assetPath,
+                    "Tint",
+                    sourceCategoryGuid,
+                    null,
+                    0));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleMovePropertyToCategory(
+                    assetPath,
+                    "Exposure",
+                    sourceCategoryGuid,
+                    null,
+                    1));
+
+            ShaderGraphResponse duplicateCategoryResponse = ShaderGraphAssetTool.HandleDuplicateCategory(
+                assetPath,
+                sourceCategoryGuid,
+                null,
+                "Surface Inputs Copy");
+            ShaderGraphTestAssets.RequirePackageReady(duplicateCategoryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(duplicateCategoryResponse.Data, "operation"), Is.EqualTo("duplicate_category"));
+            Assert.That(ShaderGraphTestAssets.GetInt(duplicateCategoryResponse.Data, "matchCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(duplicateCategoryResponse.Data, "duplicatedPropertyCount"), Is.EqualTo(2));
+
+            var duplicatedFromCategory = ShaderGraphTestAssets.RequireDictionary(duplicateCategoryResponse.Data, "duplicatedFromCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedFromCategory, "categoryGuid"), Is.EqualTo(sourceCategoryGuid));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedFromCategory, "displayName"), Is.EqualTo("Surface Inputs"));
+
+            var duplicatedCategory = ShaderGraphTestAssets.RequireDictionary(duplicateCategoryResponse.Data, "duplicatedCategory");
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedCategory, "displayName"), Is.EqualTo("Surface Inputs Copy"));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedCategory, "categoryGuid"), Is.Not.Empty);
+
+            var categoryOrder = ShaderGraphTestAssets.GetStringList(duplicateCategoryResponse.Data, "categoryOrder");
+            Assert.That(categoryOrder, Does.Contain("Surface Inputs"));
+            Assert.That(categoryOrder, Does.Contain("Surface Inputs Copy"));
+
+            var categoryPropertyOrder = ShaderGraphTestAssets.GetStringList(duplicateCategoryResponse.Data, "categoryPropertyOrder");
+            Assert.That(categoryPropertyOrder.Count, Is.EqualTo(2));
+            Assert.That(categoryPropertyOrder.Any(entry => entry.Contains("Tint Copy")), Is.True);
+            Assert.That(categoryPropertyOrder.Any(entry => entry.Contains("Exposure Copy")), Is.True);
+
+            Assert.That(duplicateCategoryResponse.Data.TryGetValue("duplicatedProperties", out object rawDuplicatedProperties), Is.True);
+            var duplicatedProperties = rawDuplicatedProperties as object[];
+            Assert.That(duplicatedProperties, Is.Not.Null);
+            Assert.That(duplicatedProperties.Length, Is.EqualTo(2));
+        }
+
+        [Test]
         public void BlankGraph_MovePropertyToCategory_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphMovePropertyToCategory", out _);
