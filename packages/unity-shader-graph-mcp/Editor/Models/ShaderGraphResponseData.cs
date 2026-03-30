@@ -178,6 +178,8 @@ namespace ShaderGraphMcp.Editor.Models
         public string Template { get; }
         public string CreatedUtc { get; }
         public string UpdatedUtc { get; }
+        public string GraphPathLabel { get; }
+        public string GraphDefaultPrecision { get; }
         public int PropertyCount { get; }
         public int NodeCount { get; }
         public int ConnectionCount { get; }
@@ -210,7 +212,9 @@ namespace ShaderGraphMcp.Editor.Models
             IReadOnlyList<string> connections,
             IReadOnlyList<string> notes,
             IReadOnlyList<string> preview,
-            ShaderGraphCompatibilitySnapshot compatibility)
+            ShaderGraphCompatibilitySnapshot compatibility,
+            string graphPathLabel = null,
+            string graphDefaultPrecision = null)
         {
             Operation = operation;
             AssetPath = assetPath;
@@ -223,6 +227,8 @@ namespace ShaderGraphMcp.Editor.Models
             Template = template;
             CreatedUtc = createdUtc;
             UpdatedUtc = updatedUtc;
+            GraphPathLabel = graphPathLabel ?? string.Empty;
+            GraphDefaultPrecision = graphDefaultPrecision ?? string.Empty;
             PropertyCount = propertyCount;
             NodeCount = nodeCount;
             ConnectionCount = connectionCount;
@@ -260,6 +266,8 @@ namespace ShaderGraphMcp.Editor.Models
                 ["template"] = Template,
                 ["createdUtc"] = CreatedUtc,
                 ["updatedUtc"] = UpdatedUtc,
+                ["graphPathLabel"] = GraphPathLabel,
+                ["graphDefaultPrecision"] = GraphDefaultPrecision,
                 ["propertyCount"] = PropertyCount,
                 ["nodeCount"] = NodeCount,
                 ["connectionCount"] = ConnectionCount,

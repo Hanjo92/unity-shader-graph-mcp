@@ -212,6 +212,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameGraph:
                     return TryCreateRenameGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.SetGraphMetadata:
+                    return TryCreateSetGraphMetadataRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.CreateCategory:
                     return TryCreateCreateCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameCategory:
@@ -347,6 +349,30 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new RenameGraphRequest(assetPath, name);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateSetGraphMetadataRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Set graph metadata requires an asset path.";
+                return false;
+            }
+
+            string graphPathLabel = FirstNonBlank(payload.graphPathLabel, payload.pathLabel);
+            string graphDefaultPrecision = FirstNonBlank(payload.graphDefaultPrecision, payload.defaultPrecision, payload.precision);
+            if (string.IsNullOrWhiteSpace(graphPathLabel) && string.IsNullOrWhiteSpace(graphDefaultPrecision))
+            {
+                request = null;
+                errorMessage = "Set graph metadata requires graphPathLabel/pathLabel and/or graphDefaultPrecision/defaultPrecision/precision.";
+                return false;
+            }
+
+            request = new SetGraphMetadataRequest(assetPath, graphPathLabel, graphDefaultPrecision);
             errorMessage = null;
             return true;
         }
@@ -1127,6 +1153,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.CreateGraph;
                 case "rename_graph":
                     return ShaderGraphAction.RenameGraph;
+                case "set_graph_metadata":
+                    return ShaderGraphAction.SetGraphMetadata;
                 case "create_category":
                     return ShaderGraphAction.CreateCategory;
                 case "rename_category":
@@ -1654,6 +1682,11 @@ namespace ShaderGraphMcp.Editor.Tools
             public string[] properties;
             public string propertyType;
             public string defaultValue;
+            public string graphPathLabel;
+            public string pathLabel;
+            public string graphDefaultPrecision;
+            public string defaultPrecision;
+            public string precision;
             public string categoryGuid;
             public string sourceCategoryGuid;
             public string targetCategoryGuid;

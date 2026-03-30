@@ -7,6 +7,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphExecutionKind ExecutionKind { get; }
         ShaderGraphResponse CreateGraph(CreateGraphRequest request);
         ShaderGraphResponse RenameGraph(RenameGraphRequest request);
+        ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request);
         ShaderGraphResponse CreateCategory(CreateCategoryRequest request);
         ShaderGraphResponse RenameCategory(RenameCategoryRequest request);
         ShaderGraphResponse FindCategory(FindCategoryRequest request);

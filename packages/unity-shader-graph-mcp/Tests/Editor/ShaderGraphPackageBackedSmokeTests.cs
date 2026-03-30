@@ -220,6 +220,29 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_SetGraphMetadata_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphSetGraphMetadata", out _);
+
+            ShaderGraphResponse setMetadataResponse = ShaderGraphAssetTool.HandleSetGraphMetadata(
+                assetPath,
+                "Material Inputs",
+                "Half");
+            ShaderGraphTestAssets.RequirePackageReady(setMetadataResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(setMetadataResponse.Data, "operation"), Is.EqualTo("set_graph_metadata"));
+
+            var updatedMetadata = ShaderGraphTestAssets.RequireDictionary(setMetadataResponse.Data, "updatedMetadata");
+            Assert.That(ShaderGraphTestAssets.GetString(updatedMetadata, "graphPathLabel"), Is.EqualTo("Material Inputs"));
+            Assert.That(ShaderGraphTestAssets.GetString(updatedMetadata, "graphDefaultPrecision"), Is.EqualTo("Half"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(summaryResponse.Data, "graphPathLabel"), Is.EqualTo("Material Inputs"));
+            Assert.That(ShaderGraphTestAssets.GetString(summaryResponse.Data, "graphDefaultPrecision"), Is.EqualTo("Half"));
+        }
+
+        [Test]
         public void BlankGraph_AddFloatAndColorProperty_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphAddProperties", out _);

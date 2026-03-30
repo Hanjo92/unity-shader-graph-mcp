@@ -42,6 +42,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.SetGraphMetadata(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse CreateCategory(CreateCategoryRequest request)
         {
             return ShaderGraphPackageGraphInspector.CreateCategory(
@@ -361,6 +370,7 @@ namespace ShaderGraphMcp.Editor.Adapters
     internal static class ShaderGraphPackageGraphInspector
     {
         private const string GraphDataTypeName = "UnityEditor.ShaderGraph.GraphData";
+        private const string GraphPrecisionTypeName = "UnityEditor.ShaderGraph.GraphPrecision";
         private const string CategoryDataTypeName = "UnityEditor.ShaderGraph.CategoryData";
         private const string FileUtilitiesTypeName = "UnityEditor.ShaderGraph.FileUtilities";
         private const string MultiJsonTypeName = "UnityEditor.ShaderGraph.Serialization.MultiJson";
@@ -714,6 +724,158 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ? $"Shader Graph already uses the name '{renamedAssetName}' at '{renamedAssetPath}'."
                 : $"Renamed Shader Graph '{previousAssetName}' to '{renamedAssetName}' at '{renamedAssetPath}'.";
             return ShaderGraphResponse.Ok(message, data);
+        }
+
+        public static ShaderGraphResponse SetGraphMetadata(
+            SetGraphMetadataRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Set graph metadata request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail($"Shader Graph asset not found at '{assetPath}'.");
+            }
+
+            string requestedGraphPathLabel = request.GraphPathLabel?.Trim() ?? string.Empty;
+            string requestedGraphDefaultPrecision = request.GraphDefaultPrecision?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(requestedGraphPathLabel) && string.IsNullOrWhiteSpace(requestedGraphDefaultPrecision))
+            {
+                return ShaderGraphResponse.Fail("Set graph metadata requires graphPathLabel and/or graphDefaultPrecision.");
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            string previousGraphPathLabel = GetStringProperty(graphData, "path");
+            string previousGraphDefaultPrecision = GetStringProperty(graphData, "graphDefaultPrecision");
+
+            var data = new Dictionary<string, object>(BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "set_graph_metadata"
+            ).ToDictionary())
+            {
+                ["query"] = new Dictionary<string, object>
+                {
+                    ["graphPathLabel"] = requestedGraphPathLabel,
+                    ["graphDefaultPrecision"] = requestedGraphDefaultPrecision,
+                },
+            };
+
+            if (!string.IsNullOrWhiteSpace(requestedGraphPathLabel))
+            {
+                SetMemberValue(graphData, "path", requestedGraphPathLabel);
+                loadNotes.Add($"GraphData.path set to '{requestedGraphPathLabel}'.");
+            }
+
+            string resolvedGraphDefaultPrecision = previousGraphDefaultPrecision;
+            if (!string.IsNullOrWhiteSpace(requestedGraphDefaultPrecision))
+            {
+                if (!TryResolveGraphPrecisionValue(graphData, requestedGraphDefaultPrecision, out object graphPrecisionValue, out string graphPrecisionName, out string precisionFailure))
+                {
+                    return ShaderGraphResponse.Fail(
+                        precisionFailure,
+                        data
+                    );
+                }
+
+                if (!TryInvokeInstanceMethod(graphData, "SetGraphDefaultPrecision", new[] { graphPrecisionValue }, out string setPrecisionFailure))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to set Shader Graph default precision to '{graphPrecisionName}' in '{assetPath}': {setPrecisionFailure}",
+                        data
+                    );
+                }
+
+                resolvedGraphDefaultPrecision = graphPrecisionName;
+                loadNotes.Add($"GraphData.SetGraphDefaultPrecision('{graphPrecisionName}') invoked successfully.");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Graph validation failed after updating graph metadata in '{assetPath}': {validateFailure}",
+                    data
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to save Shader Graph after updating graph metadata in '{assetPath}': {writeFailure}",
+                    data
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            ShaderGraphAssetSnapshot snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "set_graph_metadata"
+            );
+
+            data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["updatedMetadata"] = new Dictionary<string, object>
+                {
+                    ["graphPathLabel"] = GetStringProperty(graphData, "path"),
+                    ["graphDefaultPrecision"] = GetStringProperty(graphData, "graphDefaultPrecision"),
+                    ["previousGraphPathLabel"] = previousGraphPathLabel,
+                    ["previousGraphDefaultPrecision"] = previousGraphDefaultPrecision,
+                },
+                ["metadataSemantics"] = new[]
+                {
+                    "set_graph_metadata updates GraphData.path and graphDefaultPrecision when provided.",
+                    "Shader graphs accept Single or Half precision; Graph/Switchable precision is valid only for sub graphs.",
+                    "The response includes the rebuilt graph summary after synchronous save and import.",
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Updated Shader Graph metadata for '{assetPath}'.",
+                data
+            );
         }
 
         public static ShaderGraphResponse CreateCategory(
@@ -7149,6 +7311,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             string graphPath = GetStringProperty(graphData, "path");
             string graphGuid = GetStringProperty(graphData, "assetGuid");
             bool isSubGraph = GetBoolProperty(graphData, "isSubGraph");
+            string graphDefaultPrecision = GetStringProperty(graphData, "graphDefaultPrecision");
             int categoryCount = CountEnumerableProperty(graphData, "categories");
 
             var notes = new List<string>();
@@ -7160,6 +7323,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             if (!string.IsNullOrWhiteSpace(graphPath))
             {
                 notes.Add($"GraphData.path = '{graphPath}'.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(graphDefaultPrecision))
+            {
+                notes.Add($"GraphData.graphDefaultPrecision = '{graphDefaultPrecision}'.");
             }
 
             if (!string.IsNullOrWhiteSpace(graphGuid))
@@ -7199,7 +7367,9 @@ namespace ShaderGraphMcp.Editor.Adapters
                 connections,
                 notes,
                 preview,
-                compatibility
+                compatibility,
+                graphPath,
+                graphDefaultPrecision
             );
         }
 
@@ -11107,6 +11277,75 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             return propertyType.Trim();
+        }
+
+        private static bool TryResolveGraphPrecisionValue(
+            object graphData,
+            string requestedGraphDefaultPrecision,
+            out object graphPrecisionValue,
+            out string canonicalGraphDefaultPrecision,
+            out string failureReason)
+        {
+            graphPrecisionValue = null;
+            canonicalGraphDefaultPrecision = string.Empty;
+            failureReason = null;
+
+            if (string.IsNullOrWhiteSpace(requestedGraphDefaultPrecision))
+            {
+                failureReason = "Graph default precision is required.";
+                return false;
+            }
+
+            string normalized = requestedGraphDefaultPrecision.Trim();
+            if (string.Equals(normalized, "float", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "single", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "fp32", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalGraphDefaultPrecision = "Single";
+            }
+            else if (string.Equals(normalized, "half", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "fp16", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalGraphDefaultPrecision = "Half";
+            }
+            else if (string.Equals(normalized, "graph", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "switchable", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalGraphDefaultPrecision = "Graph";
+            }
+            else
+            {
+                bool isSubGraph = GetBoolProperty(graphData, "isSubGraph");
+                string allowedValues = isSubGraph ? "Single, Half, Graph" : "Single, Half";
+                failureReason = $"Unsupported Shader Graph default precision '{requestedGraphDefaultPrecision}'. Supported values: {allowedValues}.";
+                return false;
+            }
+
+            bool currentGraphIsSubGraph = GetBoolProperty(graphData, "isSubGraph");
+            if (!currentGraphIsSubGraph && string.Equals(canonicalGraphDefaultPrecision, "Graph", StringComparison.Ordinal))
+            {
+                failureReason = "Shader graphs only support Single or Half graphDefaultPrecision. Graph/Switchable precision is valid only for sub graphs.";
+                return false;
+            }
+
+            Type graphPrecisionType = ResolveType(GraphPrecisionTypeName) ??
+                                      GetMemberValue(graphData, "graphDefaultPrecision")?.GetType();
+            if (graphPrecisionType == null || !graphPrecisionType.IsEnum)
+            {
+                failureReason = $"Could not resolve {GraphPrecisionTypeName}.";
+                return false;
+            }
+
+            try
+            {
+                graphPrecisionValue = Enum.Parse(graphPrecisionType, canonicalGraphDefaultPrecision, false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to resolve Shader Graph precision '{canonicalGraphDefaultPrecision}': {GetRootMessage(ex)}";
+                return false;
+            }
         }
 
         private static bool TryAssignShaderInputDefaultValue(

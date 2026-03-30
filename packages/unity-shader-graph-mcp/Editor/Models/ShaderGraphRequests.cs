@@ -8,6 +8,7 @@ namespace ShaderGraphMcp.Editor.Models
     {
         CreateGraph,
         RenameGraph,
+        SetGraphMetadata,
         CreateCategory,
         RenameCategory,
         FindCategory,
@@ -177,6 +178,19 @@ namespace ShaderGraphMcp.Editor.Models
             return string.IsNullOrWhiteSpace(assetPath)
                 ? string.Empty
                 : assetPath.Replace('\\', '/').Trim();
+        }
+    }
+
+    public sealed class SetGraphMetadataRequest : ShaderGraphRequest
+    {
+        public string GraphPathLabel { get; }
+        public string GraphDefaultPrecision { get; }
+
+        public SetGraphMetadataRequest(string assetPath, string graphPathLabel, string graphDefaultPrecision)
+            : base(ShaderGraphAction.SetGraphMetadata, assetPath)
+        {
+            GraphPathLabel = string.IsNullOrWhiteSpace(graphPathLabel) ? string.Empty : graphPathLabel.Trim();
+            GraphDefaultPrecision = string.IsNullOrWhiteSpace(graphDefaultPrecision) ? string.Empty : graphDefaultPrecision.Trim();
         }
     }
 

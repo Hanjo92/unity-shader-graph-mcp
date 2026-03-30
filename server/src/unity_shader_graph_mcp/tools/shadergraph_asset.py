@@ -26,6 +26,7 @@ from ..unity_bridge import (
 SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "create_graph",
     "rename_graph",
+    "set_graph_metadata",
     "create_category",
     "rename_category",
     "find_category",
@@ -229,6 +230,31 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if display_name is None:
             raise ShaderGraphRequestError("Missing required field 'newDisplayName', 'displayName', 'name', or 'graphName'.")
         request.payload.setdefault("displayName", display_name)
+
+    if request.action == "set_graph_metadata":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        graph_path_label = optional_text(
+            _pick_value(request.payload, "graphPathLabel", "graph_path_label", "pathLabel", "path_label")
+        )
+        graph_default_precision = optional_text(
+            _pick_value(
+                request.payload,
+                "graphDefaultPrecision",
+                "graph_default_precision",
+                "defaultPrecision",
+                "default_precision",
+                "precision",
+            )
+        )
+        if graph_path_label is None and graph_default_precision is None:
+            raise ShaderGraphRequestError(
+                "set_graph_metadata requires graphPathLabel/pathLabel and/or graphDefaultPrecision/defaultPrecision/precision."
+            )
+        if graph_path_label is not None:
+            request.payload["graphPathLabel"] = graph_path_label
+        if graph_default_precision is not None:
+            request.payload["graphDefaultPrecision"] = graph_default_precision
 
     if request.action == "create_category":
         if request.path is None:
@@ -732,6 +758,8 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
     for key_group in (
         ("categoryName", "category_name"),
         ("categoryGuid", "category_guid"),
+        ("graphPathLabel", "graph_path_label", "pathLabel", "path_label"),
+        ("graphDefaultPrecision", "graph_default_precision", "defaultPrecision", "default_precision", "precision"),
         ("propertyName", "property_name"),
         ("propertyType", "property_type"),
         ("referenceName", "reference_name", "newReferenceName", "new_reference_name"),

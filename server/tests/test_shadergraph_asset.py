@@ -26,6 +26,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
             (
                 "create_graph",
                 "rename_graph",
+                "set_graph_metadata",
                 "create_category",
                 "rename_category",
                 "find_category",
@@ -123,6 +124,21 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.name, "RenamedLitGraph")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["displayName"], "RenamedLitGraph")
+
+    def test_request_normalization_accepts_set_graph_metadata_with_alias_fields(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "set_graph_metadata",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "pathLabel": "Material Inputs",
+                "precision": "Half",
+            }
+        )
+
+        self.assertEqual(request.action, "set_graph_metadata")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["graphPathLabel"], "Material Inputs")
+        self.assertEqual(request.payload["graphDefaultPrecision"], "Half")
 
     def test_request_normalization_accepts_rename_category_with_alias_display_name(self) -> None:
         request = normalize_shadergraph_asset_request(

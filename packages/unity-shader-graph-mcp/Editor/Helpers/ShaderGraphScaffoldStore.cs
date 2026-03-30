@@ -16,6 +16,8 @@ namespace ShaderGraphMcp.Editor.Helpers
         private const string ScaffoldSchema = "unity-shader-graph-mcp/scaffold-v1";
         private const string DefaultTemplate = "blank";
         private const string DefaultFolder = "Assets/ShaderGraphs";
+        private const string DefaultGraphPathLabel = "Shader Graphs";
+        private const string DefaultGraphDefaultPrecision = "Single";
         private const string ManifestSuffix = ".mcp.json";
         private const string ScaffoldDefaultCategoryGuid = "scaffold-default-category";
         private const string ScaffoldDefaultCategoryName = "";
@@ -65,6 +67,8 @@ namespace ShaderGraphMcp.Editor.Helpers
                 assetPath = assetPath,
                 assetName = Path.GetFileNameWithoutExtension(assetPath),
                 template = string.IsNullOrWhiteSpace(request.Template) ? DefaultTemplate : request.Template,
+                graphPathLabel = DefaultGraphPathLabel,
+                graphDefaultPrecision = DefaultGraphDefaultPrecision,
                 createdUtc = now,
                 updatedUtc = now,
             };
@@ -255,6 +259,72 @@ namespace ShaderGraphMcp.Editor.Helpers
                 : $"Renamed scaffold Shader Graph '{previousAssetName}' to '{renamedAssetName}' at '{renamedAssetPath}'.";
 
             return ShaderGraphResponse.Ok(message, data);
+        }
+
+        public static ShaderGraphResponse SetGraphMetadata(
+            SetGraphMetadataRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Set graph metadata request is required.");
+            }
+
+            return MutateScaffold(
+                request.AssetPath,
+                "set_graph_metadata",
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    EnsureManifestCategories(manifest);
+
+                    string graphPathLabel = request.GraphPathLabel?.Trim() ?? string.Empty;
+                    string graphDefaultPrecision = NormalizeScaffoldGraphDefaultPrecision(request.GraphDefaultPrecision);
+                    if (string.IsNullOrWhiteSpace(graphPathLabel) && string.IsNullOrWhiteSpace(graphDefaultPrecision))
+                    {
+                        return "Set graph metadata requires graphPathLabel and/or graphDefaultPrecision.";
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(graphPathLabel))
+                    {
+                        manifest.graphPathLabel = graphPathLabel;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(graphDefaultPrecision))
+                    {
+                        manifest.graphDefaultPrecision = graphDefaultPrecision;
+                    }
+
+                    return null;
+                },
+                delegate(ShaderGraphScaffoldManifest manifest)
+                {
+                    var data = BuildSummaryData(
+                        manifest,
+                        manifest.assetPath,
+                        ToAbsolutePath(manifest.assetPath),
+                        true,
+                        true,
+                        executionKind,
+                        "set_graph_metadata",
+                        new[]
+                        {
+                            "Updated scaffold graph metadata in the sidecar manifest.",
+                        },
+                        null
+                    );
+                    data["updatedMetadata"] = new Dictionary<string, object>
+                    {
+                        ["graphPathLabel"] = manifest.graphPathLabel,
+                        ["graphDefaultPrecision"] = manifest.graphDefaultPrecision,
+                    };
+                    data["metadataSemantics"] = new[]
+                    {
+                        "set_graph_metadata updates the scaffold manifest graphPathLabel and graphDefaultPrecision values.",
+                        "Scaffold metadata does not change Unity runtime graph internals until a real graph replaces the placeholder.",
+                    };
+                    return data;
+                }
+            );
         }
 
         public static ShaderGraphResponse CreateCategory(
@@ -2895,6 +2965,8 @@ namespace ShaderGraphMcp.Editor.Helpers
             IEnumerable<string> previewLines
         )
         {
+            EnsureManifestCategories(manifest);
+
             var snapshot = new ShaderGraphAssetSnapshot(
                 operation,
                 assetPath,
@@ -2923,7 +2995,9 @@ namespace ShaderGraphMcp.Editor.Helpers
                     )).ToArray(),
                 notes == null ? Array.Empty<string>() : notes.ToArray(),
                 previewLines == null ? Array.Empty<string>() : previewLines.ToArray(),
-                CompatibilitySnapshot.Value
+                CompatibilitySnapshot.Value,
+                manifest.graphPathLabel,
+                manifest.graphDefaultPrecision
             );
 
             return new Dictionary<string, object>(snapshot.ToDictionary());
@@ -2977,6 +3051,8 @@ namespace ShaderGraphMcp.Editor.Helpers
             builder.AppendLine("# assetPath: " + manifest.assetPath);
             builder.AppendLine("# assetName: " + manifest.assetName);
             builder.AppendLine("# template: " + manifest.template);
+            builder.AppendLine("# graphPathLabel: " + manifest.graphPathLabel);
+            builder.AppendLine("# graphDefaultPrecision: " + manifest.graphDefaultPrecision);
             builder.AppendLine("# createdUtc: " + manifest.createdUtc);
             builder.AppendLine("# updatedUtc: " + manifest.updatedUtc);
             builder.AppendLine("# backendKind: " + CompatibilitySnapshot.Value.BackendKind);
@@ -3601,6 +3677,10 @@ namespace ShaderGraphMcp.Editor.Helpers
                 return;
             }
 
+            manifest.graphPathLabel = string.IsNullOrWhiteSpace(manifest.graphPathLabel)
+                ? DefaultGraphPathLabel
+                : manifest.graphPathLabel.Trim();
+            manifest.graphDefaultPrecision = NormalizeScaffoldGraphDefaultPrecision(manifest.graphDefaultPrecision);
             manifest.properties ??= new List<ShaderGraphScaffoldProperty>();
             manifest.nodes ??= new List<ShaderGraphScaffoldNode>();
             manifest.connections ??= new List<ShaderGraphScaffoldConnection>();
@@ -3633,6 +3713,34 @@ namespace ShaderGraphMcp.Editor.Helpers
                 }
             }
         }
+
+        private static string NormalizeScaffoldGraphDefaultPrecision(string graphDefaultPrecision)
+        {
+            string normalized = string.IsNullOrWhiteSpace(graphDefaultPrecision)
+                ? DefaultGraphDefaultPrecision
+                : graphDefaultPrecision.Trim();
+
+            if (string.Equals(normalized, "float", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "single", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "fp32", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Single";
+            }
+
+            if (string.Equals(normalized, "half", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "fp16", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Half";
+            }
+
+            if (string.Equals(normalized, "graph", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "switchable", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Graph";
+            }
+
+            return normalized;
+        }
     }
 
     [Serializable]
@@ -3642,6 +3750,8 @@ namespace ShaderGraphMcp.Editor.Helpers
         public string assetPath;
         public string assetName;
         public string template;
+        public string graphPathLabel;
+        public string graphDefaultPrecision;
         public string createdUtc;
         public string updatedUtc;
         public List<ShaderGraphScaffoldProperty> properties = new List<ShaderGraphScaffoldProperty>();

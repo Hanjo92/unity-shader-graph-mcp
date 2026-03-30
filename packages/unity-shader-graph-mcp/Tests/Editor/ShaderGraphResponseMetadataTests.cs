@@ -1462,6 +1462,70 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedSetGraphMetadataEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Updated Shader Graph metadata for 'Assets/ShaderGraphs/Blank.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "set_graph_metadata",
+                    ["assetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                    ["manifestPath"] = string.Empty,
+                    ["absolutePath"] = "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/Blank.shadergraph",
+                    ["exists"] = true,
+                    ["hasManifest"] = false,
+                    ["schema"] = "unity-shader-graph-mcp/package-backed-v1",
+                    ["assetName"] = "Blank",
+                    ["template"] = "blank",
+                    ["createdUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["updatedUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["graphPathLabel"] = "Material Inputs",
+                    ["graphDefaultPrecision"] = "Half",
+                    ["propertyCount"] = 0,
+                    ["nodeCount"] = 0,
+                    ["connectionCount"] = 0,
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["properties"] = new string[0],
+                    ["nodes"] = new string[0],
+                    ["connections"] = new string[0],
+                    ["notes"] = new[] { "GraphData.SetGraphDefaultPrecision('Half') invoked successfully." },
+                    ["preview"] = new[] { "graphDefaultPrecision=Half" },
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["packageDetected"] = true,
+                    ["compatibility"] = new Dictionary<string, object>
+                    {
+                        ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                        ["packageDetected"] = true,
+                        ["notes"] = new[] { "package present" },
+                    },
+                    ["updatedMetadata"] = new Dictionary<string, object>
+                    {
+                        ["graphPathLabel"] = "Material Inputs",
+                        ["graphDefaultPrecision"] = "Half",
+                        ["previousGraphPathLabel"] = "Shader Graphs",
+                        ["previousGraphDefaultPrecision"] = "Single",
+                    },
+                    ["metadataSemantics"] = new[]
+                    {
+                        "set_graph_metadata updates GraphData.path and graphDefaultPrecision when provided.",
+                        "Shader graphs accept Single or Half precision; Graph/Switchable precision is valid only for sub graphs.",
+                        "The response includes the rebuilt graph summary after synchronous save and import.",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("set_graph_metadata"));
+            Assert.That(response.Data["graphPathLabel"], Is.EqualTo("Material Inputs"));
+            Assert.That(response.Data["graphDefaultPrecision"], Is.EqualTo("Half"));
+
+            var updatedMetadata = (IReadOnlyDictionary<string, object>)response.Data["updatedMetadata"];
+            Assert.That(updatedMetadata["graphPathLabel"], Is.EqualTo("Material Inputs"));
+            Assert.That(updatedMetadata["graphDefaultPrecision"], Is.EqualTo("Half"));
+            Assert.That(updatedMetadata["previousGraphPathLabel"], Is.EqualTo("Shader Graphs"));
+            Assert.That(updatedMetadata["previousGraphDefaultPrecision"], Is.EqualTo("Single"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedAddPropertyEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

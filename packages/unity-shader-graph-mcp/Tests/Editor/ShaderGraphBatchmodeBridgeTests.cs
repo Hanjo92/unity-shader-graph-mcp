@@ -93,6 +93,29 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsSetGraphMetadataRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""set_graph_metadata"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""pathLabel"": ""Material Inputs"",
+                ""precision"": ""Half""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var setGraphMetadataRequest = request as SetGraphMetadataRequest;
+            Assert.That(setGraphMetadataRequest, Is.Not.Null);
+            Assert.That(setGraphMetadataRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(setGraphMetadataRequest.GraphPathLabel, Is.EqualTo("Material Inputs"));
+            Assert.That(setGraphMetadataRequest.GraphDefaultPrecision, Is.EqualTo("Half"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsCreateCategoryRequest_FromAssetPathPayload()
         {
             string json = @"{
