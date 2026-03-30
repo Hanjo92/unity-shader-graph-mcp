@@ -1462,6 +1462,73 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedDuplicateGraphEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Duplicated Shader Graph 'Blank' to 'Copied Blank' at 'Assets/ShaderGraphs/Copied Blank.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "duplicate_graph",
+                    ["assetPath"] = "Assets/ShaderGraphs/Copied Blank.shadergraph",
+                    ["sourceAssetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                    ["manifestPath"] = string.Empty,
+                    ["absolutePath"] = "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/Copied Blank.shadergraph",
+                    ["exists"] = true,
+                    ["hasManifest"] = false,
+                    ["schema"] = "unity-shader-graph-mcp/package-backed-v1",
+                    ["assetName"] = "Copied Blank",
+                    ["template"] = "blank",
+                    ["createdUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["updatedUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["propertyCount"] = 0,
+                    ["nodeCount"] = 0,
+                    ["connectionCount"] = 0,
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["properties"] = new string[0],
+                    ["nodes"] = new string[0],
+                    ["connections"] = new string[0],
+                    ["notes"] = new[] { "AssetDatabase.CopyAsset(...) invoked successfully." },
+                    ["preview"] = new[] { "duplicated graph preview" },
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["packageDetected"] = true,
+                    ["compatibility"] = new Dictionary<string, object>
+                    {
+                        ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                        ["packageDetected"] = true,
+                        ["notes"] = new[] { "package present" },
+                    },
+                    ["duplicateGraphSemantics"] = new[]
+                    {
+                        "duplicate_graph copies the current .shadergraph asset into a new asset within its existing folder.",
+                        "The response assetPath always points at the duplicated asset path while sourceAssetPath keeps the original.",
+                        "Package-backed graph duplicate is followed by synchronous import and refresh before the summary is rebuilt.",
+                    },
+                    ["duplicatedGraph"] = new Dictionary<string, object>
+                    {
+                        ["assetPath"] = "Assets/ShaderGraphs/Copied Blank.shadergraph",
+                        ["assetName"] = "Copied Blank",
+                        ["displayName"] = "Copied Blank",
+                        ["name"] = "Copied Blank",
+                        ["requestedName"] = "Copied Blank",
+                        ["sourceAssetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                        ["sourceAssetName"] = "Blank",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("duplicate_graph"));
+            Assert.That(response.Data["assetPath"], Is.EqualTo("Assets/ShaderGraphs/Copied Blank.shadergraph"));
+            Assert.That(response.Data["sourceAssetPath"], Is.EqualTo("Assets/ShaderGraphs/Blank.shadergraph"));
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+
+            var duplicatedGraph = (IReadOnlyDictionary<string, object>)response.Data["duplicatedGraph"];
+            Assert.That(duplicatedGraph["assetPath"], Is.EqualTo("Assets/ShaderGraphs/Copied Blank.shadergraph"));
+            Assert.That(duplicatedGraph["assetName"], Is.EqualTo("Copied Blank"));
+            Assert.That(duplicatedGraph["requestedName"], Is.EqualTo("Copied Blank"));
+            Assert.That(duplicatedGraph["sourceAssetName"], Is.EqualTo("Blank"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedSetGraphMetadataEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

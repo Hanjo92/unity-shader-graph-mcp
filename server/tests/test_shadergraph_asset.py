@@ -26,6 +26,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
             (
                 "create_graph",
                 "rename_graph",
+                "duplicate_graph",
                 "set_graph_metadata",
                 "create_category",
                 "rename_category",
@@ -124,6 +125,20 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.name, "RenamedLitGraph")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["displayName"], "RenamedLitGraph")
+
+    def test_request_normalization_accepts_duplicate_graph_with_asset_path(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "duplicate_graph",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "newDisplayName": "CopiedLitGraph",
+            }
+        )
+
+        self.assertEqual(request.action, "duplicate_graph")
+        self.assertEqual(request.name, "CopiedLitGraph")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["displayName"], "CopiedLitGraph")
 
     def test_request_normalization_accepts_set_graph_metadata_with_alias_fields(self) -> None:
         request = normalize_shadergraph_asset_request(

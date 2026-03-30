@@ -17,6 +17,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.RenameGraph(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse DuplicateGraph(DuplicateGraphRequest request)
+        {
+            return ShaderGraphScaffoldStore.DuplicateGraph(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request)
         {
             return ShaderGraphScaffoldStore.SetGraphMetadata(request, ExecutionKind);

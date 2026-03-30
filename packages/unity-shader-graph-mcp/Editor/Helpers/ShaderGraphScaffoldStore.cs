@@ -261,6 +261,152 @@ namespace ShaderGraphMcp.Editor.Helpers
             return ShaderGraphResponse.Ok(message, data);
         }
 
+        public static ShaderGraphResponse DuplicateGraph(
+            DuplicateGraphRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Duplicate graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return ShaderGraphResponse.Fail("Duplicate graph requires a new graph name.");
+            }
+
+            string duplicatedAssetPath = NormalizeAssetPath(request.TargetAssetPath);
+            if (string.IsNullOrWhiteSpace(duplicatedAssetPath))
+            {
+                return ShaderGraphResponse.Fail("Duplicate graph could not resolve the target asset path.");
+            }
+
+            if (string.Equals(assetPath, duplicatedAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return ShaderGraphResponse.Fail("Duplicate graph requires a new graph name that resolves to a different asset path.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            string absoluteDuplicatedAssetPath = ToAbsolutePath(duplicatedAssetPath);
+            if (File.Exists(absoluteDuplicatedAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset already exists at '{duplicatedAssetPath}'."
+                );
+            }
+
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            string absoluteDuplicatedManifestPath = ToAbsolutePath(GetManifestPath(duplicatedAssetPath));
+            bool hasManifest = TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest);
+            if (File.Exists(absoluteDuplicatedManifestPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph scaffold manifest already exists at '{GetManifestPath(duplicatedAssetPath)}'."
+                );
+            }
+
+            ShaderGraphScaffoldManifest duplicatedManifest = null;
+            if (hasManifest)
+            {
+                duplicatedManifest = CloneManifest(manifest);
+                string now = UtcNow();
+                duplicatedManifest.assetPath = duplicatedAssetPath;
+                duplicatedManifest.assetName = Path.GetFileNameWithoutExtension(duplicatedAssetPath);
+                duplicatedManifest.createdUtc = now;
+                duplicatedManifest.updatedUtc = now;
+                EnsureManifestCategories(duplicatedManifest);
+            }
+
+            try
+            {
+                EnsureParentDirectory(absoluteDuplicatedAssetPath);
+                File.Copy(absoluteAssetPath, absoluteDuplicatedAssetPath);
+
+                if (duplicatedManifest != null)
+                {
+                    File.WriteAllText(
+                        absoluteDuplicatedAssetPath,
+                        BuildPlaceholderPayload(duplicatedManifest),
+                        new UTF8Encoding(false)
+                    );
+                    WriteManifest(absoluteDuplicatedManifestPath, duplicatedManifest);
+                }
+
+                AssetDatabase.SaveAssets();
+                ImportAsset(duplicatedAssetPath);
+            }
+            catch (Exception ex)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to duplicate scaffold Shader Graph from '{assetPath}' to '{duplicatedAssetPath}': {ex.Message}"
+                );
+            }
+
+            string sourceAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string duplicatedAssetName = Path.GetFileNameWithoutExtension(duplicatedAssetPath);
+            var duplicateNotes = new[]
+            {
+                "duplicate_graph keeps the source scaffold graph unchanged and creates a new asset within the same folder.",
+                duplicatedManifest != null
+                    ? "Scaffold placeholder asset header and sidecar manifest were copied and rewritten for the duplicated asset."
+                    : "No scaffold manifest was present; only the asset file was copied and reimported.",
+            };
+
+            Dictionary<string, object> data;
+            if (duplicatedManifest != null)
+            {
+                data = BuildSummaryData(
+                    duplicatedManifest,
+                    duplicatedAssetPath,
+                    absoluteDuplicatedAssetPath,
+                    true,
+                    true,
+                    executionKind,
+                    "duplicate_graph",
+                    duplicateNotes,
+                    null
+                );
+            }
+            else
+            {
+                data = BuildRawSummaryData(
+                    duplicatedAssetPath,
+                    absoluteDuplicatedAssetPath,
+                    ReadPreviewLines(absoluteDuplicatedAssetPath, 8),
+                    executionKind
+                );
+                data["operation"] = "duplicate_graph";
+                data["notes"] = duplicateNotes;
+            }
+
+            data["sourceAssetPath"] = assetPath;
+            data["duplicatedGraph"] = BuildScaffoldDuplicatedGraphData(assetPath, duplicatedAssetPath, request.Name);
+            data["duplicateGraphSemantics"] = new[]
+            {
+                "duplicate_graph copies the current .shadergraph asset into a new asset within its existing folder.",
+                "The response assetPath always points at the duplicated asset path while sourceAssetPath keeps the original.",
+                "Scaffold manifests are copied alongside the duplicated graph when present.",
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Duplicated scaffold Shader Graph '{sourceAssetName}' to '{duplicatedAssetName}' at '{duplicatedAssetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse SetGraphMetadata(
             SetGraphMetadataRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -3391,6 +3537,26 @@ namespace ShaderGraphMcp.Editor.Helpers
             };
         }
 
+        private static Dictionary<string, object> BuildScaffoldDuplicatedGraphData(
+            string sourceAssetPath,
+            string assetPath,
+            string requestedName)
+        {
+            string sourceAssetName = Path.GetFileNameWithoutExtension(sourceAssetPath ?? string.Empty) ?? string.Empty;
+            string assetName = Path.GetFileNameWithoutExtension(assetPath ?? string.Empty) ?? string.Empty;
+
+            return new Dictionary<string, object>
+            {
+                ["assetPath"] = assetPath ?? string.Empty,
+                ["assetName"] = assetName,
+                ["displayName"] = assetName,
+                ["name"] = assetName,
+                ["requestedName"] = requestedName ?? string.Empty,
+                ["sourceAssetPath"] = sourceAssetPath ?? string.Empty,
+                ["sourceAssetName"] = sourceAssetName,
+            };
+        }
+
         private static string[] BuildScaffoldPropertyOrder(IEnumerable<ShaderGraphScaffoldProperty> properties)
         {
             return (properties ?? Array.Empty<ShaderGraphScaffoldProperty>())
@@ -3544,6 +3710,16 @@ namespace ShaderGraphMcp.Editor.Helpers
                 JsonUtility.ToJson(manifest, true),
                 new UTF8Encoding(false)
             );
+        }
+
+        private static ShaderGraphScaffoldManifest CloneManifest(ShaderGraphScaffoldManifest manifest)
+        {
+            if (manifest == null)
+            {
+                return null;
+            }
+
+            return JsonUtility.FromJson<ShaderGraphScaffoldManifest>(JsonUtility.ToJson(manifest));
         }
 
         private static string[] ReadPreviewLines(string absoluteAssetPath, int maxLines)

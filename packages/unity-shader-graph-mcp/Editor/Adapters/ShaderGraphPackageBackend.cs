@@ -42,6 +42,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse DuplicateGraph(DuplicateGraphRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.DuplicateGraph(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request)
         {
             return ShaderGraphPackageGraphInspector.SetGraphMetadata(
@@ -724,6 +733,171 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ? $"Shader Graph already uses the name '{renamedAssetName}' at '{renamedAssetPath}'."
                 : $"Renamed Shader Graph '{previousAssetName}' to '{renamedAssetName}' at '{renamedAssetPath}'.";
             return ShaderGraphResponse.Ok(message, data);
+        }
+
+        public static ShaderGraphResponse DuplicateGraph(
+            DuplicateGraphRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Duplicate graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return ShaderGraphResponse.Fail("Duplicate graph requires a new graph name.");
+            }
+
+            string duplicatedAssetPath = NormalizeAssetPath(request.TargetAssetPath);
+            if (string.IsNullOrWhiteSpace(duplicatedAssetPath))
+            {
+                return ShaderGraphResponse.Fail("Duplicate graph could not resolve the target asset path.");
+            }
+
+            if (string.Equals(assetPath, duplicatedAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return ShaderGraphResponse.Fail(
+                    "Duplicate graph requires a new graph name that resolves to a different asset path.",
+                    BuildUnsupportedDuplicateGraphData(
+                        assetPath,
+                        duplicatedAssetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>(),
+                        request.Name
+                    )
+                );
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'.",
+                    BuildUnsupportedDuplicateGraphData(
+                        assetPath,
+                        duplicatedAssetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>(),
+                        request.Name
+                    )
+                );
+            }
+
+            string absoluteDuplicatedPath = ToAbsolutePath(duplicatedAssetPath);
+            if (File.Exists(absoluteDuplicatedPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset already exists at '{duplicatedAssetPath}'.",
+                    BuildUnsupportedDuplicateGraphData(
+                        assetPath,
+                        duplicatedAssetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>(),
+                        request.Name
+                    )
+                );
+            }
+
+            string sourceAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string duplicatedAssetName = Path.GetFileNameWithoutExtension(duplicatedAssetPath);
+            var duplicateNotes = new List<string>();
+
+            try
+            {
+                string directory = Path.GetDirectoryName(absoluteDuplicatedPath);
+                if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    duplicateNotes.Add("Created parent folder for the duplicated graph asset.");
+                }
+
+                if (!AssetDatabase.CopyAsset(assetPath, duplicatedAssetPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to duplicate Shader Graph '{assetPath}' to '{duplicatedAssetPath}'.",
+                        BuildUnsupportedDuplicateGraphData(
+                            assetPath,
+                            duplicatedAssetPath,
+                            compatibility,
+                            executionKind,
+                            duplicateNotes,
+                            request.Name
+                        )
+                    );
+                }
+
+                duplicateNotes.Add("AssetDatabase.CopyAsset(...) invoked successfully.");
+
+                AssetDatabase.SaveAssets();
+                duplicateNotes.Add("AssetDatabase.SaveAssets() invoked successfully.");
+
+                AssetDatabase.ImportAsset(
+                    duplicatedAssetPath,
+                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
+                );
+                duplicateNotes.Add("AssetDatabase.ImportAsset(..., ForceSynchronousImport | ForceUpdate) invoked successfully.");
+
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                duplicateNotes.Add("AssetDatabase.Refresh(ForceSynchronousImport) invoked successfully.");
+            }
+            catch (Exception exception)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Duplicated Shader Graph asset to '{duplicatedAssetPath}' but failed to refresh it: {exception.Message}",
+                    BuildUnsupportedDuplicateGraphData(
+                        assetPath,
+                        duplicatedAssetPath,
+                        compatibility,
+                        executionKind,
+                        duplicateNotes,
+                        request.Name
+                    )
+                );
+            }
+
+            ShaderGraphResponse summaryResponse = ReadGraphSummary(
+                new ReadGraphSummaryRequest(duplicatedAssetPath),
+                compatibility,
+                executionKind
+            );
+
+            var data = summaryResponse.Data == null
+                ? new Dictionary<string, object>()
+                : new Dictionary<string, object>(summaryResponse.Data);
+            data["operation"] = "duplicate_graph";
+            data["sourceAssetPath"] = assetPath;
+            data["duplicatedGraph"] = BuildDuplicatedGraphData(assetPath, duplicatedAssetPath, request.Name);
+            data["duplicateGraphSemantics"] = new[]
+            {
+                "duplicate_graph copies the current .shadergraph asset into a new asset within its existing folder.",
+                "The response assetPath always points at the duplicated asset path while sourceAssetPath keeps the original.",
+                "Package-backed graph duplicate is followed by synchronous import and refresh before the summary is rebuilt.",
+            };
+
+            if (!summaryResponse.Success)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Duplicated Shader Graph asset to '{duplicatedAssetPath}' but could not read the duplicated graph summary: {summaryResponse.Message}",
+                    data
+                );
+            }
+
+            return ShaderGraphResponse.Ok(
+                $"Duplicated Shader Graph '{sourceAssetName}' to '{duplicatedAssetName}' at '{duplicatedAssetPath}'.",
+                data
+            );
         }
 
         public static ShaderGraphResponse SetGraphMetadata(
@@ -7573,6 +7747,26 @@ namespace ShaderGraphMcp.Editor.Adapters
             };
         }
 
+        private static Dictionary<string, object> BuildDuplicatedGraphData(
+            string sourceAssetPath,
+            string assetPath,
+            string requestedName)
+        {
+            string sourceAssetName = Path.GetFileNameWithoutExtension(sourceAssetPath ?? string.Empty) ?? string.Empty;
+            string assetName = Path.GetFileNameWithoutExtension(assetPath ?? string.Empty) ?? string.Empty;
+
+            return new Dictionary<string, object>
+            {
+                ["assetPath"] = assetPath ?? string.Empty,
+                ["assetName"] = assetName,
+                ["displayName"] = assetName,
+                ["name"] = assetName,
+                ["requestedName"] = requestedName ?? string.Empty,
+                ["sourceAssetPath"] = sourceAssetPath ?? string.Empty,
+                ["sourceAssetName"] = sourceAssetName,
+            };
+        }
+
         private static Dictionary<string, object> BuildDuplicatedFromData(object sourceNode, Rect? sourcePosition)
         {
             var data = BuildNodeLookupData(sourceNode);
@@ -8233,6 +8427,35 @@ namespace ShaderGraphMcp.Editor.Adapters
                 {
                     "rename_graph renames the current .shadergraph asset in-place within its existing folder.",
                     "The response assetPath always points at the renamed asset path.",
+                },
+                ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
+            };
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedDuplicateGraphData(
+            string sourceAssetPath,
+            string duplicatedAssetPath,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind,
+            IReadOnlyList<string> loadNotes,
+            string requestedName)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = "duplicate_graph",
+                ["assetPath"] = duplicatedAssetPath,
+                ["sourceAssetPath"] = sourceAssetPath,
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["requestedName"] = requestedName ?? string.Empty,
+                ["duplicateGraphSemantics"] = new[]
+                {
+                    "duplicate_graph copies the current .shadergraph asset into a new asset within its existing folder.",
+                    "The response assetPath always points at the duplicated asset path while sourceAssetPath keeps the original.",
                 },
                 ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
             };

@@ -220,6 +220,35 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_DuplicateGraph_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphDuplicateGraph", out _);
+            string sourceAssetName = Path.GetFileNameWithoutExtension(assetPath);
+
+            ShaderGraphResponse duplicateResponse = ShaderGraphAssetTool.HandleDuplicateGraph(
+                assetPath,
+                "Copied Blank Graph");
+            ShaderGraphTestAssets.RequirePackageReady(duplicateResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(duplicateResponse.Data, "operation"), Is.EqualTo("duplicate_graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicateResponse.Data, "sourceAssetPath"), Is.EqualTo(assetPath));
+
+            string duplicatedAssetPath = ShaderGraphTestAssets.GetString(duplicateResponse.Data, "assetPath");
+            Assert.That(duplicatedAssetPath, Does.EndWith("Copied Blank Graph.shadergraph"));
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Not.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(duplicatedAssetPath), Is.Not.Null);
+
+            var duplicatedGraph = ShaderGraphTestAssets.RequireDictionary(duplicateResponse.Data, "duplicatedGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedGraph, "assetPath"), Is.EqualTo(duplicatedAssetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedGraph, "assetName"), Is.EqualTo("Copied Blank Graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedGraph, "sourceAssetName"), Is.EqualTo(sourceAssetName));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(duplicatedAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(summaryResponse.Data, "assetPath"), Is.EqualTo(duplicatedAssetPath));
+        }
+
+        [Test]
         public void BlankGraph_SetGraphMetadata_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphSetGraphMetadata", out _);

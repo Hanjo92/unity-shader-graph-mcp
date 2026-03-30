@@ -212,6 +212,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameGraph:
                     return TryCreateRenameGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.DuplicateGraph:
+                    return TryCreateDuplicateGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.SetGraphMetadata:
                     return TryCreateSetGraphMetadataRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.CreateCategory:
@@ -349,6 +351,29 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new RenameGraphRequest(assetPath, name);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateDuplicateGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Duplicate graph requires an asset path.";
+                return false;
+            }
+
+            string name = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                request = null;
+                errorMessage = "Duplicate graph requires newDisplayName/displayName/name.";
+                return false;
+            }
+
+            request = new DuplicateGraphRequest(assetPath, name);
             errorMessage = null;
             return true;
         }
@@ -1153,6 +1178,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.CreateGraph;
                 case "rename_graph":
                     return ShaderGraphAction.RenameGraph;
+                case "duplicate_graph":
+                    return ShaderGraphAction.DuplicateGraph;
                 case "set_graph_metadata":
                     return ShaderGraphAction.SetGraphMetadata;
                 case "create_category":

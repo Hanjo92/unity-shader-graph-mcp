@@ -93,6 +93,28 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsDuplicateGraphRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""duplicate_graph"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""newDisplayName"": ""CopiedLitGraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var duplicateGraphRequest = request as DuplicateGraphRequest;
+            Assert.That(duplicateGraphRequest, Is.Not.Null);
+            Assert.That(duplicateGraphRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(duplicateGraphRequest.Name, Is.EqualTo("CopiedLitGraph"));
+            Assert.That(duplicateGraphRequest.TargetAssetPath, Is.EqualTo("Assets/ShaderGraphs/CopiedLitGraph.shadergraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsSetGraphMetadataRequest_FromAliasFields()
         {
             string json = @"{
