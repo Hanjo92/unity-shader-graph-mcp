@@ -71,6 +71,28 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsRenameGraphRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""rename_graph"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""newDisplayName"": ""RenamedLitGraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var renameGraphRequest = request as RenameGraphRequest;
+            Assert.That(renameGraphRequest, Is.Not.Null);
+            Assert.That(renameGraphRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(renameGraphRequest.Name, Is.EqualTo("RenamedLitGraph"));
+            Assert.That(renameGraphRequest.TargetAssetPath, Is.EqualTo("Assets/ShaderGraphs/RenamedLitGraph.shadergraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsCreateCategoryRequest_FromAssetPathPayload()
         {
             string json = @"{

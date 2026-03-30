@@ -12,6 +12,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.CreateGraph(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse RenameGraph(RenameGraphRequest request)
+        {
+            return ShaderGraphScaffoldStore.RenameGraph(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse CreateCategory(CreateCategoryRequest request)
         {
             return ShaderGraphScaffoldStore.CreateCategory(request, ExecutionKind);

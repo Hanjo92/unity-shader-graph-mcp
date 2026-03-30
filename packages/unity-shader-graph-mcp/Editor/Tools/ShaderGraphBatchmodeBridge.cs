@@ -210,6 +210,8 @@ namespace ShaderGraphMcp.Editor.Tools
             {
                 case ShaderGraphAction.CreateGraph:
                     return TryCreateGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.RenameGraph:
+                    return TryCreateRenameGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.CreateCategory:
                     return TryCreateCreateCategoryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameCategory:
@@ -322,6 +324,29 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new ReadGraphSummaryRequest(assetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateRenameGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Rename graph requires an asset path.";
+                return false;
+            }
+
+            string name = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                request = null;
+                errorMessage = "Rename graph requires newDisplayName/displayName/name.";
+                return false;
+            }
+
+            request = new RenameGraphRequest(assetPath, name);
             errorMessage = null;
             return true;
         }
@@ -1100,6 +1125,8 @@ namespace ShaderGraphMcp.Editor.Tools
             {
                 case "create_graph":
                     return ShaderGraphAction.CreateGraph;
+                case "rename_graph":
+                    return ShaderGraphAction.RenameGraph;
                 case "create_category":
                     return ShaderGraphAction.CreateCategory;
                 case "rename_category":

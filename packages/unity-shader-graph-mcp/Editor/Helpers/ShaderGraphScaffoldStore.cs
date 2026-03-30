@@ -103,6 +103,160 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse RenameGraph(
+            RenameGraphRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Rename graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return ShaderGraphResponse.Fail("Rename graph requires a new graph name.");
+            }
+
+            string renamedAssetPath = NormalizeAssetPath(request.TargetAssetPath);
+            if (string.IsNullOrWhiteSpace(renamedAssetPath))
+            {
+                return ShaderGraphResponse.Fail("Rename graph could not resolve the target asset path.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            string absoluteRenamedAssetPath = ToAbsolutePath(renamedAssetPath);
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            string absoluteRenamedManifestPath = ToAbsolutePath(GetManifestPath(renamedAssetPath));
+            bool hasManifest = TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest);
+
+            if (!string.Equals(assetPath, renamedAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                if (File.Exists(absoluteRenamedAssetPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Shader Graph asset already exists at '{renamedAssetPath}'."
+                    );
+                }
+
+                if (hasManifest &&
+                    !string.Equals(absoluteManifestPath, absoluteRenamedManifestPath, StringComparison.OrdinalIgnoreCase) &&
+                    File.Exists(absoluteRenamedManifestPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Shader Graph scaffold manifest already exists at '{GetManifestPath(renamedAssetPath)}'."
+                    );
+                }
+
+                string renameError = AssetDatabase.RenameAsset(assetPath, Path.GetFileNameWithoutExtension(renamedAssetPath));
+                if (!string.IsNullOrWhiteSpace(renameError))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to rename Shader Graph '{assetPath}': {renameError}"
+                    );
+                }
+            }
+
+            if (hasManifest)
+            {
+                manifest.assetPath = renamedAssetPath;
+                manifest.assetName = Path.GetFileNameWithoutExtension(renamedAssetPath);
+                manifest.updatedUtc = UtcNow();
+            }
+
+            try
+            {
+                if (hasManifest)
+                {
+                    if (!string.Equals(absoluteManifestPath, absoluteRenamedManifestPath, StringComparison.OrdinalIgnoreCase) &&
+                        File.Exists(absoluteManifestPath))
+                    {
+                        File.Move(absoluteManifestPath, absoluteRenamedManifestPath);
+                    }
+
+                    File.WriteAllText(
+                        absoluteRenamedAssetPath,
+                        BuildPlaceholderPayload(manifest),
+                        new UTF8Encoding(false)
+                    );
+                    WriteManifest(absoluteRenamedManifestPath, manifest);
+                }
+
+                AssetDatabase.SaveAssets();
+                ImportAsset(renamedAssetPath);
+            }
+            catch (Exception ex)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to rename scaffold Shader Graph from '{assetPath}' to '{renamedAssetPath}': {ex.Message}"
+                );
+            }
+
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string renamedAssetName = Path.GetFileNameWithoutExtension(renamedAssetPath);
+            var renameNotes = new[]
+            {
+                "rename_graph keeps the scaffold graph in its current folder and changes only the asset name.",
+                hasManifest
+                    ? "Scaffold placeholder asset header and sidecar manifest were rewritten for the renamed asset."
+                    : "No scaffold manifest was present; only the asset rename/import was applied.",
+            };
+
+            Dictionary<string, object> data;
+            if (hasManifest)
+            {
+                data = BuildSummaryData(
+                    manifest,
+                    renamedAssetPath,
+                    absoluteRenamedAssetPath,
+                    true,
+                    true,
+                    executionKind,
+                    "rename_graph",
+                    renameNotes,
+                    null
+                );
+            }
+            else
+            {
+                data = BuildRawSummaryData(
+                    renamedAssetPath,
+                    absoluteRenamedAssetPath,
+                    ReadPreviewLines(absoluteRenamedAssetPath, 8),
+                    executionKind
+                );
+                data["operation"] = "rename_graph";
+                data["notes"] = renameNotes;
+            }
+
+            data["previousAssetPath"] = assetPath;
+            data["renamedGraph"] = BuildScaffoldRenamedGraphData(assetPath, renamedAssetPath, request.Name);
+            data["renameGraphSemantics"] = new[]
+            {
+                "rename_graph renames the current .shadergraph asset in-place within its existing folder.",
+                "The response assetPath always points at the renamed asset path.",
+                "Scaffold manifests move alongside the renamed graph when present.",
+            };
+
+            string message = string.Equals(assetPath, renamedAssetPath, StringComparison.OrdinalIgnoreCase)
+                ? $"Shader Graph already uses the name '{renamedAssetName}' at '{renamedAssetPath}'."
+                : $"Renamed scaffold Shader Graph '{previousAssetName}' to '{renamedAssetName}' at '{renamedAssetPath}'.";
+
+            return ShaderGraphResponse.Ok(message, data);
+        }
+
         public static ShaderGraphResponse CreateCategory(
             CreateCategoryRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -3138,6 +3292,26 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ["defaultValue"] = property?.defaultValue ?? string.Empty,
                 ["categoryGuid"] = property?.categoryGuid ?? ScaffoldDefaultCategoryGuid,
                 ["summary"] = $"{property?.name ?? string.Empty} [{property?.type ?? string.Empty}]",
+            };
+        }
+
+        private static Dictionary<string, object> BuildScaffoldRenamedGraphData(
+            string previousAssetPath,
+            string assetPath,
+            string requestedName)
+        {
+            string previousAssetName = Path.GetFileNameWithoutExtension(previousAssetPath ?? string.Empty) ?? string.Empty;
+            string assetName = Path.GetFileNameWithoutExtension(assetPath ?? string.Empty) ?? string.Empty;
+
+            return new Dictionary<string, object>
+            {
+                ["assetPath"] = assetPath ?? string.Empty,
+                ["assetName"] = assetName,
+                ["displayName"] = assetName,
+                ["name"] = assetName,
+                ["requestedName"] = requestedName ?? string.Empty,
+                ["previousAssetPath"] = previousAssetPath ?? string.Empty,
+                ["previousAssetName"] = previousAssetName,
             };
         }
 

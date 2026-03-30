@@ -25,6 +25,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
             SUPPORTED_SHADERGRAPH_ASSET_ACTIONS,
             (
                 "create_graph",
+                "rename_graph",
                 "create_category",
                 "rename_category",
                 "find_category",
@@ -108,6 +109,20 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.name, "Surface Inputs")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["categoryName"], "Surface Inputs")
+
+    def test_request_normalization_accepts_rename_graph_with_asset_path(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "rename_graph",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "newDisplayName": "RenamedLitGraph",
+            }
+        )
+
+        self.assertEqual(request.action, "rename_graph")
+        self.assertEqual(request.name, "RenamedLitGraph")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["displayName"], "RenamedLitGraph")
 
     def test_request_normalization_accepts_rename_category_with_alias_display_name(self) -> None:
         request = normalize_shadergraph_asset_request(

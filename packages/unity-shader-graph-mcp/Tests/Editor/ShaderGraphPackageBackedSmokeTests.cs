@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using NUnit.Framework;
 using ShaderGraphMcp.Editor.Adapters;
@@ -187,6 +188,35 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var createdGraphPath = ShaderGraphTestAssets.GetString(response.Data, "assetPath");
             Assert.That(createdGraphPath, Does.Contain(graphName));
+        }
+
+        [Test]
+        public void BlankGraph_RenameGraph_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphRenameGraph", out _);
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+
+            ShaderGraphResponse renameResponse = ShaderGraphAssetTool.HandleRenameGraph(
+                assetPath,
+                "Renamed Blank Graph");
+            ShaderGraphTestAssets.RequirePackageReady(renameResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(renameResponse.Data, "operation"), Is.EqualTo("rename_graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(renameResponse.Data, "previousAssetPath"), Is.EqualTo(assetPath));
+
+            string renamedAssetPath = ShaderGraphTestAssets.GetString(renameResponse.Data, "assetPath");
+            Assert.That(renamedAssetPath, Does.EndWith("Renamed Blank Graph.shadergraph"));
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(renamedAssetPath), Is.Not.Null);
+
+            var renamedGraph = ShaderGraphTestAssets.RequireDictionary(renameResponse.Data, "renamedGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(renamedGraph, "assetPath"), Is.EqualTo(renamedAssetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(renamedGraph, "assetName"), Is.EqualTo("Renamed Blank Graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(renamedGraph, "previousAssetName"), Is.EqualTo(previousAssetName));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(renamedAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(summaryResponse.Data, "assetPath"), Is.EqualTo(renamedAssetPath));
         }
 
         [Test]

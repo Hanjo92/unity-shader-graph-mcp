@@ -32,6 +32,11 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "path": "Assets/ShaderGraphs",
         "template": "urp_lit",
     },
+    "rename_graph": {
+        "action": "rename_graph",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "newDisplayName": "RenamedLitGraph",
+    },
     "create_category": {
         "action": "create_category",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -274,6 +279,9 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "rename_category", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "rename_graph", "path": "Assets/X.shadergraph"})
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "find_category", "path": "Assets/X.shadergraph"})

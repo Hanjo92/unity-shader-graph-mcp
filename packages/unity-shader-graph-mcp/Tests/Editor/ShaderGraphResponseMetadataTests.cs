@@ -1395,6 +1395,73 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedRenameGraphEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Renamed Shader Graph 'Blank' to 'Renamed Blank' at 'Assets/ShaderGraphs/Renamed Blank.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "rename_graph",
+                    ["assetPath"] = "Assets/ShaderGraphs/Renamed Blank.shadergraph",
+                    ["previousAssetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                    ["manifestPath"] = string.Empty,
+                    ["absolutePath"] = "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/Renamed Blank.shadergraph",
+                    ["exists"] = true,
+                    ["hasManifest"] = false,
+                    ["schema"] = "unity-shader-graph-mcp/package-backed-v1",
+                    ["assetName"] = "Renamed Blank",
+                    ["template"] = "blank",
+                    ["createdUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["updatedUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["propertyCount"] = 0,
+                    ["nodeCount"] = 0,
+                    ["connectionCount"] = 0,
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["properties"] = new string[0],
+                    ["nodes"] = new string[0],
+                    ["connections"] = new string[0],
+                    ["notes"] = new[] { "AssetDatabase.RenameAsset(...) invoked successfully." },
+                    ["preview"] = new[] { "renamed graph preview" },
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["packageDetected"] = true,
+                    ["compatibility"] = new Dictionary<string, object>
+                    {
+                        ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                        ["packageDetected"] = true,
+                        ["notes"] = new[] { "package present" },
+                    },
+                    ["renameGraphSemantics"] = new[]
+                    {
+                        "rename_graph renames the current .shadergraph asset in-place within its existing folder.",
+                        "The response assetPath always points at the renamed asset path.",
+                        "Package-backed graph rename is followed by synchronous import and refresh before the summary is rebuilt.",
+                    },
+                    ["renamedGraph"] = new Dictionary<string, object>
+                    {
+                        ["assetPath"] = "Assets/ShaderGraphs/Renamed Blank.shadergraph",
+                        ["assetName"] = "Renamed Blank",
+                        ["displayName"] = "Renamed Blank",
+                        ["name"] = "Renamed Blank",
+                        ["requestedName"] = "Renamed Blank",
+                        ["previousAssetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                        ["previousAssetName"] = "Blank",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("rename_graph"));
+            Assert.That(response.Data["assetPath"], Is.EqualTo("Assets/ShaderGraphs/Renamed Blank.shadergraph"));
+            Assert.That(response.Data["previousAssetPath"], Is.EqualTo("Assets/ShaderGraphs/Blank.shadergraph"));
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+
+            var renamedGraph = (IReadOnlyDictionary<string, object>)response.Data["renamedGraph"];
+            Assert.That(renamedGraph["assetPath"], Is.EqualTo("Assets/ShaderGraphs/Renamed Blank.shadergraph"));
+            Assert.That(renamedGraph["assetName"], Is.EqualTo("Renamed Blank"));
+            Assert.That(renamedGraph["requestedName"], Is.EqualTo("Renamed Blank"));
+            Assert.That(renamedGraph["previousAssetName"], Is.EqualTo("Blank"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedAddPropertyEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

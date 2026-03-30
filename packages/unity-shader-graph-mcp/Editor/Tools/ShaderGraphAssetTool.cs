@@ -27,6 +27,8 @@ namespace ShaderGraphMcp.Editor.Tools
             {
                 case CreateGraphRequest createGraphRequest:
                     return Adapter.CreateGraph(createGraphRequest);
+                case RenameGraphRequest renameGraphRequest:
+                    return Adapter.RenameGraph(renameGraphRequest);
                 case CreateCategoryRequest createCategoryRequest:
                     return Adapter.CreateCategory(createCategoryRequest);
                 case RenameCategoryRequest renameCategoryRequest:
@@ -93,7 +95,7 @@ namespace ShaderGraphMcp.Editor.Tools
                     return Adapter.SaveGraph(saveGraphRequest);
                 default:
                     return ShaderGraphResponse.Fail(
-                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, create_category, rename_category, find_category, delete_category, reorder_category, merge_category, duplicate_category, split_category, list_categories, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, reorder_property, move_property_to_category, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, reconnect_connection, save_graph."
+                        $"Unsupported Shader Graph action: {request.Action}. Supported actions: create_graph, rename_graph, create_category, rename_category, find_category, delete_category, reorder_category, merge_category, duplicate_category, split_category, list_categories, read_graph_summary, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, reorder_property, move_property_to_category, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, reconnect_connection, save_graph."
                     );
             }
         }
@@ -101,6 +103,11 @@ namespace ShaderGraphMcp.Editor.Tools
         public static ShaderGraphResponse HandleCreateGraph(string name, string path, string template)
         {
             return Handle(new CreateGraphRequest(name, path, template));
+        }
+
+        public static ShaderGraphResponse HandleRenameGraph(string assetPath, string name)
+        {
+            return Handle(new RenameGraphRequest(assetPath, name));
         }
 
         public static ShaderGraphResponse HandleCreateCategory(string assetPath, string name)

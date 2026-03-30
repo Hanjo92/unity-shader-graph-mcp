@@ -5,6 +5,7 @@ namespace ShaderGraphMcp.Editor.Adapters
     public interface IShaderGraphAdapter
     {
         ShaderGraphResponse CreateGraph(CreateGraphRequest request);
+        ShaderGraphResponse RenameGraph(RenameGraphRequest request);
         ShaderGraphResponse CreateCategory(CreateCategoryRequest request);
         ShaderGraphResponse RenameCategory(RenameCategoryRequest request);
         ShaderGraphResponse FindCategory(FindCategoryRequest request);
@@ -56,6 +57,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse CreateGraph(CreateGraphRequest request)
         {
             return backend.CreateGraph(request);
+        }
+
+        public ShaderGraphResponse RenameGraph(RenameGraphRequest request)
+        {
+            return backend.RenameGraph(request);
         }
 
         public ShaderGraphResponse CreateCategory(CreateCategoryRequest request)

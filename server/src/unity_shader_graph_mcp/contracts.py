@@ -7,6 +7,7 @@ from typing import Any, Literal, Mapping
 
 ShaderGraphAction = Literal[
     "create_graph",
+    "rename_graph",
     "create_category",
     "rename_category",
     "find_category",
