@@ -323,6 +323,49 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_ExportGraphContract_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphExportGraphContract", out _);
+
+            ShaderGraphResponse createCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(assetPath, "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createCategoryResponse);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Tint",
+                "Color",
+                "#FFFFFFFF");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse movePropertyResponse = ShaderGraphAssetTool.HandleMovePropertyToCategory(
+                assetPath,
+                "Tint",
+                string.Empty,
+                "Surface Inputs",
+                0);
+            ShaderGraphTestAssets.RequirePackageReady(movePropertyResponse);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Contract Source");
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            ShaderGraphResponse exportResponse = ShaderGraphAssetTool.HandleExportGraphContract(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(exportResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(exportResponse.Data, "operation"), Is.EqualTo("export_graph_contract"));
+            Assert.That(ShaderGraphTestAssets.GetString(exportResponse.Data, "contractVersion"), Is.EqualTo("unity-shader-graph-mcp/export-graph-contract-v1"));
+
+            var exportedGraphContract = ShaderGraphTestAssets.RequireDictionary(exportResponse.Data, "exportedGraphContract");
+            Assert.That(ShaderGraphTestAssets.GetString(exportedGraphContract, "assetPath"), Is.EqualTo(assetPath));
+            Assert.That(ShaderGraphTestAssets.GetInt(exportedGraphContract, "categoryCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(exportedGraphContract, "propertyCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(exportedGraphContract, "nodeCount"), Is.EqualTo(1));
+            Assert.That(exportedGraphContract.ContainsKey("categories"), Is.True);
+            Assert.That(exportedGraphContract.ContainsKey("properties"), Is.True);
+            Assert.That(exportedGraphContract.ContainsKey("nodes"), Is.True);
+            Assert.That(exportedGraphContract.ContainsKey("connections"), Is.True);
+        }
+
+        [Test]
         public void BlankGraph_AddFloatAndColorProperty_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphAddProperties", out _);

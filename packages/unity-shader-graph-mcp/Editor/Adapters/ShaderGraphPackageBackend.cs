@@ -168,6 +168,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse ExportGraphContract(ExportGraphContractRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ExportGraphContract(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse FindNode(FindNodeRequest request)
         {
             return ShaderGraphPackageGraphInspector.FindNode(
@@ -3381,6 +3390,86 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphResponse.Ok(
                 $"Loaded package-backed Shader Graph summary from '{assetPath}'.",
                 new Dictionary<string, object>(snapshot.ToDictionary())
+            );
+        }
+
+        public static ShaderGraphResponse ExportGraphContract(
+            ExportGraphContractRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Export graph contract request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.ValidateGraph() could not be invoked: {validateFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "export_graph_contract"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                ["exportGraphContractSemantics"] = new[]
+                {
+                    "exportedGraphContract is read-only structured output for external tooling.",
+                    "The export preserves current category/property/node/connection order.",
+                    "This action does not mutate or save the graph.",
+                },
+                ["exportedGraphContract"] = BuildExportedGraphContractData(graphData, snapshot),
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Exported package-backed Shader Graph contract from '{assetPath}'.",
+                data
             );
         }
 
@@ -8205,6 +8294,115 @@ namespace ShaderGraphMcp.Editor.Adapters
             return data;
         }
 
+        private static bool TryGetPropertyDefaultValueText(object property, out string defaultValue)
+        {
+            defaultValue = string.Empty;
+            if (property == null)
+            {
+                return false;
+            }
+
+            object value = GetMemberValue(property, "value")
+                ?? GetMemberValue(property, "m_Value")
+                ?? GetMemberValue(property, "colorValue")
+                ?? GetMemberValue(property, "vector1")
+                ?? GetMemberValue(property, "vector2")
+                ?? GetMemberValue(property, "vector3")
+                ?? GetMemberValue(property, "vector4");
+
+            if (value == null)
+            {
+                return false;
+            }
+
+            defaultValue = FormatContractValue(value);
+            return true;
+        }
+
+        private static string FormatContractValue(object value)
+        {
+            if (value == null)
+            {
+                return string.Empty;
+            }
+
+            switch (value)
+            {
+                case string text:
+                    return text;
+                case bool booleanValue:
+                    return booleanValue ? "true" : "false";
+                case float floatValue:
+                    return floatValue.ToString("G9", CultureInfo.InvariantCulture);
+                case double doubleValue:
+                    return doubleValue.ToString("G17", CultureInfo.InvariantCulture);
+                case int intValue:
+                    return intValue.ToString(CultureInfo.InvariantCulture);
+                case long longValue:
+                    return longValue.ToString(CultureInfo.InvariantCulture);
+                case Color colorValue:
+                    return string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0}, {1}, {2}, {3}",
+                        colorValue.r,
+                        colorValue.g,
+                        colorValue.b,
+                        colorValue.a);
+                case Vector2 vector2:
+                    return string.Format(CultureInfo.InvariantCulture, "{0}, {1}", vector2.x, vector2.y);
+                case Vector3 vector3:
+                    return string.Format(CultureInfo.InvariantCulture, "{0}, {1}, {2}", vector3.x, vector3.y, vector3.z);
+                case Vector4 vector4:
+                    return string.Format(CultureInfo.InvariantCulture, "{0}, {1}, {2}, {3}", vector4.x, vector4.y, vector4.z, vector4.w);
+            }
+
+            if (value is IEnumerable enumerable && value is not string)
+            {
+                return string.Join(
+                    ", ",
+                    enumerable.Cast<object>().Select(FormatContractValue));
+            }
+
+            return Convert.ToString(value, CultureInfo.InvariantCulture) ?? value.ToString() ?? string.Empty;
+        }
+
+        private static Dictionary<string, object> BuildExportedPropertyContractData(object graphData, object property)
+        {
+            var data = BuildPropertyLookupData(property);
+
+            string objectId = GetStringProperty(property, "objectId");
+            if (!string.IsNullOrWhiteSpace(objectId))
+            {
+                data["objectId"] = objectId;
+            }
+
+            if (TryResolvePropertyTypeFromInstance(property, out _, out Type shaderInputType, out _))
+            {
+                data["resolvedShaderInputType"] = shaderInputType.FullName ?? shaderInputType.Name;
+            }
+
+            if (TryResolvePropertyCategoryContext(
+                    graphData,
+                    property,
+                    out object resolvedCategory,
+                    out string categoryGuid,
+                    out int categoryIndex,
+                    out _,
+                    out _))
+            {
+                data["categoryGuid"] = categoryGuid;
+                data["categoryDisplayName"] = GetCategoryDisplayName(resolvedCategory);
+                data["categoryIndex"] = categoryIndex;
+            }
+
+            if (TryGetPropertyDefaultValueText(property, out string defaultValue))
+            {
+                data["defaultValue"] = defaultValue;
+            }
+
+            return data;
+        }
+
         private static bool CategoryMatchesName(object category, string requestedCategoryName)
         {
             if (category == null || string.IsNullOrWhiteSpace(requestedCategoryName))
@@ -8242,6 +8440,82 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["childCount"] = children.Count,
                 ["propertyOrder"] = BuildCategoryPropertyOrder(children),
                 ["isDefaultCategory"] = string.IsNullOrWhiteSpace(GetStringProperty(category, "name")),
+            };
+        }
+
+        private static Dictionary<string, object> BuildExportedNodeContractData(object node)
+        {
+            var data = BuildNodeLookupData(node);
+            if (data.TryGetValue("position", out object positionSummary) &&
+                positionSummary != null &&
+                TryGetNodePositionRect(node, out Rect position))
+            {
+                data["positionSummary"] = positionSummary.ToString();
+                data["position"] = BuildPositionData(position);
+            }
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildExportedConnectionContractData(object edge)
+        {
+            var data = BuildEdgeLookupData(edge);
+
+            object outputSlotReference = GetMemberValue(edge, "outputSlot");
+            object inputSlotReference = GetMemberValue(edge, "inputSlot");
+
+            if (TryGetSlotReferencePortName(outputSlotReference, out string outputPort))
+            {
+                data["outputPort"] = outputPort;
+            }
+
+            if (TryGetSlotReferencePortName(inputSlotReference, out string inputPort))
+            {
+                data["inputPort"] = inputPort;
+            }
+
+            object outputNode = GetMemberValue(outputSlotReference, "node");
+            object inputNode = GetMemberValue(inputSlotReference, "node");
+            if (outputNode != null)
+            {
+                data["outputNodeType"] = GetTypeName(outputNode);
+            }
+
+            if (inputNode != null)
+            {
+                data["inputNodeType"] = GetTypeName(inputNode);
+            }
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildExportedGraphContractData(
+            object graphData,
+            ShaderGraphAssetSnapshot snapshot)
+        {
+            IReadOnlyList<object> categories = EnumerateMember(graphData, "categories");
+            IReadOnlyList<object> properties = EnumerateMember(graphData, "properties");
+            IReadOnlyList<object> nodes = EnumerateMember(graphData, "nodes");
+            IReadOnlyList<object> connections = EnumerateMember(graphData, "edges");
+
+            return new Dictionary<string, object>
+            {
+                ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                ["assetPath"] = snapshot.AssetPath,
+                ["assetName"] = snapshot.AssetName,
+                ["graphPathLabel"] = snapshot.GraphPathLabel,
+                ["graphDefaultPrecision"] = snapshot.GraphDefaultPrecision,
+                ["assetGuid"] = GetStringProperty(graphData, "assetGuid"),
+                ["isSubGraph"] = GetBoolProperty(graphData, "isSubGraph"),
+                ["categoryCount"] = categories.Count,
+                ["propertyCount"] = properties.Count,
+                ["nodeCount"] = nodes.Count,
+                ["connectionCount"] = connections.Count,
+                ["categoryOrder"] = BuildCategoryOrder(categories),
+                ["categories"] = categories.Select(BuildCategoryLookupData).Cast<object>().ToArray(),
+                ["properties"] = properties.Select(property => BuildExportedPropertyContractData(graphData, property)).Cast<object>().ToArray(),
+                ["nodes"] = nodes.Select(BuildExportedNodeContractData).Cast<object>().ToArray(),
+                ["connections"] = connections.Select(BuildExportedConnectionContractData).Cast<object>().ToArray(),
             };
         }
 
@@ -12778,6 +13052,31 @@ namespace ShaderGraphMcp.Editor.Adapters
             slotId = GetIntProperty(slotReference, "slotId");
 
             return !string.IsNullOrWhiteSpace(nodeId) && slotId >= 0;
+        }
+
+        private static bool TryGetSlotReferencePortName(object slotReference, out string portName)
+        {
+            portName = string.Empty;
+            if (slotReference == null)
+            {
+                return false;
+            }
+
+            object slot = GetMemberValue(slotReference, "slot");
+            portName = GetStringProperty(slot, "displayName", "name");
+            if (!string.IsNullOrWhiteSpace(portName))
+            {
+                return true;
+            }
+
+            int slotId = GetIntProperty(slotReference, "slotId");
+            if (slotId < 0)
+            {
+                return false;
+            }
+
+            portName = $"slot-{slotId}";
+            return true;
         }
 
         private static string DescribeSlotReference(object slotReference)

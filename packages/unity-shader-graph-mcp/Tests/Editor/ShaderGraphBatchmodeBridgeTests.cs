@@ -428,6 +428,25 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsExportGraphContractRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""export_graph_contract"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var exportRequest = request as ExportGraphContractRequest;
+            Assert.That(exportRequest, Is.Not.Null);
+            Assert.That(exportRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsFindNodeRequest_FromAliasFields()
         {
             string json = @"{

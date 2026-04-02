@@ -1719,6 +1719,77 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedExportGraphContractEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Exported package-backed Shader Graph contract from 'Assets/ShaderGraphs/Blank.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "export_graph_contract",
+                    ["assetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                    ["exportGraphContractSemantics"] = new[]
+                    {
+                        "exportedGraphContract is read-only structured output for external tooling.",
+                    },
+                    ["exportedGraphContract"] = new Dictionary<string, object>
+                    {
+                        ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                        ["assetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                        ["categoryCount"] = 2,
+                        ["propertyCount"] = 1,
+                        ["nodeCount"] = 1,
+                        ["connectionCount"] = 0,
+                        ["categoryOrder"] = new[] { "(Default Category)", "Surface Inputs" },
+                        ["categories"] = new object[]
+                        {
+                            new Dictionary<string, object>
+                            {
+                                ["categoryGuid"] = "category-default",
+                                ["displayName"] = "(Default Category)",
+                            },
+                            new Dictionary<string, object>
+                            {
+                                ["categoryGuid"] = "category-surface",
+                                ["displayName"] = "Surface Inputs",
+                            },
+                        },
+                        ["properties"] = new object[]
+                        {
+                            new Dictionary<string, object>
+                            {
+                                ["displayName"] = "Tint",
+                                ["referenceName"] = "_Tint",
+                                ["categoryGuid"] = "category-surface",
+                            },
+                        },
+                        ["nodes"] = new object[]
+                        {
+                            new Dictionary<string, object>
+                            {
+                                ["objectId"] = "node-1",
+                                ["displayName"] = "Contract Source",
+                            },
+                        },
+                        ["connections"] = new object[0],
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("export_graph_contract"));
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["contractVersion"], Is.EqualTo("unity-shader-graph-mcp/export-graph-contract-v1"));
+
+            var exportedGraphContract = (IReadOnlyDictionary<string, object>)response.Data["exportedGraphContract"];
+            Assert.That(exportedGraphContract["assetPath"], Is.EqualTo("Assets/ShaderGraphs/Blank.shadergraph"));
+            Assert.That(exportedGraphContract["categoryCount"], Is.EqualTo(2));
+            Assert.That(exportedGraphContract["propertyCount"], Is.EqualTo(1));
+            Assert.That(exportedGraphContract["nodeCount"], Is.EqualTo(1));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedAddPropertyEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

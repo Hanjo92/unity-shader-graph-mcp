@@ -240,6 +240,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateListCategoriesRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.ExportGraphContract:
+                    return TryCreateExportGraphContractRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindNode:
                     return TryCreateFindNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindProperty:
@@ -332,6 +334,21 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new ReadGraphSummaryRequest(assetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateExportGraphContractRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Export graph contract requires an asset path.";
+                return false;
+            }
+
+            request = new ExportGraphContractRequest(assetPath);
             errorMessage = null;
             return true;
         }
@@ -1244,10 +1261,12 @@ namespace ShaderGraphMcp.Editor.Tools
                 return ShaderGraphAction.DuplicateCategory;
             case "split_category":
                 return ShaderGraphAction.SplitCategory;
-            case "list_categories":
-                return ShaderGraphAction.ListCategories;
+                case "list_categories":
+                    return ShaderGraphAction.ListCategories;
                 case "read_graph_summary":
                     return ShaderGraphAction.ReadGraphSummary;
+                case "export_graph_contract":
+                    return ShaderGraphAction.ExportGraphContract;
                 case "find_node":
                     return ShaderGraphAction.FindNode;
                 case "find_property":

@@ -22,6 +22,7 @@ namespace ShaderGraphMcp.Editor.Models
         SplitCategory,
         ListCategories,
         ReadGraphSummary,
+        ExportGraphContract,
         FindNode,
         FindProperty,
         ListSupportedNodes,
@@ -125,6 +126,14 @@ namespace ShaderGraphMcp.Editor.Models
     {
         public ReadGraphSummaryRequest(string assetPath)
             : base(ShaderGraphAction.ReadGraphSummary, assetPath)
+        {
+        }
+    }
+
+    public sealed class ExportGraphContractRequest : ShaderGraphRequest
+    {
+        public ExportGraphContractRequest(string assetPath)
+            : base(ShaderGraphAction.ExportGraphContract, assetPath)
         {
         }
     }

@@ -111,6 +111,10 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "action": "read_graph_summary",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
     },
+    "export_graph_contract": {
+        "action": "export_graph_contract",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    },
     "find_node": {
         "action": "find_node",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",

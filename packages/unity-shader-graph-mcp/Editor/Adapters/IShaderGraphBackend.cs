@@ -21,6 +21,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse SplitCategory(SplitCategoryRequest request);
         ShaderGraphResponse ListCategories(ListCategoriesRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
+        ShaderGraphResponse ExportGraphContract(ExportGraphContractRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
         ShaderGraphResponse FindProperty(FindPropertyRequest request);
         ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request);

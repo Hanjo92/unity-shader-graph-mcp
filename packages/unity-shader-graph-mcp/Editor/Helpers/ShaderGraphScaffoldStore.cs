@@ -1710,6 +1710,69 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse ExportGraphContract(
+            ExportGraphContractRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Export graph contract request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            if (!TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest))
+            {
+                return ShaderGraphResponse.Fail(
+                    "'export_graph_contract' only supports graphs created by this scaffold. Use create_graph first so the manifest exists."
+                );
+            }
+
+            EnsureManifestCategories(manifest);
+
+            var data = BuildSummaryData(
+                manifest,
+                assetPath,
+                absoluteAssetPath,
+                true,
+                true,
+                executionKind,
+                "export_graph_contract",
+                new[]
+                {
+                    "Scaffold graph contract exported from the sidecar manifest.",
+                    "exportedGraphContract is the structured counterpart to read_graph_summary.",
+                },
+                null
+            );
+            data["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1";
+            data["exportGraphContractSemantics"] = new[]
+            {
+                "exportedGraphContract is read-only structured output for external tooling.",
+                "Scaffold export requires the sidecar manifest created by create_graph.",
+                "categories, properties, nodes, and connections preserve scaffold order.",
+            };
+            data["exportedGraphContract"] = BuildScaffoldGraphContractData(manifest, assetPath);
+
+            return ShaderGraphResponse.Ok(
+                $"Exported scaffold Shader Graph contract for '{assetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse FindNode(
             FindNodeRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -3890,6 +3953,49 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ["name"] = category?.name ?? string.Empty,
                 ["childCount"] = properties.Length,
                 ["propertyOrder"] = BuildScaffoldPropertyOrder(properties),
+            };
+        }
+
+        private static Dictionary<string, object> BuildScaffoldGraphContractData(
+            ShaderGraphScaffoldManifest manifest,
+            string assetPath)
+        {
+            EnsureManifestCategories(manifest);
+
+            object[] categories = manifest.categories
+                .Select(category => BuildScaffoldCategoryData(manifest, category))
+                .Cast<object>()
+                .ToArray();
+            object[] properties = manifest.properties
+                .Select(BuildScaffoldPropertyData)
+                .Cast<object>()
+                .ToArray();
+            object[] nodes = manifest.nodes
+                .Select(BuildScaffoldNodeData)
+                .Cast<object>()
+                .ToArray();
+            object[] connections = manifest.connections
+                .Select(BuildScaffoldConnectionData)
+                .Cast<object>()
+                .ToArray();
+
+            return new Dictionary<string, object>
+            {
+                ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                ["assetPath"] = assetPath ?? string.Empty,
+                ["assetName"] = manifest.assetName ?? string.Empty,
+                ["template"] = manifest.template ?? string.Empty,
+                ["graphPathLabel"] = manifest.graphPathLabel ?? string.Empty,
+                ["graphDefaultPrecision"] = manifest.graphDefaultPrecision ?? string.Empty,
+                ["categoryCount"] = manifest.categories.Count,
+                ["propertyCount"] = manifest.properties.Count,
+                ["nodeCount"] = manifest.nodes.Count,
+                ["connectionCount"] = manifest.connections.Count,
+                ["categoryOrder"] = BuildScaffoldCategoryOrder(manifest.categories),
+                ["categories"] = categories,
+                ["properties"] = properties,
+                ["nodes"] = nodes,
+                ["connections"] = connections,
             };
         }
 
