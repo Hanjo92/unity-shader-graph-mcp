@@ -214,6 +214,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateRenameGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DuplicateGraph:
                     return TryCreateDuplicateGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.DeleteGraph:
+                    return TryCreateDeleteGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.SetGraphMetadata:
                     return TryCreateSetGraphMetadataRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.CreateCategory:
@@ -374,6 +376,21 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new DuplicateGraphRequest(assetPath, name);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateDeleteGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Delete graph requires an asset path.";
+                return false;
+            }
+
+            request = new DeleteGraphRequest(assetPath);
             errorMessage = null;
             return true;
         }
@@ -1180,6 +1197,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.RenameGraph;
                 case "duplicate_graph":
                     return ShaderGraphAction.DuplicateGraph;
+                case "delete_graph":
+                    return ShaderGraphAction.DeleteGraph;
                 case "set_graph_metadata":
                     return ShaderGraphAction.SetGraphMetadata;
                 case "create_category":

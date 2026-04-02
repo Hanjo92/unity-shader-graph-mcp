@@ -249,6 +249,28 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_DeleteGraph_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphDeleteGraph", out _);
+
+            ShaderGraphResponse deleteResponse = ShaderGraphAssetTool.HandleDeleteGraph(assetPath);
+            Assert.That(deleteResponse.Success, Is.True, deleteResponse.Message);
+            Assert.That(ShaderGraphTestAssets.GetString(deleteResponse.Data, "operation"), Is.EqualTo("delete_graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(deleteResponse.Data, "assetPath"), Is.EqualTo(assetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(deleteResponse.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
+            Assert.That(deleteResponse.Data.ContainsKey("exists"), Is.True);
+            Assert.That(deleteResponse.Data["exists"], Is.EqualTo(false));
+
+            var deletedGraph = ShaderGraphTestAssets.RequireDictionary(deleteResponse.Data, "deletedGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(deletedGraph, "assetPath"), Is.EqualTo(assetPath));
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Null);
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            Assert.That(summaryResponse.Success, Is.False);
+            Assert.That(summaryResponse.Message, Does.Contain("not found"));
+        }
+
+        [Test]
         public void BlankGraph_SetGraphMetadata_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphSetGraphMetadata", out _);

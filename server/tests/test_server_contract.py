@@ -42,6 +42,10 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
         "newDisplayName": "CopiedLitGraph",
     },
+    "delete_graph": {
+        "action": "delete_graph",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+    },
     "set_graph_metadata": {
         "action": "set_graph_metadata",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",

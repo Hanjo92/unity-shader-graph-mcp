@@ -407,6 +407,100 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse DeleteGraph(
+            DeleteGraphRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Delete graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            bool hasManifest = TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest);
+            string assetName = Path.GetFileNameWithoutExtension(assetPath);
+            var deleteNotes = new List<string>();
+
+            try
+            {
+                if (!AssetDatabase.DeleteAsset(assetPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to delete Shader Graph asset at '{assetPath}'."
+                    );
+                }
+
+                deleteNotes.Add("AssetDatabase.DeleteAsset(...) invoked successfully.");
+
+                if (File.Exists(absoluteManifestPath))
+                {
+                    File.Delete(absoluteManifestPath);
+                    deleteNotes.Add("Scaffold sidecar manifest deleted from disk.");
+                }
+
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+            catch (Exception ex)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to delete scaffold Shader Graph at '{assetPath}': {ex.Message}"
+                );
+            }
+
+            Dictionary<string, object> data;
+            if (hasManifest)
+            {
+                data = BuildSummaryData(
+                    manifest,
+                    assetPath,
+                    absoluteAssetPath,
+                    false,
+                    false,
+                    executionKind,
+                    "delete_graph",
+                    deleteNotes,
+                    null
+                );
+            }
+            else
+            {
+                data = BuildDeletedRawScaffoldData(
+                    assetPath,
+                    absoluteAssetPath,
+                    executionKind,
+                    deleteNotes
+                );
+            }
+
+            data["deletedGraph"] = BuildScaffoldDeletedGraphData(assetPath);
+            data["deleteGraphSemantics"] = new[]
+            {
+                "delete_graph removes the current .shadergraph asset at its existing path.",
+                "The response assetPath continues to point at the deleted asset path and exists is false.",
+                "Scaffold sidecar manifests are removed alongside the deleted graph when present.",
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Deleted scaffold Shader Graph '{assetName}' at '{assetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse SetGraphMetadata(
             SetGraphMetadataRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -3186,6 +3280,39 @@ namespace ShaderGraphMcp.Editor.Helpers
             return data;
         }
 
+        private static Dictionary<string, object> BuildDeletedRawScaffoldData(
+            string assetPath,
+            string absoluteAssetPath,
+            ShaderGraphExecutionKind executionKind,
+            IEnumerable<string> notes)
+        {
+            var snapshot = new ShaderGraphAssetSnapshot(
+                "delete_graph",
+                assetPath,
+                GetManifestPath(assetPath),
+                absoluteAssetPath,
+                false,
+                false,
+                "raw-file",
+                Path.GetFileNameWithoutExtension(assetPath),
+                null,
+                null,
+                UtcNow(),
+                0,
+                0,
+                0,
+                executionKind,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                notes == null ? Array.Empty<string>() : notes.ToArray(),
+                Array.Empty<string>(),
+                CompatibilitySnapshot.Value
+            );
+
+            return new Dictionary<string, object>(snapshot.ToDictionary());
+        }
+
         private static string BuildPlaceholderPayload(ShaderGraphScaffoldManifest manifest)
         {
             var builder = new StringBuilder();
@@ -3554,6 +3681,19 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ["requestedName"] = requestedName ?? string.Empty,
                 ["sourceAssetPath"] = sourceAssetPath ?? string.Empty,
                 ["sourceAssetName"] = sourceAssetName,
+            };
+        }
+
+        private static Dictionary<string, object> BuildScaffoldDeletedGraphData(string assetPath)
+        {
+            string assetName = Path.GetFileNameWithoutExtension(assetPath ?? string.Empty) ?? string.Empty;
+
+            return new Dictionary<string, object>
+            {
+                ["assetPath"] = assetPath ?? string.Empty,
+                ["assetName"] = assetName,
+                ["displayName"] = assetName,
+                ["name"] = assetName,
             };
         }
 

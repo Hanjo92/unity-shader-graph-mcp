@@ -27,6 +27,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "create_graph",
     "rename_graph",
     "duplicate_graph",
+    "delete_graph",
     "set_graph_metadata",
     "create_category",
     "rename_category",
@@ -253,6 +254,9 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if display_name is None:
             raise ShaderGraphRequestError("Missing required field 'newDisplayName', 'displayName', 'name', or 'graphName'.")
         request.payload.setdefault("displayName", display_name)
+
+    if request.action == "delete_graph" and request.path is None:
+        raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
     if request.action == "set_graph_metadata":
         if request.path is None:

@@ -1529,6 +1529,67 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedDeleteGraphEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Deleted Shader Graph 'Blank' at 'Assets/ShaderGraphs/Blank.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "delete_graph",
+                    ["assetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                    ["manifestPath"] = string.Empty,
+                    ["absolutePath"] = "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/Blank.shadergraph",
+                    ["exists"] = false,
+                    ["hasManifest"] = false,
+                    ["schema"] = "unity-shader-graph-mcp/package-backed-v1",
+                    ["assetName"] = "Blank",
+                    ["template"] = "blank",
+                    ["createdUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["updatedUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["propertyCount"] = 0,
+                    ["nodeCount"] = 0,
+                    ["connectionCount"] = 0,
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["properties"] = new string[0],
+                    ["nodes"] = new string[0],
+                    ["connections"] = new string[0],
+                    ["notes"] = new[] { "AssetDatabase.DeleteAsset(...) invoked successfully." },
+                    ["preview"] = new[] { "deleted graph preview" },
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["packageDetected"] = true,
+                    ["compatibility"] = new Dictionary<string, object>
+                    {
+                        ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                        ["packageDetected"] = true,
+                        ["notes"] = new[] { "package present" },
+                    },
+                    ["deleteGraphSemantics"] = new[]
+                    {
+                        "delete_graph removes the current .shadergraph asset at its existing path.",
+                        "The response assetPath continues to point at the deleted asset path and exists is false.",
+                        "Package-backed graph delete is followed by synchronous refresh so Unity no longer resolves the deleted asset.",
+                    },
+                    ["deletedGraph"] = new Dictionary<string, object>
+                    {
+                        ["assetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                        ["assetName"] = "Blank",
+                        ["displayName"] = "Blank",
+                        ["name"] = "Blank",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("delete_graph"));
+            Assert.That(response.Data["assetPath"], Is.EqualTo("Assets/ShaderGraphs/Blank.shadergraph"));
+            Assert.That(response.Data["exists"], Is.False);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+
+            var deletedGraph = (IReadOnlyDictionary<string, object>)response.Data["deletedGraph"];
+            Assert.That(deletedGraph["assetPath"], Is.EqualTo("Assets/ShaderGraphs/Blank.shadergraph"));
+            Assert.That(deletedGraph["assetName"], Is.EqualTo("Blank"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedSetGraphMetadataEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

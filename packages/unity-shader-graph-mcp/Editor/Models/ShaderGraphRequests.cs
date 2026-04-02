@@ -9,6 +9,7 @@ namespace ShaderGraphMcp.Editor.Models
         CreateGraph,
         RenameGraph,
         DuplicateGraph,
+        DeleteGraph,
         SetGraphMetadata,
         CreateCategory,
         RenameCategory,
@@ -234,6 +235,14 @@ namespace ShaderGraphMcp.Editor.Models
             return string.IsNullOrWhiteSpace(assetPath)
                 ? string.Empty
                 : assetPath.Replace('\\', '/').Trim();
+        }
+    }
+
+    public sealed class DeleteGraphRequest : ShaderGraphRequest
+    {
+        public DeleteGraphRequest(string assetPath)
+            : base(ShaderGraphAction.DeleteGraph, assetPath)
+        {
         }
     }
 

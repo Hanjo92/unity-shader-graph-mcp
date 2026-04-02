@@ -51,6 +51,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse DeleteGraph(DeleteGraphRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.DeleteGraph(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request)
         {
             return ShaderGraphPackageGraphInspector.SetGraphMetadata(
@@ -896,6 +905,126 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Duplicated Shader Graph '{sourceAssetName}' to '{duplicatedAssetName}' at '{duplicatedAssetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse DeleteGraph(
+            DeleteGraphRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Delete graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'.",
+                    BuildUnsupportedDeleteGraphData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>()
+                    )
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}",
+                    BuildUnsupportedDeleteGraphData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes
+                    )
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "delete_graph"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary());
+            string assetName = Path.GetFileNameWithoutExtension(assetPath);
+
+            try
+            {
+                if (!AssetDatabase.DeleteAsset(assetPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to delete Shader Graph asset at '{assetPath}'.",
+                        BuildUnsupportedDeleteGraphData(
+                            assetPath,
+                            compatibility,
+                            executionKind,
+                            loadNotes
+                        )
+                    );
+                }
+
+                loadNotes.Add("AssetDatabase.DeleteAsset(...) invoked successfully.");
+                AssetDatabase.SaveAssets();
+                loadNotes.Add("AssetDatabase.SaveAssets() invoked successfully.");
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                loadNotes.Add("AssetDatabase.Refresh(ForceSynchronousImport) invoked successfully.");
+            }
+            catch (Exception exception)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to delete Shader Graph asset at '{assetPath}': {exception.Message}",
+                    BuildUnsupportedDeleteGraphData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        loadNotes
+                    )
+                );
+            }
+
+            data["operation"] = "delete_graph";
+            data["exists"] = false;
+            data["hasManifest"] = false;
+            data["notes"] = loadNotes.ToArray();
+            data["deletedGraph"] = BuildDeletedGraphData(assetPath);
+            data["deleteGraphSemantics"] = new[]
+            {
+                "delete_graph removes the current .shadergraph asset at its existing path.",
+                "The response assetPath continues to point at the deleted asset path and exists is false.",
+                "Package-backed graph delete is followed by synchronous refresh so Unity no longer resolves the deleted asset.",
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Deleted Shader Graph '{assetName}' at '{assetPath}'.",
                 data
             );
         }
@@ -7767,6 +7896,19 @@ namespace ShaderGraphMcp.Editor.Adapters
             };
         }
 
+        private static Dictionary<string, object> BuildDeletedGraphData(string assetPath)
+        {
+            string assetName = Path.GetFileNameWithoutExtension(assetPath ?? string.Empty) ?? string.Empty;
+
+            return new Dictionary<string, object>
+            {
+                ["assetPath"] = assetPath ?? string.Empty,
+                ["assetName"] = assetName,
+                ["displayName"] = assetName,
+                ["name"] = assetName,
+            };
+        }
+
         private static Dictionary<string, object> BuildDuplicatedFromData(object sourceNode, Rect? sourcePosition)
         {
             var data = BuildNodeLookupData(sourceNode);
@@ -8456,6 +8598,31 @@ namespace ShaderGraphMcp.Editor.Adapters
                 {
                     "duplicate_graph copies the current .shadergraph asset into a new asset within its existing folder.",
                     "The response assetPath always points at the duplicated asset path while sourceAssetPath keeps the original.",
+                },
+                ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
+            };
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedDeleteGraphData(
+            string assetPath,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind,
+            IReadOnlyList<string> loadNotes)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = "delete_graph",
+                ["assetPath"] = assetPath,
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["deleteGraphSemantics"] = new[]
+                {
+                    "delete_graph removes the current .shadergraph asset at its existing path.",
+                    "The response assetPath continues to point at the deleted asset path and exists is false.",
                 },
                 ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
             };
