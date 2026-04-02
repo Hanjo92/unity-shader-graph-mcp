@@ -27,6 +27,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.DeleteGraph(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse MoveGraph(MoveGraphRequest request)
+        {
+            return ShaderGraphScaffoldStore.MoveGraph(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request)
         {
             return ShaderGraphScaffoldStore.SetGraphMetadata(request, ExecutionKind);

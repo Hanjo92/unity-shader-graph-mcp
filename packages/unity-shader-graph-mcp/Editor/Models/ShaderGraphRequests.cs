@@ -10,6 +10,7 @@ namespace ShaderGraphMcp.Editor.Models
         RenameGraph,
         DuplicateGraph,
         DeleteGraph,
+        MoveGraph,
         SetGraphMetadata,
         CreateCategory,
         RenameCategory,
@@ -243,6 +244,48 @@ namespace ShaderGraphMcp.Editor.Models
         public DeleteGraphRequest(string assetPath)
             : base(ShaderGraphAction.DeleteGraph, assetPath)
         {
+        }
+    }
+
+    public sealed class MoveGraphRequest : ShaderGraphRequest
+    {
+        public string TargetPath { get; }
+        public string TargetAssetPath => BuildTargetAssetPath(AssetPath, TargetPath);
+
+        public MoveGraphRequest(string assetPath, string targetPath)
+            : base(ShaderGraphAction.MoveGraph, assetPath)
+        {
+            TargetPath = NormalizeAssetPath(targetPath);
+        }
+
+        private static string BuildTargetAssetPath(string assetPath, string targetPath)
+        {
+            string normalizedAssetPath = NormalizeAssetPath(assetPath);
+            string normalizedTargetPath = NormalizeAssetPath(targetPath);
+            if (string.IsNullOrWhiteSpace(normalizedTargetPath))
+            {
+                return string.Empty;
+            }
+
+            if (normalizedTargetPath.EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalizedTargetPath;
+            }
+
+            string fileName = Path.GetFileName(normalizedAssetPath);
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return normalizedTargetPath;
+            }
+
+            return NormalizeAssetPath(Path.Combine(normalizedTargetPath.TrimEnd('/'), fileName));
+        }
+
+        private static string NormalizeAssetPath(string assetPath)
+        {
+            return string.IsNullOrWhiteSpace(assetPath)
+                ? string.Empty
+                : assetPath.Replace('\\', '/').Trim();
         }
     }
 

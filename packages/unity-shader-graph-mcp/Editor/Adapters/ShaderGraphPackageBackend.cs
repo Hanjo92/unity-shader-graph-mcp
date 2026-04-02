@@ -60,6 +60,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse MoveGraph(MoveGraphRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.MoveGraph(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request)
         {
             return ShaderGraphPackageGraphInspector.SetGraphMetadata(
@@ -1027,6 +1036,152 @@ namespace ShaderGraphMcp.Editor.Adapters
                 $"Deleted Shader Graph '{assetName}' at '{assetPath}'.",
                 data
             );
+        }
+
+        public static ShaderGraphResponse MoveGraph(
+            MoveGraphRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Move graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string movedAssetPath = NormalizeAssetPath(request.TargetAssetPath);
+            if (string.IsNullOrWhiteSpace(movedAssetPath))
+            {
+                return ShaderGraphResponse.Fail("Move graph could not resolve the target asset path.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'.",
+                    BuildUnsupportedMoveGraphData(
+                        assetPath,
+                        movedAssetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>())
+                );
+            }
+
+            string absoluteMovedPath = ToAbsolutePath(movedAssetPath);
+            if (!string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(absoluteMovedPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset already exists at '{movedAssetPath}'.",
+                    BuildUnsupportedMoveGraphData(
+                        assetPath,
+                        movedAssetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>())
+                );
+            }
+
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string movedAssetName = Path.GetFileNameWithoutExtension(movedAssetPath);
+            var moveNotes = new List<string>();
+
+            if (!string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    string directory = Path.GetDirectoryName(absoluteMovedPath);
+                    if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                        moveNotes.Add("Created parent folder for the moved graph asset.");
+                    }
+
+                    string moveError = AssetDatabase.MoveAsset(assetPath, movedAssetPath);
+                    if (!string.IsNullOrWhiteSpace(moveError))
+                    {
+                        return ShaderGraphResponse.Fail(
+                            $"Unable to move Shader Graph '{assetPath}' to '{movedAssetPath}': {moveError}",
+                            BuildUnsupportedMoveGraphData(
+                                assetPath,
+                                movedAssetPath,
+                                compatibility,
+                                executionKind,
+                                moveNotes)
+                        );
+                    }
+
+                    moveNotes.Add("AssetDatabase.MoveAsset(...) invoked successfully.");
+
+                    AssetDatabase.SaveAssets();
+                    moveNotes.Add("AssetDatabase.SaveAssets() invoked successfully.");
+
+                    AssetDatabase.ImportAsset(
+                        movedAssetPath,
+                        ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
+                    );
+                    moveNotes.Add("AssetDatabase.ImportAsset(..., ForceSynchronousImport | ForceUpdate) invoked successfully.");
+
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    moveNotes.Add("AssetDatabase.Refresh(ForceSynchronousImport) invoked successfully.");
+                }
+                catch (Exception exception)
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Moved Shader Graph asset to '{movedAssetPath}' but failed to refresh it: {exception.Message}",
+                        BuildUnsupportedMoveGraphData(
+                            assetPath,
+                            movedAssetPath,
+                            compatibility,
+                            executionKind,
+                            moveNotes)
+                    );
+                }
+            }
+            else
+            {
+                moveNotes.Add("Requested target asset path already matches the current asset path.");
+            }
+
+            ShaderGraphResponse summaryResponse = ReadGraphSummary(
+                new ReadGraphSummaryRequest(movedAssetPath),
+                compatibility,
+                executionKind
+            );
+
+            var data = summaryResponse.Data == null
+                ? new Dictionary<string, object>()
+                : new Dictionary<string, object>(summaryResponse.Data);
+            data["operation"] = "move_graph";
+            data["previousAssetPath"] = assetPath;
+            data["movedGraph"] = BuildMovedGraphData(assetPath, movedAssetPath);
+            data["moveGraphSemantics"] = new[]
+            {
+                "move_graph moves the current .shadergraph asset to the exact target asset path, including folder changes.",
+                "The response assetPath always points at the moved asset path.",
+                "Package-backed graph move is followed by synchronous import and refresh before the summary is rebuilt.",
+            };
+
+            if (!summaryResponse.Success)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Moved Shader Graph asset to '{movedAssetPath}' but could not read the updated graph summary: {summaryResponse.Message}",
+                    data
+                );
+            }
+
+            string message = string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase)
+                ? $"Shader Graph already exists at '{movedAssetPath}'."
+                : $"Moved Shader Graph '{previousAssetName}' to '{movedAssetPath}'.";
+            return ShaderGraphResponse.Ok(message, data);
         }
 
         public static ShaderGraphResponse SetGraphMetadata(
@@ -7909,6 +8064,24 @@ namespace ShaderGraphMcp.Editor.Adapters
             };
         }
 
+        private static Dictionary<string, object> BuildMovedGraphData(
+            string previousAssetPath,
+            string assetPath)
+        {
+            string previousAssetName = Path.GetFileNameWithoutExtension(previousAssetPath ?? string.Empty) ?? string.Empty;
+            string assetName = Path.GetFileNameWithoutExtension(assetPath ?? string.Empty) ?? string.Empty;
+
+            return new Dictionary<string, object>
+            {
+                ["assetPath"] = assetPath ?? string.Empty,
+                ["assetName"] = assetName,
+                ["displayName"] = assetName,
+                ["name"] = assetName,
+                ["previousAssetPath"] = previousAssetPath ?? string.Empty,
+                ["previousAssetName"] = previousAssetName,
+            };
+        }
+
         private static Dictionary<string, object> BuildDuplicatedFromData(object sourceNode, Rect? sourcePosition)
         {
             var data = BuildNodeLookupData(sourceNode);
@@ -8623,6 +8796,33 @@ namespace ShaderGraphMcp.Editor.Adapters
                 {
                     "delete_graph removes the current .shadergraph asset at its existing path.",
                     "The response assetPath continues to point at the deleted asset path and exists is false.",
+                },
+                ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
+            };
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedMoveGraphData(
+            string previousAssetPath,
+            string assetPath,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind,
+            IReadOnlyList<string> loadNotes)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = "move_graph",
+                ["assetPath"] = assetPath,
+                ["previousAssetPath"] = previousAssetPath,
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["moveGraphSemantics"] = new[]
+                {
+                    "move_graph moves the current .shadergraph asset to the exact target asset path, including folder changes.",
+                    "The response assetPath always points at the moved asset path.",
                 },
                 ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
             };

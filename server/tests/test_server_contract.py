@@ -46,6 +46,11 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "action": "delete_graph",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
     },
+    "move_graph": {
+        "action": "move_graph",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "targetAssetPath": "Assets/ShaderGraphs/Moved/ExampleLitGraph.shadergraph",
+    },
     "set_graph_metadata": {
         "action": "set_graph_metadata",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -297,6 +302,9 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "rename_graph", "path": "Assets/X.shadergraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "move_graph", "path": "Assets/X.shadergraph"})
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "set_graph_metadata", "path": "Assets/X.shadergraph"})

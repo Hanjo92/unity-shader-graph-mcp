@@ -271,6 +271,35 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_MoveGraph_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphMoveGraph", out _);
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string movedAssetPath = Path.Combine(
+                temporaryFolder.AssetPath,
+                "Moved",
+                Path.GetFileName(assetPath)).Replace('\\', '/');
+
+            ShaderGraphResponse moveResponse = ShaderGraphAssetTool.HandleMoveGraph(assetPath, movedAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(moveResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(moveResponse.Data, "operation"), Is.EqualTo("move_graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(moveResponse.Data, "previousAssetPath"), Is.EqualTo(assetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(moveResponse.Data, "assetPath"), Is.EqualTo(movedAssetPath));
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(movedAssetPath), Is.Not.Null);
+
+            var movedGraph = ShaderGraphTestAssets.RequireDictionary(moveResponse.Data, "movedGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(movedGraph, "assetPath"), Is.EqualTo(movedAssetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(movedGraph, "assetName"), Is.EqualTo(previousAssetName));
+            Assert.That(ShaderGraphTestAssets.GetString(movedGraph, "previousAssetName"), Is.EqualTo(previousAssetName));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(movedAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(summaryResponse.Data, "assetPath"), Is.EqualTo(movedAssetPath));
+        }
+
+        [Test]
         public void BlankGraph_SetGraphMetadata_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphSetGraphMetadata", out _);

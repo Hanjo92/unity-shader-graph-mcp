@@ -1590,6 +1590,71 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedMoveGraphEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Moved Shader Graph 'Blank' to 'Assets/ShaderGraphs/Moved/Blank.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "move_graph",
+                    ["assetPath"] = "Assets/ShaderGraphs/Moved/Blank.shadergraph",
+                    ["previousAssetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                    ["manifestPath"] = string.Empty,
+                    ["absolutePath"] = "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderGraphs/Moved/Blank.shadergraph",
+                    ["exists"] = true,
+                    ["hasManifest"] = false,
+                    ["schema"] = "unity-shader-graph-mcp/package-backed-v1",
+                    ["assetName"] = "Blank",
+                    ["template"] = "blank",
+                    ["createdUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["updatedUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["propertyCount"] = 0,
+                    ["nodeCount"] = 0,
+                    ["connectionCount"] = 0,
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["properties"] = new string[0],
+                    ["nodes"] = new string[0],
+                    ["connections"] = new string[0],
+                    ["notes"] = new[] { "AssetDatabase.MoveAsset(...) invoked successfully." },
+                    ["preview"] = new[] { "moved graph preview" },
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["packageDetected"] = true,
+                    ["compatibility"] = new Dictionary<string, object>
+                    {
+                        ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                        ["packageDetected"] = true,
+                        ["notes"] = new[] { "package present" },
+                    },
+                    ["moveGraphSemantics"] = new[]
+                    {
+                        "move_graph moves the current .shadergraph asset to the exact target asset path, including folder changes.",
+                        "The response assetPath always points at the moved asset path.",
+                        "Package-backed graph move is followed by synchronous import and refresh before the summary is rebuilt.",
+                    },
+                    ["movedGraph"] = new Dictionary<string, object>
+                    {
+                        ["assetPath"] = "Assets/ShaderGraphs/Moved/Blank.shadergraph",
+                        ["assetName"] = "Blank",
+                        ["displayName"] = "Blank",
+                        ["name"] = "Blank",
+                        ["previousAssetPath"] = "Assets/ShaderGraphs/Blank.shadergraph",
+                        ["previousAssetName"] = "Blank",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("move_graph"));
+            Assert.That(response.Data["assetPath"], Is.EqualTo("Assets/ShaderGraphs/Moved/Blank.shadergraph"));
+            Assert.That(response.Data["previousAssetPath"], Is.EqualTo("Assets/ShaderGraphs/Blank.shadergraph"));
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+
+            var movedGraph = (IReadOnlyDictionary<string, object>)response.Data["movedGraph"];
+            Assert.That(movedGraph["assetPath"], Is.EqualTo("Assets/ShaderGraphs/Moved/Blank.shadergraph"));
+            Assert.That(movedGraph["assetName"], Is.EqualTo("Blank"));
+            Assert.That(movedGraph["previousAssetName"], Is.EqualTo("Blank"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedSetGraphMetadataEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

@@ -28,6 +28,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "rename_graph",
     "duplicate_graph",
     "delete_graph",
+    "move_graph",
     "set_graph_metadata",
     "create_category",
     "rename_category",
@@ -257,6 +258,32 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
 
     if request.action == "delete_graph" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+    if request.action == "move_graph":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+        target_asset_path = _normalize_move_graph_target_asset_path(
+            request.path,
+            _pick_value(
+                request.payload,
+                "targetAssetPath",
+                "target_asset_path",
+                "newAssetPath",
+                "new_asset_path",
+                "targetPath",
+                "target_path",
+                "newPath",
+                "new_path",
+                "destinationPath",
+                "destination_path",
+            ),
+        )
+        if target_asset_path is None:
+            raise ShaderGraphRequestError(
+                "Missing required field 'targetAssetPath', 'newAssetPath', 'targetPath', 'newPath', or 'destinationPath'."
+            )
+        request.payload.setdefault("targetAssetPath", target_asset_path)
 
     if request.action == "set_graph_metadata":
         if request.path is None:
@@ -793,6 +820,7 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
         ("index", "newIndex", "new_index", "targetIndex", "target_index"),
         ("nodeType", "node_type"),
         ("displayName", "display_name", "newDisplayName", "new_display_name"),
+        ("targetAssetPath", "target_asset_path", "newAssetPath", "new_asset_path", "targetPath", "target_path", "newPath", "new_path", "destinationPath", "destination_path"),
         ("nodeId", "node_id"),
         ("objectId", "object_id"),
         ("outputNodeId", "output_node_id", "sourceNodeId", "source_node_id"),
@@ -849,6 +877,26 @@ def _effective_path(request: ShaderGraphAssetRequest) -> str | None:
     """Return the normalized path from the request or embedded defaults."""
 
     return request.path or optional_text(request.payload.get("path"))
+
+
+def _normalize_move_graph_target_asset_path(source_asset_path: str | None, raw_target_path: Any) -> str | None:
+    target_path = optional_text(raw_target_path)
+    if target_path is None:
+        return None
+
+    normalized_target_path = target_path.replace("\\", "/")
+    if normalized_target_path.lower().endswith(".shadergraph"):
+        return normalized_target_path
+
+    source_path = optional_text(source_asset_path)
+    if source_path is None:
+        return normalized_target_path
+
+    source_file_name = PurePosixPath(source_path).name
+    if not source_file_name:
+        return normalized_target_path
+
+    return str(PurePosixPath(normalized_target_path) / source_file_name)
 
 
 def _require_payload_text(payload: Mapping[str, Any], *keys: str) -> str:

@@ -216,6 +216,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateDuplicateGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DeleteGraph:
                     return TryCreateDeleteGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.MoveGraph:
+                    return TryCreateMoveGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.SetGraphMetadata:
                     return TryCreateSetGraphMetadataRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.CreateCategory:
@@ -391,6 +393,29 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new DeleteGraphRequest(assetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateMoveGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Move graph requires an asset path.";
+                return false;
+            }
+
+            string targetAssetPath = ResolveMoveGraphTargetAssetPath(payload, assetPath);
+            if (string.IsNullOrWhiteSpace(targetAssetPath))
+            {
+                request = null;
+                errorMessage = "Move graph requires targetAssetPath/targetPath/newAssetPath/newPath/destinationPath.";
+                return false;
+            }
+
+            request = new MoveGraphRequest(assetPath, targetAssetPath);
             errorMessage = null;
             return true;
         }
@@ -1199,6 +1224,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.DuplicateGraph;
                 case "delete_graph":
                     return ShaderGraphAction.DeleteGraph;
+                case "move_graph":
+                    return ShaderGraphAction.MoveGraph;
                 case "set_graph_metadata":
                     return ShaderGraphAction.SetGraphMetadata;
                 case "create_category":
@@ -1273,6 +1300,34 @@ namespace ShaderGraphMcp.Editor.Tools
         private static string ResolveAssetPath(ShaderGraphBatchmodeRequestPayload payload)
         {
             return FirstNonBlank(payload.assetPath, payload.path);
+        }
+
+        private static string ResolveMoveGraphTargetAssetPath(ShaderGraphBatchmodeRequestPayload payload, string assetPath)
+        {
+            string rawTargetPath = FirstNonBlank(
+                payload.targetAssetPath,
+                payload.newAssetPath,
+                payload.targetPath,
+                payload.newPath,
+                payload.destinationPath);
+            if (string.IsNullOrWhiteSpace(rawTargetPath))
+            {
+                return null;
+            }
+
+            string normalizedTargetPath = rawTargetPath.Trim().Replace('\\', '/');
+            if (LooksLikeShaderGraphAssetPath(normalizedTargetPath))
+            {
+                return normalizedTargetPath;
+            }
+
+            string sourceFileName = Path.GetFileName((assetPath ?? string.Empty).Trim().Replace('\\', '/'));
+            if (string.IsNullOrWhiteSpace(sourceFileName))
+            {
+                return normalizedTargetPath;
+            }
+
+            return Path.Combine(normalizedTargetPath.TrimEnd('/'), sourceFileName).Replace('\\', '/');
         }
 
         private static string FirstNonBlank(params string[] values)
@@ -1714,6 +1769,11 @@ namespace ShaderGraphMcp.Editor.Tools
             public string action;
             public string assetPath;
             public string path;
+            public string targetAssetPath;
+            public string newAssetPath;
+            public string targetPath;
+            public string newPath;
+            public string destinationPath;
             public string name;
             public string categoryName;
             public string sourceCategoryName;

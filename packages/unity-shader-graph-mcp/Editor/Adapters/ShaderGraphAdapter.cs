@@ -8,6 +8,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse RenameGraph(RenameGraphRequest request);
         ShaderGraphResponse DuplicateGraph(DuplicateGraphRequest request);
         ShaderGraphResponse DeleteGraph(DeleteGraphRequest request);
+        ShaderGraphResponse MoveGraph(MoveGraphRequest request);
         ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request);
         ShaderGraphResponse CreateCategory(CreateCategoryRequest request);
         ShaderGraphResponse RenameCategory(RenameCategoryRequest request);
@@ -75,6 +76,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse DeleteGraph(DeleteGraphRequest request)
         {
             return backend.DeleteGraph(request);
+        }
+
+        public ShaderGraphResponse MoveGraph(MoveGraphRequest request)
+        {
+            return backend.MoveGraph(request);
         }
 
         public ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request)

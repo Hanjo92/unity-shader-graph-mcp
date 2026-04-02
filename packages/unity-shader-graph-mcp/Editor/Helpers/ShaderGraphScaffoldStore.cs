@@ -501,6 +501,161 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse MoveGraph(
+            MoveGraphRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Move graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string movedAssetPath = NormalizeAssetPath(request.TargetAssetPath);
+            if (string.IsNullOrWhiteSpace(movedAssetPath))
+            {
+                return ShaderGraphResponse.Fail("Move graph could not resolve the target asset path.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            string absoluteMovedAssetPath = ToAbsolutePath(movedAssetPath);
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            string absoluteMovedManifestPath = ToAbsolutePath(GetManifestPath(movedAssetPath));
+            bool hasManifest = TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest);
+
+            if (!string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                if (File.Exists(absoluteMovedAssetPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Shader Graph asset already exists at '{movedAssetPath}'."
+                    );
+                }
+
+                if (hasManifest &&
+                    !string.Equals(absoluteManifestPath, absoluteMovedManifestPath, StringComparison.OrdinalIgnoreCase) &&
+                    File.Exists(absoluteMovedManifestPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Shader Graph scaffold manifest already exists at '{GetManifestPath(movedAssetPath)}'."
+                    );
+                }
+            }
+
+            try
+            {
+                EnsureParentDirectory(absoluteMovedAssetPath);
+                if (hasManifest)
+                {
+                    EnsureParentDirectory(absoluteMovedManifestPath);
+                }
+
+                if (!string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    string moveError = AssetDatabase.MoveAsset(assetPath, movedAssetPath);
+                    if (!string.IsNullOrWhiteSpace(moveError))
+                    {
+                        return ShaderGraphResponse.Fail(
+                            $"Unable to move Shader Graph '{assetPath}' to '{movedAssetPath}': {moveError}"
+                        );
+                    }
+                }
+
+                if (hasManifest)
+                {
+                    manifest.assetPath = movedAssetPath;
+                    manifest.assetName = Path.GetFileNameWithoutExtension(movedAssetPath);
+                    manifest.updatedUtc = UtcNow();
+
+                    if (!string.Equals(absoluteManifestPath, absoluteMovedManifestPath, StringComparison.OrdinalIgnoreCase) &&
+                        File.Exists(absoluteManifestPath))
+                    {
+                        File.Move(absoluteManifestPath, absoluteMovedManifestPath);
+                    }
+
+                    File.WriteAllText(
+                        absoluteMovedAssetPath,
+                        BuildPlaceholderPayload(manifest),
+                        new UTF8Encoding(false)
+                    );
+                    WriteManifest(absoluteMovedManifestPath, manifest);
+                }
+
+                AssetDatabase.SaveAssets();
+                ImportAsset(movedAssetPath);
+            }
+            catch (Exception ex)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to move scaffold Shader Graph from '{assetPath}' to '{movedAssetPath}': {ex.Message}"
+                );
+            }
+
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string movedAssetName = Path.GetFileNameWithoutExtension(movedAssetPath);
+            var moveNotes = new[]
+            {
+                "move_graph moves the scaffold graph to the exact target asset path, including folder changes.",
+                hasManifest
+                    ? "Scaffold placeholder asset header and sidecar manifest were moved and rewritten for the target asset path."
+                    : "No scaffold manifest was present; only the asset move/import was applied.",
+            };
+
+            Dictionary<string, object> data;
+            if (hasManifest)
+            {
+                data = BuildSummaryData(
+                    manifest,
+                    movedAssetPath,
+                    absoluteMovedAssetPath,
+                    true,
+                    true,
+                    executionKind,
+                    "move_graph",
+                    moveNotes,
+                    null
+                );
+            }
+            else
+            {
+                data = BuildRawSummaryData(
+                    movedAssetPath,
+                    absoluteMovedAssetPath,
+                    ReadPreviewLines(absoluteMovedAssetPath, 8),
+                    executionKind
+                );
+                data["operation"] = "move_graph";
+                data["notes"] = moveNotes;
+            }
+
+            data["previousAssetPath"] = assetPath;
+            data["movedGraph"] = BuildScaffoldMovedGraphData(assetPath, movedAssetPath);
+            data["moveGraphSemantics"] = new[]
+            {
+                "move_graph moves the current .shadergraph asset to the exact target asset path, including folder changes.",
+                "The response assetPath always points at the moved asset path.",
+                "Scaffold manifests move alongside the moved graph when present.",
+            };
+
+            string message = string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase)
+                ? $"Shader Graph already exists at '{movedAssetPath}'."
+                : $"Moved scaffold Shader Graph '{previousAssetName}' to '{movedAssetPath}'.";
+
+            return ShaderGraphResponse.Ok(message, data);
+        }
+
         public static ShaderGraphResponse SetGraphMetadata(
             SetGraphMetadataRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -3694,6 +3849,24 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ["assetName"] = assetName,
                 ["displayName"] = assetName,
                 ["name"] = assetName,
+            };
+        }
+
+        private static Dictionary<string, object> BuildScaffoldMovedGraphData(
+            string previousAssetPath,
+            string assetPath)
+        {
+            string previousAssetName = Path.GetFileNameWithoutExtension(previousAssetPath ?? string.Empty) ?? string.Empty;
+            string assetName = Path.GetFileNameWithoutExtension(assetPath ?? string.Empty) ?? string.Empty;
+
+            return new Dictionary<string, object>
+            {
+                ["assetPath"] = assetPath ?? string.Empty,
+                ["assetName"] = assetName,
+                ["displayName"] = assetName,
+                ["name"] = assetName,
+                ["previousAssetPath"] = previousAssetPath ?? string.Empty,
+                ["previousAssetName"] = previousAssetName,
             };
         }
 
