@@ -27,6 +27,7 @@ The goal is to keep the contract, CLI, and Unity-side file flow real enough to e
 - The first package-backed graph creation and mutation loop has been manually verified in a real Unity project: `create_graph` for `blank`, `read_graph_summary`, `add_property`, `add_node`, and `connect_ports` succeed for the current verified paths.
 - `save_graph` now has a real package-backed validate + write + refresh path that keeps the current graph asset and import state aligned.
 - The install and happy-path smoke guide is documented in [install-and-happy-path.md](/Users/song/Projects/unity-shader-graph-mcp/docs/install-and-happy-path.md).
+- The compatibility report captures `unityVersion`, backend kind, and the resolved `GraphData` surface, and the current matrix is documented in [compatibility-matrix.md](/Users/song/Projects/unity-shader-graph-mcp/docs/compatibility-matrix.md).
 - The shared test metadata keeps `supportedConnectionRules` envelope-only so connection metadata can evolve without changing the response shape.
 - The compatibility probe confirms `UnityEditor.ShaderGraph.GraphData` and the `AddGraphInput`, `AddNode`, `Connect`, and `ValidateGraph` reflection surface in Unity 2022.3 with Shader Graph 17.3.0.
 
@@ -49,6 +50,7 @@ The goal is to keep the contract, CLI, and Unity-side file flow real enough to e
 - Expanding port and edge coverage beyond the current verified narrow paths and the scalar arithmetic `Vector1 <-> arithmetic node` routes.
 - Expanding create_graph beyond the blank-only package-backed path.
 - Hardening the save path across a wider Unity and Shader Graph version matrix.
+- Capturing and maintaining a broader Unity / Shader Graph compatibility matrix while keeping the package-backed fallback behavior explicit.
 
 ## End-To-End CLI Example
 

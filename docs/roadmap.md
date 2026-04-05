@@ -35,5 +35,5 @@ Production hardening:
 
 - better validation
 - richer error messages
-- compatibility matrix by Unity version
+- compatibility matrix by Unity version and Shader Graph package version; see [compatibility-matrix.md](/Users/song/Projects/unity-shader-graph-mcp/docs/compatibility-matrix.md)
 - test fixtures and sample graphs

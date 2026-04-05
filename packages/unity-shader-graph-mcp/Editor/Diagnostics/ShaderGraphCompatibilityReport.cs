@@ -33,6 +33,7 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             builder.AppendLine("# Shader Graph Compatibility Report");
             builder.AppendLine();
             builder.AppendLine($"generatedUtc: {DateTime.UtcNow:O}");
+            builder.AppendLine($"unityVersion: {Application.unityVersion}");
             builder.AppendLine($"backendKind: {snapshot.BackendKind}");
             builder.AppendLine($"packageDetected: {snapshot.HasShaderGraphPackage}");
             builder.AppendLine($"graphTypeName: {snapshot.GraphSurface.GraphTypeName}");
@@ -44,6 +45,7 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             builder.AppendLine($"hasValidateGraph: {snapshot.GraphSurface.HasValidateGraph}");
             builder.AppendLine();
 
+            AppendSection(builder, "Compatibility Snapshot");
             AppendList(builder, "detectedAssemblies", snapshot.DetectedAssemblies);
             AppendList(builder, "candidateTypeNames", snapshot.CandidateTypeNames);
             AppendList(builder, "resolvedTypes", snapshot.ResolvedTypes);
@@ -52,13 +54,25 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             AppendList(builder, "resolvedMethodSignatures", snapshot.GraphSurface.ResolvedMethodSignatures);
             AppendList(builder, "missingMethodNames", snapshot.GraphSurface.MissingMethodNames);
             AppendList(builder, "notes", snapshot.Notes);
+            AppendList(builder, "Fallback Behavior", BuildFallbackBehavior(snapshot));
+
+            AppendSection(builder, "How To Capture");
+            builder.AppendLine("- Run `Tools > Shader Graph MCP > Write Compatibility Report` from the Unity editor.");
+            builder.AppendLine("- Regenerate the report after changing Unity or Shader Graph versions.");
+            builder.AppendLine("- Compare `unityVersion`, `backendKind`, and the resolved `GraphData` surface before trusting a new upgrade.");
+            builder.AppendLine();
 
             builder.AppendLine("## Next Spike");
-            builder.AppendLine("- Verify the resolved graph type and resolved method signatures match Unity 2022.3 Shader Graph.");
-            builder.AppendLine("- Only switch to ShaderGraphPackageBackend after AddGraphInput, AddNode, Connect, and ValidateGraph are confirmed.");
+            builder.AppendLine("- Verify the resolved graph type and resolved method signatures still match the current Unity/Shader Graph baseline.");
+            builder.AppendLine("- Keep the compatibility report aligned with the observed editor version whenever the package surface changes.");
             builder.AppendLine("- If type names differ, update ShaderGraphPackageCompatibility candidate lists before attempting mutations.");
 
             return builder.ToString();
+        }
+
+        private static void AppendSection(StringBuilder builder, string title)
+        {
+            builder.AppendLine($"## {title}");
         }
 
         private static void AppendList(StringBuilder builder, string title, System.Collections.Generic.IReadOnlyList<string> items)
@@ -77,6 +91,30 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             }
 
             builder.AppendLine();
+        }
+
+        private static System.Collections.Generic.IReadOnlyList<string> BuildFallbackBehavior(ShaderGraphCompatibilitySnapshot snapshot)
+        {
+            if (!snapshot.HasShaderGraphPackage)
+            {
+                return new[]
+                {
+                    "No Shader Graph package assembly was detected, so the default backend remains scaffold-only.",
+                };
+            }
+
+            if (snapshot.BackendKind == ShaderGraphBackendKind.PackageDetectedButIncomplete)
+            {
+                return new[]
+                {
+                    "Shader Graph package is detected, but the core mutation surface is incomplete; the default backend stays on scaffold fallback for unsupported actions.",
+                };
+            }
+
+            return new[]
+            {
+                "The package-backed backend is available for the verified core mutation surface; unsupported actions still fall back to scaffold-safe behavior when no package-backed path exists.",
+            };
         }
 
         private static string BuildReportAssetPath()

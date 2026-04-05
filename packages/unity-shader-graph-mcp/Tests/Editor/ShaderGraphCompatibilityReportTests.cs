@@ -39,9 +39,13 @@ namespace ShaderGraphMcp.Editor.Tests
             string report = ShaderGraphCompatibilityReport.BuildReportText(snapshot);
 
             Assert.That(report, Does.Contain("# Shader Graph Compatibility Report"));
+            Assert.That(report, Does.Contain("unityVersion:"));
             Assert.That(report, Does.Contain("backendKind: PackageDetectedButIncomplete"));
             Assert.That(report, Does.Contain("graphTypeName: UnityEditor.ShaderGraph.GraphData"));
             Assert.That(report, Does.Contain("hasAddGraphInput: True"));
+            Assert.That(report, Does.Contain("## Compatibility Snapshot"));
+            Assert.That(report, Does.Contain("## Fallback Behavior"));
+            Assert.That(report, Does.Contain("## How To Capture"));
             Assert.That(report, Does.Contain("## resolvedMethodSignatures"));
             Assert.That(report, Does.Contain("## Next Spike"));
         }
