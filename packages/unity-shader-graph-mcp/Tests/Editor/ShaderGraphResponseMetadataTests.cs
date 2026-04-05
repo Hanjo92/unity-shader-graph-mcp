@@ -1836,6 +1836,31 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedReadSubGraphSummaryEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Loaded package-backed Shader Sub Graph summary from 'Assets/ShaderGraphs/ExampleSubGraph.shadersubgraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "read_subgraph_summary",
+                    ["assetPath"] = "Assets/ShaderGraphs/ExampleSubGraph.shadersubgraph",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["categoryCount"] = 1,
+                    ["propertyCount"] = 0,
+                    ["nodeCount"] = 1,
+                    ["connectionCount"] = 0,
+                    ["isSubGraph"] = true,
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("read_subgraph_summary"));
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["categoryCount"], Is.EqualTo(1));
+            Assert.That(response.Data["isSubGraph"], Is.EqualTo(true));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedAddPropertyEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

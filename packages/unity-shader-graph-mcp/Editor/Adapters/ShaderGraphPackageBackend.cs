@@ -168,6 +168,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse ReadSubGraphSummary(ReadSubGraphSummaryRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ReadSubGraphSummary(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse ExportGraphContract(ExportGraphContractRequest request)
         {
             return ShaderGraphPackageGraphInspector.ExportGraphContract(
@@ -1279,7 +1288,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             string resolvedGraphDefaultPrecision = previousGraphDefaultPrecision;
             if (!string.IsNullOrWhiteSpace(requestedGraphDefaultPrecision))
             {
-                if (!TryResolveGraphPrecisionValue(graphData, requestedGraphDefaultPrecision, out object graphPrecisionValue, out string graphPrecisionName, out string precisionFailure))
+                if (!TryResolveGraphPrecisionValue(assetPath, graphData, requestedGraphDefaultPrecision, out object graphPrecisionValue, out string graphPrecisionName, out string precisionFailure))
                 {
                     return ShaderGraphResponse.Fail(
                         precisionFailure,
@@ -3399,6 +3408,88 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphResponse.Ok(
                 $"Loaded package-backed Shader Graph summary from '{assetPath}'.",
                 new Dictionary<string, object>(snapshot.ToDictionary())
+            );
+        }
+
+        public static ShaderGraphResponse ReadSubGraphSummary(
+            ReadSubGraphSummaryRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Read sub graph summary request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Sub Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.ValidateGraph() could not be invoked: {validateFailure}");
+            }
+
+            bool isSubGraph = IsShaderSubGraph(graphData, assetPath);
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "read_subgraph_summary"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["isSubGraph"] = isSubGraph,
+            };
+
+            if (!isSubGraph)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Asset '{assetPath}' is not a Shader Sub Graph.",
+                    data
+                );
+            }
+
+            return ShaderGraphResponse.Ok(
+                $"Loaded package-backed Shader Sub Graph summary from '{assetPath}'.",
+                data
             );
         }
 
@@ -8244,12 +8335,12 @@ namespace ShaderGraphMcp.Editor.Adapters
             IReadOnlyList<string> properties = DescribeProperties(graphData);
             IReadOnlyList<string> nodes = DescribeNodes(graphData);
             IReadOnlyList<string> connections = DescribeConnections(graphData);
-            IReadOnlyList<string> preview = BuildPreview(graphData, properties, nodes, connections);
+            IReadOnlyList<string> preview = BuildPreview(assetPath, graphData, properties, nodes, connections);
 
             string assetName = Path.GetFileNameWithoutExtension(assetPath);
             string graphPath = GetStringProperty(graphData, "path");
             string graphGuid = GetStringProperty(graphData, "assetGuid");
-            bool isSubGraph = GetBoolProperty(graphData, "isSubGraph");
+            bool isSubGraph = IsShaderSubGraph(graphData, assetPath);
             string graphDefaultPrecision = GetStringProperty(graphData, "graphDefaultPrecision");
             int categoryCount = CountEnumerableProperty(graphData, "categories");
 
@@ -9059,7 +9150,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["graphPathLabel"] = snapshot.GraphPathLabel,
                 ["graphDefaultPrecision"] = snapshot.GraphDefaultPrecision,
                 ["assetGuid"] = GetStringProperty(graphData, "assetGuid"),
-                ["isSubGraph"] = GetBoolProperty(graphData, "isSubGraph"),
+                ["isSubGraph"] = IsShaderSubGraph(graphData, snapshot.AssetPath),
                 ["categoryCount"] = categories.Count,
                 ["propertyCount"] = properties.Count,
                 ["nodeCount"] = nodes.Count,
@@ -12727,6 +12818,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         }
 
         private static bool TryResolveGraphPrecisionValue(
+            string assetPath,
             object graphData,
             string requestedGraphDefaultPrecision,
             out object graphPrecisionValue,
@@ -12762,13 +12854,13 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
             else
             {
-                bool isSubGraph = GetBoolProperty(graphData, "isSubGraph");
+                bool isSubGraph = IsShaderSubGraph(graphData, assetPath);
                 string allowedValues = isSubGraph ? "Single, Half, Graph" : "Single, Half";
                 failureReason = $"Unsupported Shader Graph default precision '{requestedGraphDefaultPrecision}'. Supported values: {allowedValues}.";
                 return false;
             }
 
-            bool currentGraphIsSubGraph = GetBoolProperty(graphData, "isSubGraph");
+            bool currentGraphIsSubGraph = IsShaderSubGraph(graphData, assetPath);
             if (!currentGraphIsSubGraph && string.Equals(canonicalGraphDefaultPrecision, "Graph", StringComparison.Ordinal))
             {
                 failureReason = "Shader graphs only support Single or Half graphDefaultPrecision. Graph/Switchable precision is valid only for sub graphs.";
@@ -13453,6 +13545,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         }
 
         private static IReadOnlyList<string> BuildPreview(
+            string assetPath,
             object graphData,
             IReadOnlyList<string> properties,
             IReadOnlyList<string> nodes,
@@ -13464,7 +13557,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 $"graphBaseType={graphData.GetType().BaseType?.FullName ?? string.Empty}",
                 $"graphPath={GetStringProperty(graphData, "path")}",
                 $"assetGuid={GetStringProperty(graphData, "assetGuid")}",
-                $"isSubGraph={GetBoolProperty(graphData, "isSubGraph")}",
+                $"isSubGraph={IsShaderSubGraph(graphData, assetPath)}",
                 $"propertyCount={properties.Count}",
                 $"nodeCount={nodes.Count}",
                 $"connectionCount={connections.Count}",
@@ -13822,6 +13915,33 @@ namespace ShaderGraphMcp.Editor.Adapters
         {
             object value = GetMemberValue(target, memberName);
             return value is bool flag && flag;
+        }
+
+        private static bool IsShaderSubGraph(object graphData, string assetPath)
+        {
+            if (GetBoolProperty(graphData, "isSubGraph"))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(assetPath) &&
+                assetPath.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(assetPath))
+            {
+                AssetImporter importer = AssetImporter.GetAtPath(assetPath);
+                string importerTypeName = importer?.GetType().FullName ?? importer?.GetType().Name ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(importerTypeName) &&
+                    importerTypeName.IndexOf("ShaderSubGraphImporter", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static int GetIntProperty(object target, string memberName)

@@ -22,6 +22,7 @@ ShaderGraphAction = Literal[
     "split_category",
     "list_categories",
     "read_graph_summary",
+    "read_subgraph_summary",
     "export_graph_contract",
     "import_graph_contract",
     "find_node",

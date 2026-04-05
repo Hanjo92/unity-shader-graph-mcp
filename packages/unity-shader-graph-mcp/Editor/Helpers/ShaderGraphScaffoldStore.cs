@@ -1710,6 +1710,44 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse ReadSubGraphSummary(
+            ReadSubGraphSummaryRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Read sub graph summary request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Sub Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            return ShaderGraphResponse.Fail(
+                $"'read_subgraph_summary' requires the package-backed Shader Graph runtime. Scaffold mode does not model Shader Sub Graph assets.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "read_subgraph_summary",
+                    ["assetPath"] = assetPath,
+                    ["absolutePath"] = absoluteAssetPath,
+                    ["exists"] = true,
+                    ["executionBackendKind"] = executionKind.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.Scaffold.ToString(),
+                    ["isSubGraph"] = false,
+                }
+            );
+        }
+
         public static ShaderGraphResponse ExportGraphContract(
             ExportGraphContractRequest request,
             ShaderGraphExecutionKind executionKind)

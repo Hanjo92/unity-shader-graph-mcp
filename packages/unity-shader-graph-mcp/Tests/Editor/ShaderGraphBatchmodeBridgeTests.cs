@@ -428,6 +428,25 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsReadSubGraphSummaryRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""read_subgraph_summary"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleSubGraph.shadersubgraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var summaryRequest = request as ReadSubGraphSummaryRequest;
+            Assert.That(summaryRequest, Is.Not.Null);
+            Assert.That(summaryRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleSubGraph.shadersubgraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsExportGraphContractRequest_FromAssetPathPayload()
         {
             string json = @"{

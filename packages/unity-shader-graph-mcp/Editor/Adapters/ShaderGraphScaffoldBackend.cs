@@ -87,6 +87,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.ReadGraphSummary(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse ReadSubGraphSummary(ReadSubGraphSummaryRequest request)
+        {
+            return ShaderGraphScaffoldStore.ReadSubGraphSummary(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse ExportGraphContract(ExportGraphContractRequest request)
         {
             return ShaderGraphScaffoldStore.ExportGraphContract(request, ExecutionKind);

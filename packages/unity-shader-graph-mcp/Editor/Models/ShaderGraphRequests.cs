@@ -23,6 +23,7 @@ namespace ShaderGraphMcp.Editor.Models
         SplitCategory,
         ListCategories,
         ReadGraphSummary,
+        ReadSubGraphSummary,
         ExportGraphContract,
         ImportGraphContract,
         FindNode,
@@ -128,6 +129,14 @@ namespace ShaderGraphMcp.Editor.Models
     {
         public ReadGraphSummaryRequest(string assetPath)
             : base(ShaderGraphAction.ReadGraphSummary, assetPath)
+        {
+        }
+    }
+
+    public sealed class ReadSubGraphSummaryRequest : ShaderGraphRequest
+    {
+        public ReadSubGraphSummaryRequest(string assetPath)
+            : base(ShaderGraphAction.ReadSubGraphSummary, assetPath)
         {
         }
     }

@@ -247,6 +247,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateListCategoriesRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ReadGraphSummary:
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.ReadSubGraphSummary:
+                    return TryCreateReadSubGraphSummaryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ExportGraphContract:
                     return TryCreateExportGraphContractRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ImportGraphContract:
@@ -343,6 +345,21 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new ReadGraphSummaryRequest(assetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateReadSubGraphSummaryRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Read sub graph summary requires an asset path.";
+                return false;
+            }
+
+            request = new ReadSubGraphSummaryRequest(assetPath);
             errorMessage = null;
             return true;
         }
@@ -1297,6 +1314,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.ListCategories;
                 case "read_graph_summary":
                     return ShaderGraphAction.ReadGraphSummary;
+                case "read_subgraph_summary":
+                    return ShaderGraphAction.ReadSubGraphSummary;
                 case "export_graph_contract":
                     return ShaderGraphAction.ExportGraphContract;
                 case "import_graph_contract":

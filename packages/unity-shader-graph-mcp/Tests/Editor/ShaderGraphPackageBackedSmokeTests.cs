@@ -124,6 +124,24 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankSubGraph_ReadSubGraphSummary_StaysPackageBacked()
+        {
+            string assetPath = CreateSampleSubGraph("BlankSubGraphReadSummary", out string sourceAssetPath);
+
+            ShaderGraphResponse response = ShaderGraphAssetTool.HandleReadSubGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(response);
+
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "operation"), Is.EqualTo("read_subgraph_summary"));
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "assetPath"), Is.EqualTo(assetPath));
+            Assert.That(response.Data["isSubGraph"], Is.EqualTo(true));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "categoryCount"), Is.GreaterThanOrEqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "nodeCount"), Is.GreaterThanOrEqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "connectionCount"), Is.GreaterThanOrEqualTo(0));
+            Assert.That(assetPath, Is.Not.EqualTo(sourceAssetPath));
+        }
+
+        [Test]
         public void BlankCreateGraph_EndToEndHappyPath_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankCreateGraphHappyPath", out ShaderGraphResponse createResponse);
@@ -3851,6 +3869,64 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(assetPath, Does.EndWith(".shadergraph"));
             Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Not.Null);
             return assetPath;
+        }
+
+        private string CreateSampleSubGraph(string graphNamePrefix, out string sourceAssetPath)
+        {
+            string[] searchRoots =
+            {
+                "Packages/com.unity.shadergraph/GraphTemplates/Subgraphs",
+                "Packages/com.unity.shadergraph/GraphTemplates",
+            };
+
+            sourceAssetPath = searchRoots
+                .SelectMany(FindSubGraphAssetPaths)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(path => Path.GetFileName(path).Equals("Circle.shadersubgraph", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(sourceAssetPath))
+            {
+                Assert.Ignore(
+                    "Could not locate a package sample Shader Sub Graph under Packages/com.unity.shadergraph/GraphTemplates.");
+            }
+
+            string graphName = $"{graphNamePrefix}_{Guid.NewGuid():N}";
+            string assetPath = ShaderGraphTestAssets.CombineAssetPath(
+                temporaryFolder.AssetPath,
+                graphName,
+                ".shadersubgraph");
+
+            Assert.That(
+                AssetDatabase.CopyAsset(sourceAssetPath, assetPath),
+                Is.True,
+                $"Expected to copy Shader Sub Graph from '{sourceAssetPath}' to '{assetPath}'.");
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.Refresh();
+
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Not.Null);
+            return assetPath;
+        }
+
+        private static IEnumerable<string> FindSubGraphAssetPaths(string rootPath)
+        {
+            if (string.IsNullOrWhiteSpace(rootPath) || !AssetDatabase.IsValidFolder(rootPath))
+            {
+                yield break;
+            }
+
+            string[] guids = AssetDatabase.FindAssets(string.Empty, new[] { rootPath });
+            Array.Sort(guids, StringComparer.OrdinalIgnoreCase);
+            foreach (string guid in guids)
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                if (assetPath.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return assetPath;
+                }
+            }
         }
     }
 }

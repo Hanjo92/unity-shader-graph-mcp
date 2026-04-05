@@ -20,6 +20,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse SplitCategory(SplitCategoryRequest request);
         ShaderGraphResponse ListCategories(ListCategoriesRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
+        ShaderGraphResponse ReadSubGraphSummary(ReadSubGraphSummaryRequest request);
         ShaderGraphResponse ExportGraphContract(ExportGraphContractRequest request);
         ShaderGraphResponse ImportGraphContract(ImportGraphContractRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
@@ -138,6 +139,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request)
         {
             return backend.ReadGraphSummary(request);
+        }
+
+        public ShaderGraphResponse ReadSubGraphSummary(ReadSubGraphSummaryRequest request)
+        {
+            return backend.ReadSubGraphSummary(request);
         }
 
         public ShaderGraphResponse ExportGraphContract(ExportGraphContractRequest request)

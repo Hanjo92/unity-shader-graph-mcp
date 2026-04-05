@@ -41,6 +41,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "split_category",
     "list_categories",
     "read_graph_summary",
+    "read_subgraph_summary",
     "export_graph_contract",
     "import_graph_contract",
     "find_node",
@@ -510,6 +511,9 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
     if request.action == "read_graph_summary" and request.path is None:
+        raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+    if request.action == "read_subgraph_summary" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
     if request.action == "export_graph_contract" and request.path is None:
