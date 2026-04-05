@@ -32,6 +32,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.DuplicateGraph(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse DuplicateSubGraph(DuplicateSubGraphRequest request)
+        {
+            return ShaderGraphScaffoldStore.DuplicateSubGraph(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse DeleteGraph(DeleteGraphRequest request)
         {
             return ShaderGraphScaffoldStore.DeleteGraph(request, ExecutionKind);

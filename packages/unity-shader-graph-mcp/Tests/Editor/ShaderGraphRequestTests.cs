@@ -72,7 +72,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             Assert.That(response.Success, Is.False);
             Assert.That(response.Message, Does.Contain("Unsupported Shader Graph action"));
-            Assert.That(response.Message, Does.Contain("Supported actions: create_graph, create_subgraph, rename_graph, rename_subgraph, duplicate_graph, delete_graph, move_graph, set_graph_metadata, create_category, rename_category, find_category, delete_category, reorder_category, merge_category, duplicate_category, split_category, list_categories, read_graph_summary, read_subgraph_summary, export_graph_contract, import_graph_contract, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, reorder_property, move_property_to_category, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, reconnect_connection, save_graph."));
+            Assert.That(response.Message, Does.Contain("Supported actions: create_graph, create_subgraph, rename_graph, rename_subgraph, duplicate_graph, duplicate_subgraph, delete_graph, move_graph, set_graph_metadata, create_category, rename_category, find_category, delete_category, reorder_category, merge_category, duplicate_category, split_category, list_categories, read_graph_summary, read_subgraph_summary, export_graph_contract, import_graph_contract, find_node, find_property, list_supported_nodes, list_supported_properties, list_supported_connections, update_property, rename_property, duplicate_property, reorder_property, move_property_to_category, rename_node, duplicate_node, move_node, delete_node, remove_property, add_property, add_node, connect_ports, find_connection, remove_connection, reconnect_connection, save_graph."));
         }
 
         [Test]
@@ -127,6 +127,19 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(request.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
             Assert.That(request.Name, Is.EqualTo("CopiedLitGraph"));
             Assert.That(request.TargetAssetPath, Is.EqualTo("Assets/ShaderGraphs/CopiedLitGraph.shadergraph"));
+        }
+
+        [Test]
+        public void DuplicateSubGraphRequest_ResolvesTargetAssetPath()
+        {
+            var request = new DuplicateSubGraphRequest(
+                "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph",
+                "CopiedSubGraph");
+
+            Assert.That(request.AssetPath, Is.EqualTo("Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"));
+            Assert.That(request.Name, Is.EqualTo("CopiedSubGraph"));
+            Assert.That(request.TargetAssetPath, Is.EqualTo("Assets/ShaderSubGraphs/CopiedSubGraph.shadersubgraph"));
+            Assert.That(request.Action, Is.EqualTo(ShaderGraphAction.DuplicateSubGraph));
         }
 
         [Test]

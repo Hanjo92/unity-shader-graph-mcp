@@ -198,6 +198,37 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankSubGraph_DuplicateSubGraph_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphDuplicateSubGraph", out _);
+            string sourceAssetName = Path.GetFileNameWithoutExtension(assetPath);
+
+            ShaderGraphResponse duplicateResponse = ShaderGraphAssetTool.HandleDuplicateSubGraph(
+                assetPath,
+                "Copied Blank Sub Graph");
+            ShaderGraphTestAssets.RequirePackageReady(duplicateResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(duplicateResponse.Data, "operation"), Is.EqualTo("duplicate_subgraph"));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicateResponse.Data, "sourceAssetPath"), Is.EqualTo(assetPath));
+            Assert.That(duplicateResponse.Data["isSubGraph"], Is.EqualTo(true));
+
+            string duplicatedAssetPath = ShaderGraphTestAssets.GetString(duplicateResponse.Data, "assetPath");
+            Assert.That(duplicatedAssetPath, Does.EndWith("Copied Blank Sub Graph.shadersubgraph"));
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Not.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(duplicatedAssetPath), Is.Not.Null);
+
+            var duplicatedSubGraph = ShaderGraphTestAssets.RequireDictionary(duplicateResponse.Data, "duplicatedSubGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedSubGraph, "assetPath"), Is.EqualTo(duplicatedAssetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedSubGraph, "assetName"), Is.EqualTo("Copied Blank Sub Graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(duplicatedSubGraph, "sourceAssetName"), Is.EqualTo(sourceAssetName));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(duplicatedAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(summaryResponse.Data["isSubGraph"], Is.EqualTo(true));
+            Assert.That(ShaderGraphTestAssets.GetString(summaryResponse.Data, "assetPath"), Is.EqualTo(duplicatedAssetPath));
+        }
+
+        [Test]
         public void BlankCreateGraph_EndToEndHappyPath_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankCreateGraphHappyPath", out ShaderGraphResponse createResponse);

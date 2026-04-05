@@ -160,6 +160,28 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsDuplicateSubGraphRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""duplicate_subgraph"",
+                ""assetPath"": ""Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"",
+                ""newDisplayName"": ""CopiedSubGraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var duplicateSubGraphRequest = request as DuplicateSubGraphRequest;
+            Assert.That(duplicateSubGraphRequest, Is.Not.Null);
+            Assert.That(duplicateSubGraphRequest.AssetPath, Is.EqualTo("Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"));
+            Assert.That(duplicateSubGraphRequest.Name, Is.EqualTo("CopiedSubGraph"));
+            Assert.That(duplicateSubGraphRequest.TargetAssetPath, Is.EqualTo("Assets/ShaderSubGraphs/CopiedSubGraph.shadersubgraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsDeleteGraphRequest_FromAssetPathPayload()
         {
             string json = @"{

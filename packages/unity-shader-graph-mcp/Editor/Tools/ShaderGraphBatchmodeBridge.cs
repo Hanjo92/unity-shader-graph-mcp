@@ -225,6 +225,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateRenameSubGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DuplicateGraph:
                     return TryCreateDuplicateGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.DuplicateSubGraph:
+                    return TryCreateDuplicateSubGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DeleteGraph:
                     return TryCreateDeleteGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.MoveGraph:
@@ -496,6 +498,29 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new DuplicateGraphRequest(assetPath, name);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateDuplicateSubGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Duplicate sub graph requires an asset path.";
+                return false;
+            }
+
+            string name = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                request = null;
+                errorMessage = "Duplicate sub graph requires newDisplayName/displayName/name.";
+                return false;
+            }
+
+            request = new DuplicateSubGraphRequest(assetPath, name);
             errorMessage = null;
             return true;
         }
@@ -1470,6 +1495,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.RenameSubGraph;
                 case "duplicate_graph":
                     return ShaderGraphAction.DuplicateGraph;
+                case "duplicate_subgraph":
+                    return ShaderGraphAction.DuplicateSubGraph;
                 case "delete_graph":
                     return ShaderGraphAction.DeleteGraph;
                 case "move_graph":

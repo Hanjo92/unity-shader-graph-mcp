@@ -53,6 +53,11 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
         "newDisplayName": "CopiedLitGraph",
     },
+    "duplicate_subgraph": {
+        "action": "duplicate_subgraph",
+        "path": "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph",
+        "newDisplayName": "CopiedSubGraph",
+    },
     "delete_graph": {
         "action": "delete_graph",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
@@ -335,6 +340,9 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "rename_subgraph", "path": "Assets/X.shadersubgraph"})
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request({"action": "duplicate_subgraph", "path": "Assets/X.shadersubgraph"})
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "move_graph", "path": "Assets/X.shadergraph"})

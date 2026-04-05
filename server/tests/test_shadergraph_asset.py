@@ -29,6 +29,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "rename_graph",
                 "rename_subgraph",
                 "duplicate_graph",
+                "duplicate_subgraph",
                 "delete_graph",
                 "move_graph",
                 "set_graph_metadata",
@@ -214,6 +215,20 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.name, "CopiedLitGraph")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["displayName"], "CopiedLitGraph")
+
+    def test_request_normalization_accepts_duplicate_subgraph_with_asset_path(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "duplicate_subgraph",
+                "assetPath": "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph",
+                "newDisplayName": "CopiedSubGraph",
+            }
+        )
+
+        self.assertEqual(request.action, "duplicate_subgraph")
+        self.assertEqual(request.name, "CopiedSubGraph")
+        self.assertEqual(request.path, "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph")
+        self.assertEqual(request.payload["displayName"], "CopiedSubGraph")
 
     def test_request_normalization_accepts_delete_graph_with_asset_path(self) -> None:
         request = normalize_shadergraph_asset_request(

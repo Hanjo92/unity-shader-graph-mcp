@@ -662,6 +662,154 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse DuplicateSubGraph(
+            DuplicateSubGraphRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Duplicate sub graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Sub Graph asset path is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return ShaderGraphResponse.Fail("Duplicate sub graph requires a new sub graph name.");
+            }
+
+            string duplicatedAssetPath = NormalizeAssetPath(request.TargetAssetPath);
+            if (string.IsNullOrWhiteSpace(duplicatedAssetPath))
+            {
+                return ShaderGraphResponse.Fail("Duplicate sub graph could not resolve the target asset path.");
+            }
+
+            if (string.Equals(assetPath, duplicatedAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return ShaderGraphResponse.Fail("Duplicate sub graph requires a new sub graph name that resolves to a different asset path.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            string absoluteDuplicatedAssetPath = ToAbsolutePath(duplicatedAssetPath);
+            if (File.Exists(absoluteDuplicatedAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset already exists at '{duplicatedAssetPath}'."
+                );
+            }
+
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            string absoluteDuplicatedManifestPath = ToAbsolutePath(GetManifestPath(duplicatedAssetPath));
+            bool hasManifest = TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest);
+            if (File.Exists(absoluteDuplicatedManifestPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph scaffold manifest already exists at '{GetManifestPath(duplicatedAssetPath)}'."
+                );
+            }
+
+            ShaderGraphScaffoldManifest duplicatedManifest = null;
+            if (hasManifest)
+            {
+                duplicatedManifest = CloneManifest(manifest);
+                string now = UtcNow();
+                duplicatedManifest.assetPath = duplicatedAssetPath;
+                duplicatedManifest.assetName = Path.GetFileNameWithoutExtension(duplicatedAssetPath);
+                duplicatedManifest.createdUtc = now;
+                duplicatedManifest.updatedUtc = now;
+                duplicatedManifest.isSubGraph = true;
+                EnsureManifestCategories(duplicatedManifest);
+            }
+
+            try
+            {
+                EnsureParentDirectory(absoluteDuplicatedAssetPath);
+                File.Copy(absoluteAssetPath, absoluteDuplicatedAssetPath);
+
+                if (duplicatedManifest != null)
+                {
+                    File.WriteAllText(
+                        absoluteDuplicatedAssetPath,
+                        BuildPlaceholderPayload(duplicatedManifest),
+                        new UTF8Encoding(false)
+                    );
+                    WriteManifest(absoluteDuplicatedManifestPath, duplicatedManifest);
+                }
+
+                AssetDatabase.SaveAssets();
+                ImportAsset(duplicatedAssetPath);
+            }
+            catch (Exception ex)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to duplicate scaffold Shader Sub Graph from '{assetPath}' to '{duplicatedAssetPath}': {ex.Message}"
+                );
+            }
+
+            string sourceAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string duplicatedAssetName = Path.GetFileNameWithoutExtension(duplicatedAssetPath);
+            var duplicateNotes = new[]
+            {
+                "duplicate_subgraph keeps the source scaffold sub graph unchanged and creates a new asset within the same folder.",
+                duplicatedManifest != null
+                    ? "Scaffold placeholder asset header and sidecar manifest were copied and rewritten for the duplicated sub graph."
+                    : "No scaffold manifest was present; only the asset file was copied and reimported.",
+            };
+
+            Dictionary<string, object> data;
+            if (duplicatedManifest != null)
+            {
+                data = BuildSummaryData(
+                    duplicatedManifest,
+                    duplicatedAssetPath,
+                    absoluteDuplicatedAssetPath,
+                    true,
+                    true,
+                    executionKind,
+                    "duplicate_subgraph",
+                    duplicateNotes,
+                    null
+                );
+            }
+            else
+            {
+                data = BuildRawSummaryData(
+                    duplicatedAssetPath,
+                    absoluteDuplicatedAssetPath,
+                    ReadPreviewLines(absoluteDuplicatedAssetPath, 8),
+                    executionKind
+                );
+                data["operation"] = "duplicate_subgraph";
+                data["notes"] = duplicateNotes;
+            }
+
+            data["sourceAssetPath"] = assetPath;
+            data["isSubGraph"] = true;
+            data["duplicatedSubGraph"] = BuildScaffoldDuplicatedGraphData(assetPath, duplicatedAssetPath, request.Name);
+            data["duplicateSubGraphSemantics"] = new[]
+            {
+                "duplicate_subgraph copies the current .shadersubgraph asset into a new asset within its existing folder.",
+                "The response assetPath always points at the duplicated asset path while sourceAssetPath keeps the original.",
+                "Scaffold manifests are copied alongside the duplicated sub graph when present.",
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Duplicated scaffold Shader Sub Graph '{sourceAssetName}' to '{duplicatedAssetName}' at '{duplicatedAssetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse DeleteGraph(
             DeleteGraphRequest request,
             ShaderGraphExecutionKind executionKind)
