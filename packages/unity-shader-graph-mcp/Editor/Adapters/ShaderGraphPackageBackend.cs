@@ -177,6 +177,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse ImportGraphContract(ImportGraphContractRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.ImportGraphContract(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse FindNode(FindNodeRequest request)
         {
             return ShaderGraphPackageGraphInspector.FindNode(
@@ -3469,6 +3478,389 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Exported package-backed Shader Graph contract from '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse ImportGraphContract(
+            ImportGraphContractRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Import graph contract request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            if (!ImportedGraphContractJsonUtility.TryParse(
+                    request.GraphContractJson,
+                    out ImportedGraphContract contract,
+                    out string parseFailure))
+            {
+                return ShaderGraphResponse.Fail(parseFailure);
+            }
+
+            if (!string.IsNullOrWhiteSpace(contract.contractVersion) &&
+                !string.Equals(contract.contractVersion, "unity-shader-graph-mcp/export-graph-contract-v1", StringComparison.Ordinal))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unsupported graph contract version '{contract.contractVersion}'. Expected 'unity-shader-graph-mcp/export-graph-contract-v1'.");
+            }
+
+            object graphData;
+            var loadNotes = new List<string>();
+            string failureReason;
+            if (!TryLoadGraphData(assetPath, absolutePath, out graphData, loadNotes, out failureReason))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to load Shader Graph GraphData from '{assetPath}': {failureReason}"
+                );
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "OnEnable", out string onEnableFailure))
+            {
+                loadNotes.Add("GraphData.OnEnable() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.OnEnable() could not be invoked: {onEnableFailure}");
+            }
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                loadNotes.Add("GraphData.ValidateGraph() invoked successfully.");
+            }
+            else
+            {
+                loadNotes.Add($"GraphData.ValidateGraph() could not be invoked: {validateFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                graphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                loadNotes,
+                "import_graph_contract"
+            );
+
+            var initialData = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["contractVersion"] = contract.contractVersion ?? "unity-shader-graph-mcp/export-graph-contract-v1",
+                ["importGraphContractSemantics"] = new[]
+                {
+                    "import_graph_contract replays an exportedGraphContract payload into the target graph asset.",
+                    "Package-backed import currently requires a blank or near-blank target graph.",
+                    "Node objectIds and categoryGuids are regenerated during import.",
+                },
+            };
+
+            int existingCategoryCount = CountEnumerableProperty(graphData, "categories");
+            int existingPropertyCount = EnumerateMember(graphData, "properties").Count;
+            int existingNodeCount = EnumerateMember(graphData, "nodes").Count;
+            int existingConnectionCount = EnumerateMember(graphData, "edges").Count;
+            if (existingPropertyCount > 0 ||
+                existingNodeCount > 0 ||
+                existingConnectionCount > 0 ||
+                existingCategoryCount > 1)
+            {
+                initialData["existingCounts"] = new Dictionary<string, object>
+                {
+                    ["categoryCount"] = existingCategoryCount,
+                    ["propertyCount"] = existingPropertyCount,
+                    ["nodeCount"] = existingNodeCount,
+                    ["connectionCount"] = existingConnectionCount,
+                };
+                return ShaderGraphResponse.Fail(
+                    $"import_graph_contract currently requires a blank or near-blank target graph. '{assetPath}' already contains user-authored categories, properties, nodes, or connections.",
+                    initialData
+                );
+            }
+
+            string requestedGraphPathLabel = contract.graphPathLabel?.Trim() ?? string.Empty;
+            string requestedGraphDefaultPrecision = contract.graphDefaultPrecision?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(requestedGraphPathLabel) || !string.IsNullOrWhiteSpace(requestedGraphDefaultPrecision))
+            {
+                ShaderGraphResponse metadataResponse = SetGraphMetadata(
+                    new SetGraphMetadataRequest(assetPath, requestedGraphPathLabel, requestedGraphDefaultPrecision),
+                    compatibility,
+                    executionKind);
+                if (!metadataResponse.Success)
+                {
+                    return AppendImportStepFailure(metadataResponse, "set_graph_metadata");
+                }
+            }
+
+            var categoryGuidMap = new Dictionary<string, string>(StringComparer.Ordinal);
+            var categoryNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (ImportedGraphContractCategory importedCategory in contract.categories ?? Array.Empty<ImportedGraphContractCategory>())
+            {
+                if (importedCategory == null)
+                {
+                    continue;
+                }
+
+                string importedCategoryGuid = importedCategory.categoryGuid?.Trim() ?? string.Empty;
+                string importedCategoryDisplayName = GetImportedCategoryDisplayName(importedCategory);
+                if (IsImportedDefaultCategory(importedCategory))
+                {
+                    if (!string.IsNullOrWhiteSpace(importedCategoryGuid))
+                    {
+                        categoryGuidMap[importedCategoryGuid] = string.Empty;
+                    }
+
+                    categoryNameMap[importedCategoryDisplayName] = "(Default Category)";
+                    continue;
+                }
+
+                string categoryName = NormalizeImportedCategoryName(importedCategory);
+                if (string.IsNullOrWhiteSpace(categoryName))
+                {
+                    return ShaderGraphResponse.Fail(
+                        "Imported graph contract contained a category without a valid name.",
+                        initialData
+                    );
+                }
+
+                ShaderGraphResponse createCategoryResponse = CreateCategory(
+                    new CreateCategoryRequest(assetPath, categoryName),
+                    compatibility,
+                    executionKind);
+                if (!createCategoryResponse.Success)
+                {
+                    return AppendImportStepFailure(createCategoryResponse, "create_category");
+                }
+
+                string createdCategoryGuid = GetNestedResponseString(createCategoryResponse.Data, "createdCategory", "categoryGuid");
+                string createdCategoryDisplayName = GetNestedResponseString(createCategoryResponse.Data, "createdCategory", "displayName");
+                if (!string.IsNullOrWhiteSpace(importedCategoryGuid))
+                {
+                    categoryGuidMap[importedCategoryGuid] = createdCategoryGuid;
+                }
+
+                if (!string.IsNullOrWhiteSpace(importedCategoryDisplayName))
+                {
+                    categoryNameMap[importedCategoryDisplayName] = string.IsNullOrWhiteSpace(createdCategoryDisplayName)
+                        ? importedCategoryDisplayName
+                        : createdCategoryDisplayName;
+                }
+            }
+
+            var importedPropertyCountsByCategory = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (ImportedGraphContractProperty importedProperty in contract.properties ?? Array.Empty<ImportedGraphContractProperty>())
+            {
+                if (importedProperty == null)
+                {
+                    continue;
+                }
+
+                string propertyName = FirstNonBlank(importedProperty.displayName, importedProperty.referenceName);
+                if (string.IsNullOrWhiteSpace(propertyName))
+                {
+                    return ShaderGraphResponse.Fail(
+                        "Imported graph contract contained a property without displayName/referenceName.",
+                        initialData
+                    );
+                }
+
+                string propertyType = importedProperty.resolvedPropertyType?.Trim() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(propertyType))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Imported graph contract property '{propertyName}' is missing resolvedPropertyType.",
+                        initialData
+                    );
+                }
+
+                ShaderGraphResponse addPropertyResponse = AddProperty(
+                    new AddPropertyRequest(assetPath, propertyName, propertyType, importedProperty.defaultValue),
+                    compatibility,
+                    executionKind);
+                if (!addPropertyResponse.Success)
+                {
+                    return AppendImportStepFailure(addPropertyResponse, "add_property");
+                }
+
+                string requestedReferenceName = importedProperty.referenceName?.Trim() ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(requestedReferenceName))
+                {
+                    ShaderGraphResponse renamePropertyResponse = RenameProperty(
+                        new RenamePropertyRequest(assetPath, propertyName, propertyName, requestedReferenceName),
+                        compatibility,
+                        executionKind);
+                    if (!renamePropertyResponse.Success)
+                    {
+                        return AppendImportStepFailure(renamePropertyResponse, "rename_property");
+                    }
+                }
+
+                ResolveImportedCategoryTarget(
+                    categoryGuidMap,
+                    categoryNameMap,
+                    importedProperty.categoryGuid,
+                    importedProperty.categoryDisplayName,
+                    out string targetCategoryGuid,
+                    out string targetCategoryName);
+
+                string categoryKey = string.IsNullOrWhiteSpace(targetCategoryGuid)
+                    ? (string.IsNullOrWhiteSpace(targetCategoryName) ? "(Default Category)" : targetCategoryName)
+                    : targetCategoryGuid;
+                int targetIndex = importedPropertyCountsByCategory.TryGetValue(categoryKey, out int existingIndex)
+                    ? existingIndex
+                    : 0;
+                importedPropertyCountsByCategory[categoryKey] = targetIndex + 1;
+
+                ShaderGraphResponse movePropertyResponse = MovePropertyToCategory(
+                    new MovePropertyToCategoryRequest(assetPath, propertyName, targetCategoryGuid, targetCategoryName, targetIndex),
+                    compatibility,
+                    executionKind);
+                if (!movePropertyResponse.Success)
+                {
+                    return AppendImportStepFailure(movePropertyResponse, "move_property_to_category");
+                }
+            }
+
+            var nodeIdMap = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (ImportedGraphContractNode importedNode in contract.nodes ?? Array.Empty<ImportedGraphContractNode>())
+            {
+                if (importedNode == null)
+                {
+                    continue;
+                }
+
+                string sourceNodeId = FirstNonBlank(importedNode.objectId, importedNode.nodeId);
+                if (string.IsNullOrWhiteSpace(sourceNodeId))
+                {
+                    return ShaderGraphResponse.Fail(
+                        "Imported graph contract contained a node without objectId/nodeId.",
+                        initialData
+                    );
+                }
+
+                ShaderGraphResponse addNodeResponse = AddNode(
+                    new AddNodeRequest(assetPath, importedNode.nodeType, importedNode.displayName),
+                    compatibility,
+                    executionKind);
+                if (!addNodeResponse.Success)
+                {
+                    return AppendImportStepFailure(addNodeResponse, "add_node");
+                }
+
+                string importedNodeId = GetNestedResponseString(addNodeResponse.Data, "addedNode", "objectId");
+                if (string.IsNullOrWhiteSpace(importedNodeId))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Imported node '{sourceNodeId}' did not return a stable objectId after add_node.",
+                        initialData
+                    );
+                }
+
+                nodeIdMap[sourceNodeId] = importedNodeId;
+
+                if (importedNode.position != null)
+                {
+                    ShaderGraphResponse moveNodeResponse = MoveNode(
+                        new MoveNodeRequest(assetPath, importedNodeId, importedNode.position.x, importedNode.position.y),
+                        compatibility,
+                        executionKind);
+                    if (!moveNodeResponse.Success)
+                    {
+                        return AppendImportStepFailure(moveNodeResponse, "move_node");
+                    }
+                }
+            }
+
+            foreach (ImportedGraphContractConnection importedConnection in contract.connections ?? Array.Empty<ImportedGraphContractConnection>())
+            {
+                if (importedConnection == null)
+                {
+                    continue;
+                }
+
+                if (!nodeIdMap.TryGetValue(importedConnection.outputNodeId?.Trim() ?? string.Empty, out string mappedOutputNodeId) ||
+                    !nodeIdMap.TryGetValue(importedConnection.inputNodeId?.Trim() ?? string.Empty, out string mappedInputNodeId))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Imported graph contract connection referenced node ids that were not recreated successfully: '{importedConnection.outputNodeId}' -> '{importedConnection.inputNodeId}'.",
+                        initialData
+                    );
+                }
+
+                ShaderGraphResponse connectResponse = ConnectPorts(
+                    new ConnectPortsRequest(
+                        assetPath,
+                        mappedOutputNodeId,
+                        NormalizePortAliasText(importedConnection.outputPort),
+                        mappedInputNodeId,
+                        NormalizePortAliasText(importedConnection.inputPort)),
+                    compatibility,
+                    executionKind);
+                if (!connectResponse.Success)
+                {
+                    return AppendImportStepFailure(connectResponse, "connect_ports");
+                }
+            }
+
+            ShaderGraphResponse summaryResponse = ReadGraphSummary(
+                new ReadGraphSummaryRequest(assetPath),
+                compatibility,
+                executionKind);
+            if (!summaryResponse.Success)
+            {
+                return AppendImportStepFailure(summaryResponse, "read_graph_summary");
+            }
+
+            var data = new Dictionary<string, object>(summaryResponse.Data ?? new Dictionary<string, object>())
+            {
+                ["operation"] = "import_graph_contract",
+                ["contractVersion"] = contract.contractVersion ?? "unity-shader-graph-mcp/export-graph-contract-v1",
+                ["importGraphContractSemantics"] = new[]
+                {
+                    "import_graph_contract replays an exportedGraphContract payload into the target graph asset.",
+                    "Package-backed import currently requires a blank or near-blank target graph.",
+                    "Node objectIds and categoryGuids are regenerated during import.",
+                },
+                ["importedCounts"] = new Dictionary<string, object>
+                {
+                    ["categoryCount"] = contract.categories?.Length ?? 0,
+                    ["propertyCount"] = contract.properties?.Length ?? 0,
+                    ["nodeCount"] = contract.nodes?.Length ?? 0,
+                    ["connectionCount"] = contract.connections?.Length ?? 0,
+                },
+                ["nodeIdMap"] = nodeIdMap.Select(entry => (object)new Dictionary<string, object>
+                {
+                    ["sourceNodeId"] = entry.Key,
+                    ["importedNodeId"] = entry.Value,
+                }).ToArray(),
+            };
+
+            ShaderGraphResponse exportResponse = ExportGraphContract(
+                new ExportGraphContractRequest(assetPath),
+                compatibility,
+                executionKind);
+            if (exportResponse.Success &&
+                TryGetResponseDictionary(exportResponse.Data, "exportedGraphContract", out IReadOnlyDictionary<string, object> importedGraphContract))
+            {
+                data["importedGraphContract"] = importedGraphContract;
+            }
+
+            return ShaderGraphResponse.Ok(
+                $"Imported Shader Graph contract into '{assetPath}'.",
                 data
             );
         }
@@ -7905,6 +8297,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 string.Empty,
                 fileInfo.CreationTimeUtc.ToString("O"),
                 fileInfo.LastWriteTimeUtc.ToString("O"),
+                categoryCount,
                 properties.Count,
                 nodes.Count,
                 connections.Count,
@@ -8169,6 +8562,166 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["previousAssetPath"] = previousAssetPath ?? string.Empty,
                 ["previousAssetName"] = previousAssetName,
             };
+        }
+
+        private static string FirstNonBlank(params string[] values)
+        {
+            if (values == null)
+            {
+                return string.Empty;
+            }
+
+            foreach (string value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value.Trim();
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static ShaderGraphResponse AppendImportStepFailure(ShaderGraphResponse response, string step)
+        {
+            if (response == null)
+            {
+                return ShaderGraphResponse.Fail("Import graph contract failed.");
+            }
+
+            var data = new Dictionary<string, object>(response.Data ?? new Dictionary<string, object>())
+            {
+                ["importGraphContractStep"] = step ?? string.Empty,
+            };
+            return ShaderGraphResponse.Fail(response.Message, data);
+        }
+
+        private static bool TryGetResponseDictionary(
+            IReadOnlyDictionary<string, object> data,
+            string key,
+            out IReadOnlyDictionary<string, object> dictionary)
+        {
+            dictionary = null;
+            if (data == null || string.IsNullOrWhiteSpace(key) || !data.TryGetValue(key, out object value))
+            {
+                return false;
+            }
+
+            return TryConvertResponseDictionary(value, out dictionary);
+        }
+
+        private static bool TryConvertResponseDictionary(object value, out IReadOnlyDictionary<string, object> dictionary)
+        {
+            dictionary = null;
+            if (value is IReadOnlyDictionary<string, object> readOnlyDictionary)
+            {
+                dictionary = readOnlyDictionary;
+                return true;
+            }
+
+            if (value is IDictionary legacyDictionary)
+            {
+                var converted = new Dictionary<string, object>(StringComparer.Ordinal);
+                foreach (DictionaryEntry entry in legacyDictionary)
+                {
+                    string key = Convert.ToString(entry.Key, CultureInfo.InvariantCulture) ?? string.Empty;
+                    converted[key] = entry.Value;
+                }
+
+                dictionary = converted;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string GetNestedResponseString(
+            IReadOnlyDictionary<string, object> data,
+            string dictionaryKey,
+            string valueKey)
+        {
+            return TryGetResponseDictionary(data, dictionaryKey, out IReadOnlyDictionary<string, object> dictionary)
+                && dictionary.TryGetValue(valueKey, out object value)
+                ? value?.ToString()?.Trim() ?? string.Empty
+                : string.Empty;
+        }
+
+        private static void ResolveImportedCategoryTarget(
+            IReadOnlyDictionary<string, string> categoryGuidMap,
+            IReadOnlyDictionary<string, string> categoryNameMap,
+            string requestedCategoryGuid,
+            string requestedCategoryDisplayName,
+            out string targetCategoryGuid,
+            out string targetCategoryName)
+        {
+            targetCategoryGuid = string.Empty;
+            targetCategoryName = "(Default Category)";
+
+            if (!string.IsNullOrWhiteSpace(requestedCategoryGuid) &&
+                categoryGuidMap != null &&
+                categoryGuidMap.TryGetValue(requestedCategoryGuid.Trim(), out string resolvedGuid))
+            {
+                targetCategoryGuid = resolvedGuid ?? string.Empty;
+            }
+
+            string requestedDisplayName = requestedCategoryDisplayName?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(requestedDisplayName) &&
+                categoryNameMap != null &&
+                categoryNameMap.TryGetValue(requestedDisplayName, out string resolvedName) &&
+                !string.IsNullOrWhiteSpace(resolvedName))
+            {
+                targetCategoryName = resolvedName;
+            }
+        }
+
+        private static bool IsImportedDefaultCategory(ImportedGraphContractCategory category)
+        {
+            if (category == null)
+            {
+                return false;
+            }
+
+            string categoryName = category.name?.Trim() ?? string.Empty;
+            string displayName = category.displayName?.Trim() ?? string.Empty;
+            return string.IsNullOrWhiteSpace(categoryName) ||
+                   string.Equals(displayName, "(Default Category)", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(categoryName, "(Default Category)", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetImportedCategoryDisplayName(ImportedGraphContractCategory category)
+        {
+            if (category == null)
+            {
+                return "(Default Category)";
+            }
+
+            string categoryName = category.name?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(categoryName))
+            {
+                return categoryName;
+            }
+
+            string displayName = category.displayName?.Trim() ?? string.Empty;
+            return string.IsNullOrWhiteSpace(displayName) ? "(Default Category)" : displayName;
+        }
+
+        private static string NormalizeImportedCategoryName(ImportedGraphContractCategory category)
+        {
+            if (category == null)
+            {
+                return string.Empty;
+            }
+
+            string categoryName = category.name?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(categoryName))
+            {
+                return categoryName;
+            }
+
+            string displayName = category.displayName?.Trim() ?? string.Empty;
+            return string.Equals(displayName, "(Default Category)", StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : displayName;
         }
 
         private static Dictionary<string, object> BuildDuplicatedFromData(object sourceNode, Rect? sourcePosition)
@@ -8466,12 +9019,12 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             if (TryGetSlotReferencePortName(outputSlotReference, out string outputPort))
             {
-                data["outputPort"] = outputPort;
+                data["outputPort"] = NormalizePortAliasText(outputPort);
             }
 
             if (TryGetSlotReferencePortName(inputSlotReference, out string inputPort))
             {
-                data["inputPort"] = inputPort;
+                data["inputPort"] = NormalizePortAliasText(inputPort);
             }
 
             object outputNode = GetMemberValue(outputSlotReference, "node");
@@ -11830,8 +12383,38 @@ namespace ShaderGraphMcp.Editor.Adapters
 
         private static bool IsPortAlias(string requestedPort, string numericPort, string displayPort)
         {
+            string normalizedRequestedPort = NormalizePortAliasText(requestedPort);
+            string normalizedDisplayPort = NormalizePortAliasText(displayPort);
+
             return string.Equals(requestedPort, numericPort, StringComparison.Ordinal) ||
-                   string.Equals(requestedPort, displayPort, StringComparison.OrdinalIgnoreCase);
+                   string.Equals(normalizedRequestedPort, numericPort, StringComparison.Ordinal) ||
+                   string.Equals(requestedPort, displayPort, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(normalizedRequestedPort, displayPort, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(normalizedRequestedPort, normalizedDisplayPort, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizePortAliasText(string port)
+        {
+            if (string.IsNullOrWhiteSpace(port))
+            {
+                return string.Empty;
+            }
+
+            string trimmed = port.Trim();
+            int openParenIndex = trimmed.LastIndexOf('(');
+            if (openParenIndex <= 0 || !trimmed.EndsWith(")", StringComparison.Ordinal))
+            {
+                return trimmed;
+            }
+
+            string suffix = trimmed.Substring(openParenIndex + 1, trimmed.Length - openParenIndex - 2);
+            if (suffix.Length == 0 || suffix.Any(character => !char.IsDigit(character)))
+            {
+                return trimmed;
+            }
+
+            string prefix = trimmed.Substring(0, openParenIndex).TrimEnd();
+            return string.IsNullOrWhiteSpace(prefix) ? trimmed : prefix;
         }
 
         private static string BuildConnectionNodeFailure(

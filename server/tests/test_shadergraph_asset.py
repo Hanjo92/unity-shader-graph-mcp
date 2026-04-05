@@ -41,6 +41,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "list_categories",
                 "read_graph_summary",
                 "export_graph_contract",
+                "import_graph_contract",
                 "find_node",
                 "find_property",
                 "list_supported_nodes",
@@ -111,6 +112,26 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
 
         self.assertEqual(request.action, "export_graph_contract")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+
+    def test_request_normalization_accepts_import_graph_contract_with_mapping_payload(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "import_graph_contract",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "exportedGraphContract": {
+                    "contractVersion": "unity-shader-graph-mcp/export-graph-contract-v1",
+                    "categories": [],
+                    "properties": [],
+                    "nodes": [],
+                    "connections": [],
+                },
+            }
+        )
+
+        self.assertEqual(request.action, "import_graph_contract")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertIn("graphContractJson", request.payload)
+        self.assertIn("unity-shader-graph-mcp/export-graph-contract-v1", request.payload["graphContractJson"])
 
     def test_request_normalization_accepts_create_category_with_category_name(self) -> None:
         request = normalize_shadergraph_asset_request(

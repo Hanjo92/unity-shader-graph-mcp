@@ -192,6 +192,13 @@ namespace ShaderGraphMcp.Editor.Tools
             return builder.ToString();
         }
 
+        internal static string SerializeValueToJson(object value)
+        {
+            var builder = new StringBuilder();
+            AppendValue(builder, value);
+            return builder.ToString();
+        }
+
         internal static ShaderGraphResponse HandleRequestJson(string json, out ShaderGraphRequest request, out string errorMessage)
         {
             if (!TryParseRequest(json, out request, out errorMessage))
@@ -242,6 +249,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.ExportGraphContract:
                     return TryCreateExportGraphContractRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.ImportGraphContract:
+                    return TryCreateImportGraphContractRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindNode:
                     return TryCreateFindNodeRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.FindProperty:
@@ -349,6 +358,29 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new ExportGraphContractRequest(assetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateImportGraphContractRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Import graph contract requires an asset path.";
+                return false;
+            }
+
+            string graphContractJson = FirstNonBlank(payload.graphContractJson, payload.contractJson);
+            if (string.IsNullOrWhiteSpace(graphContractJson))
+            {
+                request = null;
+                errorMessage = "Import graph contract requires graphContractJson/contractJson.";
+                return false;
+            }
+
+            request = new ImportGraphContractRequest(assetPath, graphContractJson);
             errorMessage = null;
             return true;
         }
@@ -1267,6 +1299,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.ReadGraphSummary;
                 case "export_graph_contract":
                     return ShaderGraphAction.ExportGraphContract;
+                case "import_graph_contract":
+                    return ShaderGraphAction.ImportGraphContract;
                 case "find_node":
                     return ShaderGraphAction.FindNode;
                 case "find_property":
@@ -1812,6 +1846,8 @@ namespace ShaderGraphMcp.Editor.Tools
             public string graphDefaultPrecision;
             public string defaultPrecision;
             public string precision;
+            public string graphContractJson;
+            public string contractJson;
             public string categoryGuid;
             public string sourceCategoryGuid;
             public string targetCategoryGuid;

@@ -180,6 +180,7 @@ namespace ShaderGraphMcp.Editor.Models
         public string UpdatedUtc { get; }
         public string GraphPathLabel { get; }
         public string GraphDefaultPrecision { get; }
+        public int CategoryCount { get; }
         public int PropertyCount { get; }
         public int NodeCount { get; }
         public int ConnectionCount { get; }
@@ -203,6 +204,7 @@ namespace ShaderGraphMcp.Editor.Models
             string template,
             string createdUtc,
             string updatedUtc,
+            int categoryCount,
             int propertyCount,
             int nodeCount,
             int connectionCount,
@@ -229,6 +231,7 @@ namespace ShaderGraphMcp.Editor.Models
             UpdatedUtc = updatedUtc;
             GraphPathLabel = graphPathLabel ?? string.Empty;
             GraphDefaultPrecision = graphDefaultPrecision ?? string.Empty;
+            CategoryCount = categoryCount;
             PropertyCount = propertyCount;
             NodeCount = nodeCount;
             ConnectionCount = connectionCount;
@@ -268,6 +271,7 @@ namespace ShaderGraphMcp.Editor.Models
                 ["updatedUtc"] = UpdatedUtc,
                 ["graphPathLabel"] = GraphPathLabel,
                 ["graphDefaultPrecision"] = GraphDefaultPrecision,
+                ["categoryCount"] = CategoryCount,
                 ["propertyCount"] = PropertyCount,
                 ["nodeCount"] = NodeCount,
                 ["connectionCount"] = ConnectionCount,

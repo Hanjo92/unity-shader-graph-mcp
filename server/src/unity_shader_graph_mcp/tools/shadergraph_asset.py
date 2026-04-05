@@ -7,6 +7,7 @@ real Unity batchmode bridge or by the scaffold fallback path.
 from __future__ import annotations
 
 from dataclasses import asdict
+import json
 from pathlib import PurePosixPath
 from typing import Any, Mapping
 
@@ -41,6 +42,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "list_categories",
     "read_graph_summary",
     "export_graph_contract",
+    "import_graph_contract",
     "find_node",
     "find_property",
     "list_supported_nodes",
@@ -513,6 +515,16 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
     if request.action == "export_graph_contract" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
+    if request.action == "import_graph_contract":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        graph_contract_json = _normalize_graph_contract_json(request.payload)
+        if graph_contract_json is None:
+            raise ShaderGraphRequestError(
+                "import_graph_contract requires graphContract/exportedGraphContract/contract or graphContractJson/contractJson."
+            )
+        request.payload["graphContractJson"] = graph_contract_json
+
     if request.action == "find_node":
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
@@ -845,6 +857,9 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
         value = _pick_value(request.payload, *key_group)
         if value is not None:
             summary[key_group[0]] = value
+    graph_contract_json = _normalize_graph_contract_json(request.payload)
+    if graph_contract_json is not None:
+        summary["graphContractJsonLength"] = len(graph_contract_json)
     return summary
 
 
@@ -859,6 +874,10 @@ def _build_bridge_request(request: ShaderGraphAssetRequest) -> dict[str, Any]:
         payload.setdefault("assetPath", _derive_asset_path(request))
     if request.template is not None:
         payload.setdefault("template", request.template)
+
+    graph_contract_json = _normalize_graph_contract_json(payload)
+    if graph_contract_json is not None:
+        payload["graphContractJson"] = graph_contract_json
 
     payload["request"] = asdict(request)
     return payload
@@ -901,6 +920,34 @@ def _normalize_move_graph_target_asset_path(source_asset_path: str | None, raw_t
         return normalized_target_path
 
     return str(PurePosixPath(normalized_target_path) / source_file_name)
+
+
+def _normalize_graph_contract_json(payload: Mapping[str, Any]) -> str | None:
+    contract_json = optional_text(
+        _pick_value(
+            payload,
+            "graphContractJson",
+            "graph_contract_json",
+            "contractJson",
+            "contract_json",
+        )
+    )
+    if contract_json is not None:
+        return contract_json
+
+    for key in ("graphContract", "graph_contract", "exportedGraphContract", "exported_graph_contract", "contract"):
+        if key not in payload or payload[key] is None:
+            continue
+        candidate = payload[key]
+        if isinstance(candidate, Mapping):
+            return json.dumps(dict(candidate), sort_keys=True, separators=(",", ":"))
+        if isinstance(candidate, (list, tuple)):
+            return json.dumps(list(candidate), sort_keys=True, separators=(",", ":"))
+        text = optional_text(candidate)
+        if text is not None:
+            return text
+
+    return None
 
 
 def _require_payload_text(payload: Mapping[str, Any], *keys: str) -> str:

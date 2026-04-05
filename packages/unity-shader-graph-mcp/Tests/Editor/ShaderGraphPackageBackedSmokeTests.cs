@@ -366,6 +366,72 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_ImportGraphContract_StaysPackageBacked()
+        {
+            string sourceAssetPath = CreateBlankGraph("BlankGraphImportGraphContractSource", out _);
+
+            ShaderGraphResponse createCategoryResponse = ShaderGraphAssetTool.HandleCreateCategory(sourceAssetPath, "Surface Inputs");
+            ShaderGraphTestAssets.RequirePackageReady(createCategoryResponse);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                sourceAssetPath,
+                "Tint",
+                "Color",
+                "#FFFFFFFF");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse movePropertyResponse = ShaderGraphAssetTool.HandleMovePropertyToCategory(
+                sourceAssetPath,
+                "Tint",
+                string.Empty,
+                "Surface Inputs",
+                0);
+            ShaderGraphTestAssets.RequirePackageReady(movePropertyResponse);
+
+            ShaderGraphResponse addSourceNodeResponse = ShaderGraphAssetTool.HandleAddNode(sourceAssetPath, "Vector1", "Import Source");
+            ShaderGraphTestAssets.RequirePackageReady(addSourceNodeResponse);
+            string sourceNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSourceNodeResponse);
+
+            ShaderGraphResponse addTargetNodeResponse = ShaderGraphAssetTool.HandleAddNode(sourceAssetPath, "Vector1", "Import Target");
+            ShaderGraphTestAssets.RequirePackageReady(addTargetNodeResponse);
+            string targetNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTargetNodeResponse);
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                sourceAssetPath,
+                sourceNodeId,
+                "Out",
+                targetNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            ShaderGraphResponse exportResponse = ShaderGraphAssetTool.HandleExportGraphContract(sourceAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(exportResponse);
+            IReadOnlyDictionary<string, object> exportedGraphContract = ShaderGraphTestAssets.RequireDictionary(exportResponse.Data, "exportedGraphContract");
+
+            string targetAssetPath = CreateBlankGraph("BlankGraphImportGraphContractTarget", out _);
+            ShaderGraphResponse importResponse = ShaderGraphAssetTool.HandleImportGraphContract(
+                targetAssetPath,
+                ShaderGraphTestAssets.SerializeToJson(exportedGraphContract));
+            ShaderGraphTestAssets.RequirePackageReady(importResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(importResponse.Data, "operation"), Is.EqualTo("import_graph_contract"));
+
+            var importedCounts = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedCounts");
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "categoryCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "propertyCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "nodeCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "connectionCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(targetAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "categoryCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetStringList(summaryResponse.Data, "properties"), Has.Some.Contains("Tint"));
+        }
+
+        [Test]
         public void BlankGraph_AddFloatAndColorProperty_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphAddProperties", out _);

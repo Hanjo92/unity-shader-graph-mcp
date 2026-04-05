@@ -23,6 +23,7 @@ ShaderGraphAction = Literal[
     "list_categories",
     "read_graph_summary",
     "export_graph_contract",
+    "import_graph_contract",
     "find_node",
     "find_property",
     "list_supported_nodes",

@@ -22,6 +22,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse ListCategories(ListCategoriesRequest request);
         ShaderGraphResponse ReadGraphSummary(ReadGraphSummaryRequest request);
         ShaderGraphResponse ExportGraphContract(ExportGraphContractRequest request);
+        ShaderGraphResponse ImportGraphContract(ImportGraphContractRequest request);
         ShaderGraphResponse FindNode(FindNodeRequest request);
         ShaderGraphResponse FindProperty(FindPropertyRequest request);
         ShaderGraphResponse ListSupportedNodes(ListSupportedNodesRequest request);

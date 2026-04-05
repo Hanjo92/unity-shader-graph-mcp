@@ -138,6 +138,7 @@ namespace ShaderGraphMcp.Editor.Tests
                 "2026-03-19T00:00:00.0000000Z",
                 "2026-03-19T00:00:00.0000000Z",
                 1,
+                1,
                 2,
                 3,
                 ShaderGraphExecutionKind.Scaffold,

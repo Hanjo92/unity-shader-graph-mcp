@@ -5,6 +5,7 @@ using System.IO;
 using NUnit.Framework;
 using ShaderGraphMcp.Editor.Compatibility;
 using ShaderGraphMcp.Editor.Models;
+using ShaderGraphMcp.Editor.Tools;
 using UnityEditor;
 
 namespace ShaderGraphMcp.Editor.Tests
@@ -153,6 +154,11 @@ namespace ShaderGraphMcp.Editor.Tests
             }
 
             return string.Empty;
+        }
+
+        public static string SerializeToJson(object value)
+        {
+            return ShaderGraphBatchmodeBridge.SerializeValueToJson(value);
         }
 
         public static string CombineAssetPath(string folderPath, string assetName, string extension)

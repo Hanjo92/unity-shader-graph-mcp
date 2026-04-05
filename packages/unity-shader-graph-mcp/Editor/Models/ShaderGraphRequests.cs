@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using UnityEngine;
 
 namespace ShaderGraphMcp.Editor.Models
 {
@@ -23,6 +24,7 @@ namespace ShaderGraphMcp.Editor.Models
         ListCategories,
         ReadGraphSummary,
         ExportGraphContract,
+        ImportGraphContract,
         FindNode,
         FindProperty,
         ListSupportedNodes,
@@ -135,6 +137,19 @@ namespace ShaderGraphMcp.Editor.Models
         public ExportGraphContractRequest(string assetPath)
             : base(ShaderGraphAction.ExportGraphContract, assetPath)
         {
+        }
+    }
+
+    public sealed class ImportGraphContractRequest : ShaderGraphRequest
+    {
+        public string GraphContractJson { get; }
+
+        public ImportGraphContractRequest(string assetPath, string graphContractJson)
+            : base(ShaderGraphAction.ImportGraphContract, assetPath)
+        {
+            GraphContractJson = string.IsNullOrWhiteSpace(graphContractJson)
+                ? string.Empty
+                : graphContractJson.Trim();
         }
     }
 
@@ -795,6 +810,119 @@ namespace ShaderGraphMcp.Editor.Models
         public SaveGraphRequest(string assetPath)
             : base(ShaderGraphAction.SaveGraph, assetPath)
         {
+        }
+    }
+
+    [Serializable]
+    public sealed class ImportedGraphContract
+    {
+        public string contractVersion;
+        public string assetPath;
+        public string assetName;
+        public string template;
+        public string graphPathLabel;
+        public string graphDefaultPrecision;
+        public ImportedGraphContractCategory[] categories = Array.Empty<ImportedGraphContractCategory>();
+        public ImportedGraphContractProperty[] properties = Array.Empty<ImportedGraphContractProperty>();
+        public ImportedGraphContractNode[] nodes = Array.Empty<ImportedGraphContractNode>();
+        public ImportedGraphContractConnection[] connections = Array.Empty<ImportedGraphContractConnection>();
+    }
+
+    [Serializable]
+    public sealed class ImportedGraphContractCategory
+    {
+        public string categoryGuid;
+        public string displayName;
+        public string name;
+        public string[] propertyOrder = Array.Empty<string>();
+    }
+
+    [Serializable]
+    public sealed class ImportedGraphContractProperty
+    {
+        public string objectId;
+        public string displayName;
+        public string referenceName;
+        public string resolvedPropertyType;
+        public string resolvedShaderInputType;
+        public string defaultValue;
+        public string categoryGuid;
+        public string categoryDisplayName;
+    }
+
+    [Serializable]
+    public sealed class ImportedGraphContractNode
+    {
+        public string objectId;
+        public string nodeId;
+        public string displayName;
+        public string nodeType;
+        public ImportedGraphContractPosition position;
+    }
+
+    [Serializable]
+    public sealed class ImportedGraphContractPosition
+    {
+        public float x;
+        public float y;
+    }
+
+    [Serializable]
+    public sealed class ImportedGraphContractConnection
+    {
+        public string outputNodeId;
+        public string outputPort;
+        public string inputNodeId;
+        public string inputPort;
+    }
+
+    public static class ImportedGraphContractJsonUtility
+    {
+        public static bool TryParse(
+            string graphContractJson,
+            out ImportedGraphContract contract,
+            out string failureReason)
+        {
+            contract = null;
+
+            if (string.IsNullOrWhiteSpace(graphContractJson))
+            {
+                failureReason = "Graph contract JSON is required.";
+                return false;
+            }
+
+            try
+            {
+                contract = JsonUtility.FromJson<ImportedGraphContract>(graphContractJson);
+            }
+            catch (Exception exception)
+            {
+                failureReason = $"Failed to parse graph contract JSON: {exception.Message}";
+                return false;
+            }
+
+            if (contract == null)
+            {
+                failureReason = "Graph contract JSON did not produce a contract payload.";
+                return false;
+            }
+
+            contract.categories ??= Array.Empty<ImportedGraphContractCategory>();
+            contract.properties ??= Array.Empty<ImportedGraphContractProperty>();
+            contract.nodes ??= Array.Empty<ImportedGraphContractNode>();
+            contract.connections ??= Array.Empty<ImportedGraphContractConnection>();
+            foreach (ImportedGraphContractNode node in contract.nodes)
+            {
+                if (node == null)
+                {
+                    continue;
+                }
+
+                node.position ??= new ImportedGraphContractPosition();
+            }
+
+            failureReason = null;
+            return true;
         }
     }
 }

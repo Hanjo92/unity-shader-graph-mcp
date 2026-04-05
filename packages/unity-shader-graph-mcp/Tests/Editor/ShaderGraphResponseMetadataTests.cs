@@ -1346,6 +1346,7 @@ namespace ShaderGraphMcp.Editor.Tests
                 "blank",
                 "2026-03-19T00:00:00.0000000Z",
                 "2026-03-19T00:00:00.0000000Z",
+                1,
                 0,
                 0,
                 0,
@@ -1790,6 +1791,51 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedImportGraphContractEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Imported Shader Graph contract into 'Assets/ShaderGraphs/Imported.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "import_graph_contract",
+                    ["assetPath"] = "Assets/ShaderGraphs/Imported.shadergraph",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                    ["importGraphContractSemantics"] = new[]
+                    {
+                        "import_graph_contract replays an exportedGraphContract payload into the target graph asset.",
+                    },
+                    ["importedCounts"] = new Dictionary<string, object>
+                    {
+                        ["categoryCount"] = 2,
+                        ["propertyCount"] = 1,
+                        ["nodeCount"] = 2,
+                        ["connectionCount"] = 1,
+                    },
+                    ["nodeIdMap"] = new object[]
+                    {
+                        new Dictionary<string, object>
+                        {
+                            ["sourceNodeId"] = "node-1",
+                            ["importedNodeId"] = "node-99",
+                        },
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("import_graph_contract"));
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["contractVersion"], Is.EqualTo("unity-shader-graph-mcp/export-graph-contract-v1"));
+
+            var importedCounts = (IReadOnlyDictionary<string, object>)response.Data["importedCounts"];
+            Assert.That(importedCounts["categoryCount"], Is.EqualTo(2));
+            Assert.That(importedCounts["propertyCount"], Is.EqualTo(1));
+            Assert.That(importedCounts["nodeCount"], Is.EqualTo(2));
+            Assert.That(importedCounts["connectionCount"], Is.EqualTo(1));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedAddPropertyEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
@@ -1899,6 +1945,7 @@ namespace ShaderGraphMcp.Editor.Tests
                 string.Empty,
                 "2026-03-19T00:00:00.0000000Z",
                 "2026-03-19T00:00:00.0000000Z",
+                1,
                 1,
                 2,
                 1,

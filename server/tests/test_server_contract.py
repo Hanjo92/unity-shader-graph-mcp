@@ -115,6 +115,17 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "action": "export_graph_contract",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
     },
+    "import_graph_contract": {
+        "action": "import_graph_contract",
+        "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+        "graphContract": {
+            "contractVersion": "unity-shader-graph-mcp/export-graph-contract-v1",
+            "categories": [],
+            "properties": [],
+            "nodes": [],
+            "connections": [],
+        },
+    },
     "find_node": {
         "action": "find_node",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",

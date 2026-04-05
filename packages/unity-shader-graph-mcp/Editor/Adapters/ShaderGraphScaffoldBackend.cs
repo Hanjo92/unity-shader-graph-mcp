@@ -92,6 +92,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.ExportGraphContract(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse ImportGraphContract(ImportGraphContractRequest request)
+        {
+            return ShaderGraphScaffoldStore.ImportGraphContract(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse FindNode(FindNodeRequest request)
         {
             return ShaderGraphScaffoldStore.FindNode(request, ExecutionKind);

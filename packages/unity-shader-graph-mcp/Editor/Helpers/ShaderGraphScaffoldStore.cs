@@ -1773,6 +1773,255 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse ImportGraphContract(
+            ImportGraphContractRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Import graph contract request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            if (!TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest))
+            {
+                return ShaderGraphResponse.Fail(
+                    "'import_graph_contract' only supports graphs created by this scaffold. Use create_graph first so the manifest exists."
+                );
+            }
+
+            if (!ImportedGraphContractJsonUtility.TryParse(
+                    request.GraphContractJson,
+                    out ImportedGraphContract contract,
+                    out string parseFailure))
+            {
+                return ShaderGraphResponse.Fail(parseFailure);
+            }
+
+            if (!string.IsNullOrWhiteSpace(contract.contractVersion) &&
+                !string.Equals(contract.contractVersion, "unity-shader-graph-mcp/export-graph-contract-v1", StringComparison.Ordinal))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unsupported graph contract version '{contract.contractVersion}'. Expected 'unity-shader-graph-mcp/export-graph-contract-v1'.");
+            }
+
+            string now = UtcNow();
+            string assetName = Path.GetFileNameWithoutExtension(assetPath) ?? string.Empty;
+            var categoryGuidMap = new Dictionary<string, string>(StringComparer.Ordinal);
+            var rebuiltCategories = new List<ShaderGraphScaffoldCategory>
+            {
+                new ShaderGraphScaffoldCategory
+                {
+                    guid = ScaffoldDefaultCategoryGuid,
+                    name = ScaffoldDefaultCategoryName,
+                    updatedUtc = now,
+                },
+            };
+
+            foreach (ImportedGraphContractCategory category in contract.categories ?? Array.Empty<ImportedGraphContractCategory>())
+            {
+                if (category == null)
+                {
+                    continue;
+                }
+
+                if (IsImportedDefaultCategory(category))
+                {
+                    if (!string.IsNullOrWhiteSpace(category.categoryGuid))
+                    {
+                        categoryGuidMap[category.categoryGuid.Trim()] = ScaffoldDefaultCategoryGuid;
+                    }
+
+                    continue;
+                }
+
+                string resolvedGuid = string.IsNullOrWhiteSpace(category.categoryGuid)
+                    ? Guid.NewGuid().ToString("N")
+                    : category.categoryGuid.Trim();
+                string resolvedName = NormalizeImportedCategoryName(category);
+
+                rebuiltCategories.Add(new ShaderGraphScaffoldCategory
+                {
+                    guid = resolvedGuid,
+                    name = resolvedName,
+                    updatedUtc = now,
+                });
+                categoryGuidMap[resolvedGuid] = resolvedGuid;
+            }
+
+            var rebuiltProperties = new List<ShaderGraphScaffoldProperty>();
+            foreach (ImportedGraphContractProperty property in contract.properties ?? Array.Empty<ImportedGraphContractProperty>())
+            {
+                if (property == null)
+                {
+                    continue;
+                }
+
+                string propertyName = FirstNonBlank(property.displayName, property.referenceName);
+                if (string.IsNullOrWhiteSpace(propertyName))
+                {
+                    return ShaderGraphResponse.Fail("Imported graph contract contained a property without displayName/referenceName.");
+                }
+
+                rebuiltProperties.Add(new ShaderGraphScaffoldProperty
+                {
+                    name = propertyName.Trim(),
+                    type = string.IsNullOrWhiteSpace(property.resolvedPropertyType) ? string.Empty : property.resolvedPropertyType.Trim(),
+                    defaultValue = property.defaultValue ?? string.Empty,
+                    categoryGuid = ResolveImportedScaffoldCategoryGuid(
+                        rebuiltCategories,
+                        categoryGuidMap,
+                        property.categoryGuid,
+                        property.categoryDisplayName),
+                    updatedUtc = now,
+                });
+            }
+
+            var rebuiltNodes = new List<ShaderGraphScaffoldNode>();
+            foreach (ImportedGraphContractNode node in contract.nodes ?? Array.Empty<ImportedGraphContractNode>())
+            {
+                if (node == null)
+                {
+                    continue;
+                }
+
+                string nodeId = FirstNonBlank(node.objectId, node.nodeId);
+                if (string.IsNullOrWhiteSpace(nodeId))
+                {
+                    return ShaderGraphResponse.Fail("Imported graph contract contained a node without objectId/nodeId.");
+                }
+
+                if (string.IsNullOrWhiteSpace(node.nodeType))
+                {
+                    return ShaderGraphResponse.Fail($"Imported graph contract node '{nodeId}' is missing nodeType.");
+                }
+
+                rebuiltNodes.Add(new ShaderGraphScaffoldNode
+                {
+                    id = nodeId.Trim(),
+                    nodeType = node.nodeType.Trim(),
+                    displayName = node.displayName ?? string.Empty,
+                    x = node.position?.x ?? 0f,
+                    y = node.position?.y ?? 0f,
+                    updatedUtc = now,
+                });
+            }
+
+            var rebuiltConnections = new List<ShaderGraphScaffoldConnection>();
+            foreach (ImportedGraphContractConnection connection in contract.connections ?? Array.Empty<ImportedGraphContractConnection>())
+            {
+                if (connection == null)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(connection.outputNodeId) ||
+                    string.IsNullOrWhiteSpace(connection.outputPort) ||
+                    string.IsNullOrWhiteSpace(connection.inputNodeId) ||
+                    string.IsNullOrWhiteSpace(connection.inputPort))
+                {
+                    return ShaderGraphResponse.Fail("Imported graph contract contained a connection with a missing endpoint.");
+                }
+
+                rebuiltConnections.Add(new ShaderGraphScaffoldConnection
+                {
+                    outputNodeId = connection.outputNodeId.Trim(),
+                    outputPort = NormalizeImportedPortAlias(connection.outputPort),
+                    inputNodeId = connection.inputNodeId.Trim(),
+                    inputPort = NormalizeImportedPortAlias(connection.inputPort),
+                    updatedUtc = now,
+                });
+            }
+
+            manifest.assetPath = assetPath;
+            manifest.assetName = assetName;
+            manifest.template = string.IsNullOrWhiteSpace(contract.template)
+                ? (string.IsNullOrWhiteSpace(manifest.template) ? "blank" : manifest.template)
+                : contract.template.Trim();
+            manifest.graphPathLabel = string.IsNullOrWhiteSpace(contract.graphPathLabel)
+                ? manifest.graphPathLabel
+                : contract.graphPathLabel.Trim();
+            manifest.graphDefaultPrecision = string.IsNullOrWhiteSpace(contract.graphDefaultPrecision)
+                ? manifest.graphDefaultPrecision
+                : contract.graphDefaultPrecision.Trim();
+            manifest.categories = rebuiltCategories;
+            manifest.properties = rebuiltProperties;
+            manifest.nodes = rebuiltNodes;
+            manifest.connections = rebuiltConnections;
+            manifest.createdUtc = string.IsNullOrWhiteSpace(manifest.createdUtc) ? now : manifest.createdUtc;
+            manifest.updatedUtc = now;
+
+            EnsureManifestCategories(manifest);
+
+            try
+            {
+                File.WriteAllText(
+                    absoluteAssetPath,
+                    BuildPlaceholderPayload(manifest),
+                    new UTF8Encoding(false));
+                WriteManifest(absoluteManifestPath, manifest);
+                AssetDatabase.SaveAssets();
+                ImportAsset(assetPath);
+            }
+            catch (Exception exception)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to import graph contract into scaffold asset '{assetPath}': {exception.Message}"
+                );
+            }
+
+            var data = BuildSummaryData(
+                manifest,
+                assetPath,
+                absoluteAssetPath,
+                true,
+                true,
+                executionKind,
+                "import_graph_contract",
+                new[]
+                {
+                    "Scaffold graph contract imported by rebuilding the sidecar manifest.",
+                    "The imported contract is replayed into scaffold categories, properties, nodes, and connections.",
+                    "Scaffold import preserves exported order but collapses displayName/referenceName to a single property name.",
+                },
+                null
+            );
+            data["contractVersion"] = contract.contractVersion ?? "unity-shader-graph-mcp/export-graph-contract-v1";
+            data["importGraphContractSemantics"] = new[]
+            {
+                "import_graph_contract replays an exportedGraphContract payload into the target graph asset.",
+                "Scaffold import rewrites the sidecar manifest categories, properties, nodes, and connections.",
+                "Property referenceName is normalized to the scaffold property name.",
+            };
+            data["importedGraphContract"] = BuildScaffoldGraphContractData(manifest, assetPath);
+            data["importedCounts"] = new Dictionary<string, object>
+            {
+                ["categoryCount"] = manifest.categories.Count,
+                ["propertyCount"] = manifest.properties.Count,
+                ["nodeCount"] = manifest.nodes.Count,
+                ["connectionCount"] = manifest.connections.Count,
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Imported scaffold Shader Graph contract into '{assetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse FindNode(
             FindNodeRequest request,
             ShaderGraphExecutionKind executionKind)
@@ -3437,6 +3686,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 manifest.template,
                 manifest.createdUtc,
                 manifest.updatedUtc,
+                manifest.categories.Count,
                 manifest.properties.Count,
                 manifest.nodes.Count,
                 manifest.connections.Count,
@@ -3484,6 +3734,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 0,
                 0,
                 0,
+                0,
                 executionKind,
                 Array.Empty<string>(),
                 Array.Empty<string>(),
@@ -3516,6 +3767,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 null,
                 null,
                 UtcNow(),
+                0,
                 0,
                 0,
                 0,
@@ -3931,6 +4183,109 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ["previousAssetPath"] = previousAssetPath ?? string.Empty,
                 ["previousAssetName"] = previousAssetName,
             };
+        }
+
+        private static string FirstNonBlank(params string[] values)
+        {
+            if (values == null)
+            {
+                return string.Empty;
+            }
+
+            foreach (string value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value.Trim();
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string NormalizeImportedPortAlias(string port)
+        {
+            if (string.IsNullOrWhiteSpace(port))
+            {
+                return string.Empty;
+            }
+
+            string trimmed = port.Trim();
+            int openParenIndex = trimmed.LastIndexOf('(');
+            if (openParenIndex <= 0 || !trimmed.EndsWith(")", StringComparison.Ordinal))
+            {
+                return trimmed;
+            }
+
+            string suffix = trimmed.Substring(openParenIndex + 1, trimmed.Length - openParenIndex - 2);
+            if (suffix.Length == 0 || suffix.Any(character => !char.IsDigit(character)))
+            {
+                return trimmed;
+            }
+
+            string prefix = trimmed.Substring(0, openParenIndex).TrimEnd();
+            return string.IsNullOrWhiteSpace(prefix) ? trimmed : prefix;
+        }
+
+        private static bool IsImportedDefaultCategory(ImportedGraphContractCategory category)
+        {
+            if (category == null)
+            {
+                return false;
+            }
+
+            string categoryName = category.name?.Trim() ?? string.Empty;
+            string displayName = category.displayName?.Trim() ?? string.Empty;
+            return string.IsNullOrWhiteSpace(categoryName) ||
+                   string.Equals(categoryName, ScaffoldDefaultCategoryName, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(displayName, "(Default Category)", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeImportedCategoryName(ImportedGraphContractCategory category)
+        {
+            if (category == null)
+            {
+                return string.Empty;
+            }
+
+            string categoryName = category.name?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(categoryName) &&
+                !string.Equals(category.displayName?.Trim() ?? string.Empty, "(Default Category)", StringComparison.OrdinalIgnoreCase))
+            {
+                categoryName = category.displayName?.Trim() ?? string.Empty;
+            }
+
+            return categoryName;
+        }
+
+        private static string ResolveImportedScaffoldCategoryGuid(
+            IReadOnlyList<ShaderGraphScaffoldCategory> categories,
+            IReadOnlyDictionary<string, string> categoryGuidMap,
+            string requestedCategoryGuid,
+            string requestedCategoryDisplayName)
+        {
+            if (!string.IsNullOrWhiteSpace(requestedCategoryGuid) &&
+                categoryGuidMap != null &&
+                categoryGuidMap.TryGetValue(requestedCategoryGuid.Trim(), out string resolvedGuid) &&
+                !string.IsNullOrWhiteSpace(resolvedGuid))
+            {
+                return resolvedGuid;
+            }
+
+            if (!string.IsNullOrWhiteSpace(requestedCategoryDisplayName))
+            {
+                ShaderGraphScaffoldCategory category = categories?.FirstOrDefault(entry =>
+                    string.Equals(
+                        GetScaffoldCategoryDisplayName(entry),
+                        requestedCategoryDisplayName.Trim(),
+                        StringComparison.OrdinalIgnoreCase));
+                if (category != null)
+                {
+                    return category.guid;
+                }
+            }
+
+            return ScaffoldDefaultCategoryGuid;
         }
 
         private static string[] BuildScaffoldPropertyOrder(IEnumerable<ShaderGraphScaffoldProperty> properties)
