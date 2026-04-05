@@ -10,6 +10,7 @@ namespace ShaderGraphMcp.Editor.Models
         CreateGraph,
         CreateSubGraph,
         RenameGraph,
+        RenameSubGraph,
         DuplicateGraph,
         DeleteGraph,
         MoveGraph,
@@ -271,6 +272,61 @@ namespace ShaderGraphMcp.Editor.Models
             return name.EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase)
                 ? name
                 : $"{name}.shadergraph";
+        }
+
+        private static string NormalizeAssetPath(string assetPath)
+        {
+            return string.IsNullOrWhiteSpace(assetPath)
+                ? string.Empty
+                : assetPath.Replace('\\', '/').Trim();
+        }
+    }
+
+    public sealed class RenameSubGraphRequest : ShaderGraphRequest
+    {
+        public string Name { get; }
+        public string TargetAssetPath => BuildTargetAssetPath(AssetPath, Name);
+
+        public RenameSubGraphRequest(string assetPath, string name)
+            : base(ShaderGraphAction.RenameSubGraph, assetPath)
+        {
+            Name = NormalizeName(name);
+        }
+
+        private static string NormalizeName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return string.Empty;
+            }
+
+            string normalized = System.IO.Path.GetFileNameWithoutExtension(name.Trim());
+            return string.IsNullOrWhiteSpace(normalized) ? string.Empty : normalized;
+        }
+
+        private static string BuildTargetAssetPath(string assetPath, string name)
+        {
+            string normalizedAssetPath = NormalizeAssetPath(assetPath);
+            string normalizedName = NormalizeName(name);
+            if (string.IsNullOrWhiteSpace(normalizedAssetPath) || string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return normalizedAssetPath;
+            }
+
+            string directory = System.IO.Path.GetDirectoryName(normalizedAssetPath)?.Replace('\\', '/');
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                directory = "Assets";
+            }
+
+            return NormalizeAssetPath(System.IO.Path.Combine(directory, EnsureShaderSubGraphExtension(normalizedName)));
+        }
+
+        private static string EnsureShaderSubGraphExtension(string name)
+        {
+            return name.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase)
+                ? name
+                : $"{name}.shadersubgraph";
         }
 
         private static string NormalizeAssetPath(string assetPath)

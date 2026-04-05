@@ -9,6 +9,7 @@ ShaderGraphAction = Literal[
     "create_graph",
     "create_subgraph",
     "rename_graph",
+    "rename_subgraph",
     "duplicate_graph",
     "delete_graph",
     "move_graph",

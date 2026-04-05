@@ -51,6 +51,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse RenameSubGraph(RenameSubGraphRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.RenameSubGraph(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse DuplicateGraph(DuplicateGraphRequest request)
         {
             return ShaderGraphPackageGraphInspector.DuplicateGraph(
@@ -942,6 +951,157 @@ namespace ShaderGraphMcp.Editor.Adapters
             string message = string.Equals(assetPath, renamedAssetPath, StringComparison.OrdinalIgnoreCase)
                 ? $"Shader Graph already uses the name '{renamedAssetName}' at '{renamedAssetPath}'."
                 : $"Renamed Shader Graph '{previousAssetName}' to '{renamedAssetName}' at '{renamedAssetPath}'.";
+            return ShaderGraphResponse.Ok(message, data);
+        }
+
+        public static ShaderGraphResponse RenameSubGraph(
+            RenameSubGraphRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Rename sub graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Sub Graph asset path is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return ShaderGraphResponse.Fail("Rename sub graph requires a new sub graph name.");
+            }
+
+            string renamedAssetPath = NormalizeAssetPath(request.TargetAssetPath);
+            if (string.IsNullOrWhiteSpace(renamedAssetPath))
+            {
+                return ShaderGraphResponse.Fail("Rename sub graph could not resolve the target asset path.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset not found at '{assetPath}'.",
+                    BuildUnsupportedRenameSubGraphData(
+                        assetPath,
+                        renamedAssetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>(),
+                        request.Name
+                    )
+                );
+            }
+
+            string absoluteRenamedPath = ToAbsolutePath(renamedAssetPath);
+            if (!string.Equals(assetPath, renamedAssetPath, StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(absoluteRenamedPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset already exists at '{renamedAssetPath}'.",
+                    BuildUnsupportedRenameSubGraphData(
+                        assetPath,
+                        renamedAssetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>(),
+                        request.Name
+                    )
+                );
+            }
+
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string renamedAssetName = Path.GetFileNameWithoutExtension(renamedAssetPath);
+            var renameNotes = new List<string>();
+
+            if (!string.Equals(assetPath, renamedAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                string renameError = AssetDatabase.RenameAsset(assetPath, renamedAssetName);
+                if (!string.IsNullOrWhiteSpace(renameError))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to rename Shader Sub Graph '{assetPath}': {renameError}",
+                        BuildUnsupportedRenameSubGraphData(
+                            assetPath,
+                            renamedAssetPath,
+                            compatibility,
+                            executionKind,
+                            renameNotes,
+                            request.Name
+                        )
+                    );
+                }
+
+                renameNotes.Add("AssetDatabase.RenameAsset(...) invoked successfully.");
+            }
+            else
+            {
+                renameNotes.Add("Requested sub graph name already matches the current asset name.");
+            }
+
+            try
+            {
+                AssetDatabase.SaveAssets();
+                renameNotes.Add("AssetDatabase.SaveAssets() invoked successfully.");
+
+                AssetDatabase.ImportAsset(
+                    renamedAssetPath,
+                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
+                );
+                renameNotes.Add("AssetDatabase.ImportAsset(..., ForceSynchronousImport | ForceUpdate) invoked successfully.");
+
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                renameNotes.Add("AssetDatabase.Refresh(ForceSynchronousImport) invoked successfully.");
+            }
+            catch (Exception exception)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Renamed Shader Sub Graph asset to '{renamedAssetPath}' but failed to refresh it: {exception.Message}",
+                    BuildUnsupportedRenameSubGraphData(
+                        assetPath,
+                        renamedAssetPath,
+                        compatibility,
+                        executionKind,
+                        renameNotes,
+                        request.Name
+                    )
+                );
+            }
+
+            ShaderGraphResponse summaryResponse = ReadSubGraphSummary(
+                new ReadSubGraphSummaryRequest(renamedAssetPath),
+                compatibility,
+                executionKind
+            );
+
+            var data = summaryResponse.Data == null
+                ? new Dictionary<string, object>()
+                : new Dictionary<string, object>(summaryResponse.Data);
+            data["operation"] = "rename_subgraph";
+            data["previousAssetPath"] = assetPath;
+            data["renamedSubGraph"] = BuildRenamedGraphData(assetPath, renamedAssetPath, request.Name);
+            data["renameSubGraphSemantics"] = new[]
+            {
+                "rename_subgraph renames the current .shadersubgraph asset in-place within its existing folder.",
+                "The response assetPath always points at the renamed asset path.",
+                "Package-backed sub graph rename is followed by synchronous import and refresh before the summary is rebuilt.",
+            };
+
+            if (!summaryResponse.Success)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Renamed Shader Sub Graph asset to '{renamedAssetPath}' but could not read the updated sub graph summary: {summaryResponse.Message}",
+                    data
+                );
+            }
+
+            string message = string.Equals(assetPath, renamedAssetPath, StringComparison.OrdinalIgnoreCase)
+                ? $"Shader Sub Graph already uses the name '{renamedAssetName}' at '{renamedAssetPath}'."
+                : $"Renamed Shader Sub Graph '{previousAssetName}' to '{renamedAssetName}' at '{renamedAssetPath}'.";
             return ShaderGraphResponse.Ok(message, data);
         }
 
@@ -9918,6 +10078,35 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["renameGraphSemantics"] = new[]
                 {
                     "rename_graph renames the current .shadergraph asset in-place within its existing folder.",
+                    "The response assetPath always points at the renamed asset path.",
+                },
+                ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
+            };
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedRenameSubGraphData(
+            string assetPath,
+            string renamedAssetPath,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind,
+            IReadOnlyList<string> loadNotes,
+            string requestedName)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = "rename_subgraph",
+                ["assetPath"] = renamedAssetPath,
+                ["previousAssetPath"] = assetPath,
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["requestedName"] = requestedName ?? string.Empty,
+                ["renameSubGraphSemantics"] = new[]
+                {
+                    "rename_subgraph renames the current .shadersubgraph asset in-place within its existing folder.",
                     "The response assetPath always points at the renamed asset path.",
                 },
                 ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),

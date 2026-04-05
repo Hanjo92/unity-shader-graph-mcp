@@ -27,6 +27,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "create_graph",
                 "create_subgraph",
                 "rename_graph",
+                "rename_subgraph",
                 "duplicate_graph",
                 "delete_graph",
                 "move_graph",
@@ -186,6 +187,19 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.name, "RenamedLitGraph")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["displayName"], "RenamedLitGraph")
+
+    def test_request_normalization_accepts_rename_subgraph_with_asset_path(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "rename_subgraph",
+                "assetPath": "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph",
+                "newDisplayName": "RenamedSubGraph",
+            }
+        )
+
+        self.assertEqual(request.action, "rename_subgraph")
+        self.assertEqual(request.path, "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph")
+        self.assertEqual(request.payload["displayName"], "RenamedSubGraph")
 
     def test_request_normalization_accepts_duplicate_graph_with_asset_path(self) -> None:
         request = normalize_shadergraph_asset_request(

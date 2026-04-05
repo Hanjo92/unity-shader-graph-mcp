@@ -28,6 +28,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "create_graph",
     "create_subgraph",
     "rename_graph",
+    "rename_subgraph",
     "duplicate_graph",
     "delete_graph",
     "move_graph",
@@ -92,6 +93,10 @@ def normalize_shadergraph_asset_request(
 
     request_name = optional_text(_pick_value(request_payload, "name", "graphName"))
     if action == "rename_graph":
+        request_name = optional_text(
+            _pick_value(request_payload, "newDisplayName", "new_display_name", "displayName", "display_name", "name", "graphName")
+        )
+    if action == "rename_subgraph":
         request_name = optional_text(
             _pick_value(request_payload, "newDisplayName", "new_display_name", "displayName", "display_name", "name", "graphName")
         )
@@ -227,6 +232,24 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         raise ShaderGraphRequestError("Missing required field 'name'.")
 
     if request.action == "rename_graph":
+        if request.path is None:
+            raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+        display_name = optional_text(
+            _pick_value(
+                request.payload,
+                "newDisplayName",
+                "new_display_name",
+                "displayName",
+                "display_name",
+                "name",
+                "graphName",
+            )
+        )
+        if display_name is None:
+            raise ShaderGraphRequestError("Missing required field 'newDisplayName', 'displayName', 'name', or 'graphName'.")
+        request.payload.setdefault("displayName", display_name)
+
+    if request.action == "rename_subgraph":
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
         display_name = optional_text(

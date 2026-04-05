@@ -116,6 +116,28 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsRenameSubGraphRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""rename_subgraph"",
+                ""assetPath"": ""Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"",
+                ""newDisplayName"": ""RenamedSubGraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var renameSubGraphRequest = request as RenameSubGraphRequest;
+            Assert.That(renameSubGraphRequest, Is.Not.Null);
+            Assert.That(renameSubGraphRequest.AssetPath, Is.EqualTo("Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"));
+            Assert.That(renameSubGraphRequest.Name, Is.EqualTo("RenamedSubGraph"));
+            Assert.That(renameSubGraphRequest.TargetAssetPath, Is.EqualTo("Assets/ShaderSubGraphs/RenamedSubGraph.shadersubgraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsDuplicateGraphRequest_FromAssetPathPayload()
         {
             string json = @"{

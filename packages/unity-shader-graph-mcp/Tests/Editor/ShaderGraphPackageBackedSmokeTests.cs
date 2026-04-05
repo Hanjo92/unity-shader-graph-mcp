@@ -167,6 +167,37 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankSubGraph_RenameSubGraph_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphRenameSubGraph", out _);
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+
+            ShaderGraphResponse renameResponse = ShaderGraphAssetTool.HandleRenameSubGraph(
+                assetPath,
+                "Renamed Blank Sub Graph");
+            ShaderGraphTestAssets.RequirePackageReady(renameResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(renameResponse.Data, "operation"), Is.EqualTo("rename_subgraph"));
+            Assert.That(ShaderGraphTestAssets.GetString(renameResponse.Data, "previousAssetPath"), Is.EqualTo(assetPath));
+            Assert.That(renameResponse.Data["isSubGraph"], Is.EqualTo(true));
+
+            string renamedAssetPath = ShaderGraphTestAssets.GetString(renameResponse.Data, "assetPath");
+            Assert.That(renamedAssetPath, Does.EndWith("Renamed Blank Sub Graph.shadersubgraph"));
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(renamedAssetPath), Is.Not.Null);
+
+            var renamedSubGraph = ShaderGraphTestAssets.RequireDictionary(renameResponse.Data, "renamedSubGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(renamedSubGraph, "assetPath"), Is.EqualTo(renamedAssetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(renamedSubGraph, "assetName"), Is.EqualTo("Renamed Blank Sub Graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(renamedSubGraph, "previousAssetName"), Is.EqualTo(previousAssetName));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(renamedAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(summaryResponse.Data["isSubGraph"], Is.EqualTo(true));
+            Assert.That(ShaderGraphTestAssets.GetString(summaryResponse.Data, "assetPath"), Is.EqualTo(renamedAssetPath));
+        }
+
+        [Test]
         public void BlankCreateGraph_EndToEndHappyPath_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankCreateGraphHappyPath", out ShaderGraphResponse createResponse);

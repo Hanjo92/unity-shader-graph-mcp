@@ -7,6 +7,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse CreateGraph(CreateGraphRequest request);
         ShaderGraphResponse CreateSubGraph(CreateSubGraphRequest request);
         ShaderGraphResponse RenameGraph(RenameGraphRequest request);
+        ShaderGraphResponse RenameSubGraph(RenameSubGraphRequest request);
         ShaderGraphResponse DuplicateGraph(DuplicateGraphRequest request);
         ShaderGraphResponse DeleteGraph(DeleteGraphRequest request);
         ShaderGraphResponse MoveGraph(MoveGraphRequest request);
@@ -75,6 +76,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse RenameGraph(RenameGraphRequest request)
         {
             return backend.RenameGraph(request);
+        }
+
+        public ShaderGraphResponse RenameSubGraph(RenameSubGraphRequest request)
+        {
+            return backend.RenameSubGraph(request);
         }
 
         public ShaderGraphResponse DuplicateGraph(DuplicateGraphRequest request)

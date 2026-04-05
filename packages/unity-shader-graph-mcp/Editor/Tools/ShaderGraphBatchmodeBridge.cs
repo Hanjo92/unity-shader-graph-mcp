@@ -221,6 +221,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateSubGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameGraph:
                     return TryCreateRenameGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.RenameSubGraph:
+                    return TryCreateRenameSubGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DuplicateGraph:
                     return TryCreateDuplicateGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DeleteGraph:
@@ -448,6 +450,29 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new RenameGraphRequest(assetPath, name);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateRenameSubGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Rename sub graph requires an asset path.";
+                return false;
+            }
+
+            string name = FirstNonBlank(payload.newDisplayName, payload.displayName, payload.name);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                request = null;
+                errorMessage = "Rename sub graph requires newDisplayName/displayName/name.";
+                return false;
+            }
+
+            request = new RenameSubGraphRequest(assetPath, name);
             errorMessage = null;
             return true;
         }
@@ -1441,6 +1466,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.CreateSubGraph;
                 case "rename_graph":
                     return ShaderGraphAction.RenameGraph;
+                case "rename_subgraph":
+                    return ShaderGraphAction.RenameSubGraph;
                 case "duplicate_graph":
                     return ShaderGraphAction.DuplicateGraph;
                 case "delete_graph":

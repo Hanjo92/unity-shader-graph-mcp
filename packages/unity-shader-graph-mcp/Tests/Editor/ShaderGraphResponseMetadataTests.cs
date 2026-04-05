@@ -1529,6 +1529,50 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedRenameSubGraphEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Renamed Shader Sub Graph 'BlankSubGraph' to 'Renamed Blank Sub Graph' at 'Assets/ShaderSubGraphs/Renamed Blank Sub Graph.shadersubgraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "rename_subgraph",
+                    ["assetPath"] = "Assets/ShaderSubGraphs/Renamed Blank Sub Graph.shadersubgraph",
+                    ["previousAssetPath"] = "Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["isSubGraph"] = true,
+                    ["renameSubGraphSemantics"] = new[]
+                    {
+                        "rename_subgraph renames the current .shadersubgraph asset in-place within its existing folder.",
+                        "The response assetPath always points at the renamed asset path.",
+                        "Package-backed sub graph rename is followed by synchronous import and refresh before the summary is rebuilt.",
+                    },
+                    ["renamedSubGraph"] = new Dictionary<string, object>
+                    {
+                        ["assetPath"] = "Assets/ShaderSubGraphs/Renamed Blank Sub Graph.shadersubgraph",
+                        ["assetName"] = "Renamed Blank Sub Graph",
+                        ["displayName"] = "Renamed Blank Sub Graph",
+                        ["name"] = "Renamed Blank Sub Graph",
+                        ["requestedName"] = "Renamed Blank Sub Graph",
+                        ["previousAssetPath"] = "Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph",
+                        ["previousAssetName"] = "BlankSubGraph",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("rename_subgraph"));
+            Assert.That(response.Data["assetPath"], Is.EqualTo("Assets/ShaderSubGraphs/Renamed Blank Sub Graph.shadersubgraph"));
+            Assert.That(response.Data["previousAssetPath"], Is.EqualTo("Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph"));
+            Assert.That(response.Data["isSubGraph"], Is.EqualTo(true));
+
+            var renamedSubGraph = (IReadOnlyDictionary<string, object>)response.Data["renamedSubGraph"];
+            Assert.That(renamedSubGraph["assetPath"], Is.EqualTo("Assets/ShaderSubGraphs/Renamed Blank Sub Graph.shadersubgraph"));
+            Assert.That(renamedSubGraph["assetName"], Is.EqualTo("Renamed Blank Sub Graph"));
+            Assert.That(renamedSubGraph["requestedName"], Is.EqualTo("Renamed Blank Sub Graph"));
+            Assert.That(renamedSubGraph["previousAssetName"], Is.EqualTo("BlankSubGraph"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedDuplicateGraphEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

@@ -361,6 +361,161 @@ namespace ShaderGraphMcp.Editor.Helpers
             return ShaderGraphResponse.Ok(message, data);
         }
 
+        public static ShaderGraphResponse RenameSubGraph(
+            RenameSubGraphRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Rename sub graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Sub Graph asset path is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return ShaderGraphResponse.Fail("Rename sub graph requires a new sub graph name.");
+            }
+
+            string renamedAssetPath = NormalizeAssetPath(request.TargetAssetPath);
+            if (string.IsNullOrWhiteSpace(renamedAssetPath))
+            {
+                return ShaderGraphResponse.Fail("Rename sub graph could not resolve the target asset path.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            string absoluteRenamedAssetPath = ToAbsolutePath(renamedAssetPath);
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            string absoluteRenamedManifestPath = ToAbsolutePath(GetManifestPath(renamedAssetPath));
+            bool hasManifest = TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest);
+
+            if (!string.Equals(assetPath, renamedAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                if (File.Exists(absoluteRenamedAssetPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Shader Sub Graph asset already exists at '{renamedAssetPath}'."
+                    );
+                }
+
+                if (hasManifest &&
+                    !string.Equals(absoluteManifestPath, absoluteRenamedManifestPath, StringComparison.OrdinalIgnoreCase) &&
+                    File.Exists(absoluteRenamedManifestPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Shader Sub Graph scaffold manifest already exists at '{GetManifestPath(renamedAssetPath)}'."
+                    );
+                }
+
+                string renameError = AssetDatabase.RenameAsset(assetPath, Path.GetFileNameWithoutExtension(renamedAssetPath));
+                if (!string.IsNullOrWhiteSpace(renameError))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to rename Shader Sub Graph '{assetPath}': {renameError}"
+                    );
+                }
+            }
+
+            if (hasManifest)
+            {
+                manifest.assetPath = renamedAssetPath;
+                manifest.assetName = Path.GetFileNameWithoutExtension(renamedAssetPath);
+                manifest.updatedUtc = UtcNow();
+            }
+
+            try
+            {
+                if (hasManifest)
+                {
+                    if (!string.Equals(absoluteManifestPath, absoluteRenamedManifestPath, StringComparison.OrdinalIgnoreCase) &&
+                        File.Exists(absoluteManifestPath))
+                    {
+                        File.Move(absoluteManifestPath, absoluteRenamedManifestPath);
+                    }
+
+                    File.WriteAllText(
+                        absoluteRenamedAssetPath,
+                        BuildPlaceholderPayload(manifest),
+                        new UTF8Encoding(false)
+                    );
+                    WriteManifest(absoluteRenamedManifestPath, manifest);
+                }
+
+                AssetDatabase.SaveAssets();
+                ImportAsset(renamedAssetPath);
+            }
+            catch (Exception ex)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to rename scaffold Shader Sub Graph from '{assetPath}' to '{renamedAssetPath}': {ex.Message}"
+                );
+            }
+
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string renamedAssetName = Path.GetFileNameWithoutExtension(renamedAssetPath);
+            var renameNotes = new[]
+            {
+                "rename_subgraph keeps the scaffold sub graph in its current folder and changes only the asset name.",
+                hasManifest
+                    ? "Scaffold placeholder asset header and sidecar manifest were rewritten for the renamed sub graph."
+                    : "No scaffold manifest was present; only the asset rename/import was applied.",
+            };
+
+            Dictionary<string, object> data;
+            if (hasManifest)
+            {
+                data = BuildSummaryData(
+                    manifest,
+                    renamedAssetPath,
+                    absoluteRenamedAssetPath,
+                    true,
+                    true,
+                    executionKind,
+                    "rename_subgraph",
+                    renameNotes,
+                    null
+                );
+            }
+            else
+            {
+                data = BuildRawSummaryData(
+                    renamedAssetPath,
+                    absoluteRenamedAssetPath,
+                    ReadPreviewLines(absoluteRenamedAssetPath, 8),
+                    executionKind
+                );
+                data["operation"] = "rename_subgraph";
+                data["notes"] = renameNotes;
+            }
+
+            data["previousAssetPath"] = assetPath;
+            data["isSubGraph"] = true;
+            data["renamedSubGraph"] = BuildScaffoldRenamedGraphData(assetPath, renamedAssetPath, request.Name);
+            data["renameSubGraphSemantics"] = new[]
+            {
+                "rename_subgraph renames the current .shadersubgraph asset in-place within its existing folder.",
+                "The response assetPath always points at the renamed asset path.",
+                "Scaffold manifests move alongside the renamed sub graph when present.",
+            };
+
+            string message = string.Equals(assetPath, renamedAssetPath, StringComparison.OrdinalIgnoreCase)
+                ? $"Shader Sub Graph already uses the name '{renamedAssetName}' at '{renamedAssetPath}'."
+                : $"Renamed scaffold Shader Sub Graph '{previousAssetName}' to '{renamedAssetName}' at '{renamedAssetPath}'.";
+
+            return ShaderGraphResponse.Ok(message, data);
+        }
+
         public static ShaderGraphResponse DuplicateGraph(
             DuplicateGraphRequest request,
             ShaderGraphExecutionKind executionKind)
