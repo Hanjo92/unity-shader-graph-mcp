@@ -642,10 +642,73 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
 
     if request.action == "move_node":
         _require_payload_text(request.payload, "nodeId", "node_id", "objectId", "object_id")
-        request.payload["x"] = _require_payload_number_text(request.payload, "x")
-        request.payload["y"] = _require_payload_number_text(request.payload, "y")
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+        raw_x = _pick_value(request.payload, "x")
+        raw_y = _pick_value(request.payload, "y")
+        has_x = optional_text(raw_x) is not None
+        has_y = optional_text(raw_y) is not None
+        if has_x != has_y:
+            raise ShaderGraphRequestError("move_node requires both x and y when using exact coordinates.")
+
+        if has_x:
+            request.payload["x"] = _require_payload_number_text(request.payload, "x")
+            request.payload["y"] = _require_payload_number_text(request.payload, "y")
+
+        anchor_node_id = optional_text(
+            _pick_value(
+                request.payload,
+                "anchorNodeId",
+                "anchor_node_id",
+                "anchorObjectId",
+                "anchor_object_id",
+                "relativeToNodeId",
+                "relative_to_node_id",
+                "relativeToObjectId",
+                "relative_to_object_id",
+            )
+        )
+        anchor_display_name = optional_text(
+            _pick_value(
+                request.payload,
+                "anchorDisplayName",
+                "anchor_display_name",
+                "relativeToDisplayName",
+                "relative_to_display_name",
+            )
+        )
+        anchor_node_type = optional_text(
+            _pick_value(
+                request.payload,
+                "anchorNodeType",
+                "anchor_node_type",
+                "relativeToNodeType",
+                "relative_to_node_type",
+            )
+        )
+        direction = optional_text(_pick_value(request.payload, "direction", "relativeDirection", "relative_direction"))
+        layout_preset = optional_text(_pick_value(request.payload, "layoutPreset", "layout_preset", "preset"))
+        spacing_value = _pick_value(request.payload, "spacing")
+        if optional_text(spacing_value) is not None:
+            request.payload["spacing"] = _require_payload_number_text(request.payload, "spacing")
+
+        has_anchor_query = any(value is not None for value in (anchor_node_id, anchor_display_name, anchor_node_type))
+        has_relative_hints = has_anchor_query or direction is not None or layout_preset is not None or optional_text(spacing_value) is not None
+        if not has_x and not has_relative_hints:
+            raise ShaderGraphRequestError(
+                "move_node requires either x/y or anchorNodeId/anchorDisplayName/anchorNodeType with direction/layoutPreset."
+            )
+
+        if not has_x and has_relative_hints and not has_anchor_query:
+            raise ShaderGraphRequestError(
+                "move_node relative placement requires anchorNodeId/anchorDisplayName/anchorNodeType."
+            )
+
+        if not has_x and has_relative_hints and direction is None and layout_preset is None:
+            raise ShaderGraphRequestError(
+                "move_node relative placement requires direction/relativeDirection or layoutPreset/preset."
+            )
 
     if request.action == "delete_node":
         _require_payload_text(request.payload, "nodeId", "node_id", "objectId", "object_id")
@@ -661,6 +724,66 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         _require_payload_text(request.payload, "nodeType", "node_type")
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+        raw_x = _pick_value(request.payload, "x")
+        raw_y = _pick_value(request.payload, "y")
+        has_x = optional_text(raw_x) is not None
+        has_y = optional_text(raw_y) is not None
+        if has_x != has_y:
+            raise ShaderGraphRequestError("add_node requires both x and y when using exact coordinates.")
+
+        if has_x:
+            request.payload["x"] = _require_payload_number_text(request.payload, "x")
+            request.payload["y"] = _require_payload_number_text(request.payload, "y")
+
+        anchor_node_id = optional_text(
+            _pick_value(
+                request.payload,
+                "anchorNodeId",
+                "anchor_node_id",
+                "anchorObjectId",
+                "anchor_object_id",
+                "relativeToNodeId",
+                "relative_to_node_id",
+                "relativeToObjectId",
+                "relative_to_object_id",
+            )
+        )
+        anchor_display_name = optional_text(
+            _pick_value(
+                request.payload,
+                "anchorDisplayName",
+                "anchor_display_name",
+                "relativeToDisplayName",
+                "relative_to_display_name",
+            )
+        )
+        anchor_node_type = optional_text(
+            _pick_value(
+                request.payload,
+                "anchorNodeType",
+                "anchor_node_type",
+                "relativeToNodeType",
+                "relative_to_node_type",
+            )
+        )
+        direction = optional_text(_pick_value(request.payload, "direction", "relativeDirection", "relative_direction"))
+        layout_preset = optional_text(_pick_value(request.payload, "layoutPreset", "layout_preset", "preset"))
+        spacing_value = _pick_value(request.payload, "spacing")
+        if optional_text(spacing_value) is not None:
+            request.payload["spacing"] = _require_payload_number_text(request.payload, "spacing")
+
+        has_anchor_query = any(value is not None for value in (anchor_node_id, anchor_display_name, anchor_node_type))
+        has_relative_hints = has_anchor_query or direction is not None or layout_preset is not None or optional_text(spacing_value) is not None
+        if not has_x and has_relative_hints and not has_anchor_query:
+            raise ShaderGraphRequestError(
+                "add_node relative placement requires anchorNodeId/anchorDisplayName/anchorNodeType."
+            )
+
+        if not has_x and has_relative_hints and direction is None and layout_preset is None:
+            raise ShaderGraphRequestError(
+                "add_node relative placement requires direction/relativeDirection or layoutPreset/preset."
+            )
 
     if request.action == "connect_ports":
         _require_payload_text(request.payload, "outputNodeId", "output_node_id")

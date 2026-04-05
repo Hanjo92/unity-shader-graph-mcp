@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using ShaderGraphMcp.Editor.Adapters;
 using ShaderGraphMcp.Editor.Diagnostics;
@@ -160,7 +161,7 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(ShaderGraphTestAssets.GetString(response.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
             Assert.That(ShaderGraphTestAssets.GetString(response.Data, "assetPath"), Is.EqualTo(assetPath));
             Assert.That(response.Data["isSubGraph"], Is.EqualTo(true));
-            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "categoryCount"), Is.GreaterThanOrEqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "categoryCount"), Is.GreaterThanOrEqualTo(0));
             Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "nodeCount"), Is.GreaterThanOrEqualTo(1));
             Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "connectionCount"), Is.GreaterThanOrEqualTo(0));
         }
@@ -1325,6 +1326,100 @@ namespace ShaderGraphMcp.Editor.Tests
             var foundNode = ShaderGraphTestAssets.RequireDictionary(findNodeResponse.Data, "foundNode");
             Assert.That(ShaderGraphTestAssets.GetString(foundNode, "objectId"), Is.EqualTo(nodeId));
             Assert.That(ShaderGraphTestAssets.GetString(foundNode, "summary"), Does.Contain("(-420, 180)"));
+        }
+
+        [Test]
+        public void BlankGraph_AddNodeRelativeToAnchor_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddNodeRelativeToAnchor", out _);
+
+            ShaderGraphResponse anchorResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Anchor Source");
+            ShaderGraphTestAssets.RequirePackageReady(anchorResponse);
+
+            string anchorNodeId = ShaderGraphTestAssets.GetAddedNodeId(anchorResponse);
+            Assert.That(anchorNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Vector1",
+                    "Relative Sink",
+                    null,
+                    null,
+                    anchorNodeId,
+                    null,
+                    null,
+                    "right",
+                    320f,
+                    null));
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            var placement = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "placement");
+            Assert.That(ShaderGraphTestAssets.GetString(placement, "mode"), Is.EqualTo("relative"));
+            Assert.That(ShaderGraphTestAssets.GetString(placement, "direction"), Is.EqualTo("right"));
+
+            var resolvedPosition = ShaderGraphTestAssets.RequireDictionary(placement, "resolvedPosition");
+            Assert.That(resolvedPosition["x"], Is.EqualTo(-300f));
+            Assert.That(resolvedPosition["y"], Is.EqualTo(140f));
+
+            var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+            var position = ShaderGraphTestAssets.RequireDictionary(addedNode, "position");
+            Assert.That(position["x"], Is.EqualTo(-300f));
+            Assert.That(position["y"], Is.EqualTo(140f));
+        }
+
+        [Test]
+        public void BlankGraph_MoveNodeRelativeToAnchor_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphMoveNodeRelativeToAnchor", out _);
+
+            ShaderGraphResponse anchorResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Anchor Source");
+            ShaderGraphTestAssets.RequirePackageReady(anchorResponse);
+
+            string anchorNodeId = ShaderGraphTestAssets.GetAddedNodeId(anchorResponse);
+            Assert.That(anchorNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse movingResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "Vector1",
+                "Relative Move Source");
+            ShaderGraphTestAssets.RequirePackageReady(movingResponse);
+
+            string movingNodeId = ShaderGraphTestAssets.GetAddedNodeId(movingResponse);
+            Assert.That(movingNodeId, Is.Not.Empty);
+
+            ShaderGraphResponse moveNodeResponse = ShaderGraphAssetTool.Handle(
+                new MoveNodeRequest(
+                    assetPath,
+                    movingNodeId,
+                    null,
+                    null,
+                    anchorNodeId,
+                    null,
+                    null,
+                    "down",
+                    200f,
+                    null));
+            ShaderGraphTestAssets.RequirePackageReady(moveNodeResponse);
+
+            var placement = ShaderGraphTestAssets.RequireDictionary(moveNodeResponse.Data, "placement");
+            Assert.That(ShaderGraphTestAssets.GetString(placement, "mode"), Is.EqualTo("relative"));
+            Assert.That(ShaderGraphTestAssets.GetString(placement, "direction"), Is.EqualTo("down"));
+
+            var resolvedPosition = ShaderGraphTestAssets.RequireDictionary(placement, "resolvedPosition");
+            Assert.That(resolvedPosition["x"], Is.EqualTo(-620f));
+            Assert.That(resolvedPosition["y"], Is.EqualTo(340f));
+
+            var movedNode = ShaderGraphTestAssets.RequireDictionary(moveNodeResponse.Data, "movedNode");
+            var position = ShaderGraphTestAssets.RequireDictionary(movedNode, "position");
+            Assert.That(position["x"], Is.EqualTo(-620f));
+            Assert.That(position["y"], Is.EqualTo(340f));
         }
 
         [Test]

@@ -716,15 +716,44 @@ namespace ShaderGraphMcp.Editor.Models
     public sealed class MoveNodeRequest : ShaderGraphRequest
     {
         public string NodeId { get; }
+        public bool HasExactPosition { get; }
         public float X { get; }
         public float Y { get; }
+        public string AnchorNodeId { get; }
+        public string AnchorDisplayName { get; }
+        public string AnchorNodeType { get; }
+        public string Direction { get; }
+        public float? Spacing { get; }
+        public string LayoutPreset { get; }
 
         public MoveNodeRequest(string assetPath, string nodeId, float x, float y)
+            : this(assetPath, nodeId, x, y, null, null, null, null, null, null)
+        {
+        }
+
+        public MoveNodeRequest(
+            string assetPath,
+            string nodeId,
+            float? x,
+            float? y,
+            string anchorNodeId,
+            string anchorDisplayName,
+            string anchorNodeType,
+            string direction,
+            float? spacing,
+            string layoutPreset)
             : base(ShaderGraphAction.MoveNode, assetPath)
         {
             NodeId = string.IsNullOrWhiteSpace(nodeId) ? string.Empty : nodeId.Trim();
-            X = x;
-            Y = y;
+            HasExactPosition = x.HasValue && y.HasValue;
+            X = x ?? 0f;
+            Y = y ?? 0f;
+            AnchorNodeId = string.IsNullOrWhiteSpace(anchorNodeId) ? string.Empty : anchorNodeId.Trim();
+            AnchorDisplayName = string.IsNullOrWhiteSpace(anchorDisplayName) ? string.Empty : anchorDisplayName.Trim();
+            AnchorNodeType = string.IsNullOrWhiteSpace(anchorNodeType) ? string.Empty : anchorNodeType.Trim();
+            Direction = string.IsNullOrWhiteSpace(direction) ? string.Empty : direction.Trim();
+            Spacing = spacing;
+            LayoutPreset = string.IsNullOrWhiteSpace(layoutPreset) ? string.Empty : layoutPreset.Trim();
         }
     }
 
@@ -769,12 +798,46 @@ namespace ShaderGraphMcp.Editor.Models
     {
         public string NodeType { get; }
         public string DisplayName { get; }
+        public bool HasExactPosition { get; }
+        public float X { get; }
+        public float Y { get; }
+        public string AnchorNodeId { get; }
+        public string AnchorDisplayName { get; }
+        public string AnchorNodeType { get; }
+        public string Direction { get; }
+        public float? Spacing { get; }
+        public string LayoutPreset { get; }
 
         public AddNodeRequest(string assetPath, string nodeType, string displayName)
+            : this(assetPath, nodeType, displayName, null, null, null, null, null, null, null, null)
+        {
+        }
+
+        public AddNodeRequest(
+            string assetPath,
+            string nodeType,
+            string displayName,
+            float? x,
+            float? y,
+            string anchorNodeId,
+            string anchorDisplayName,
+            string anchorNodeType,
+            string direction,
+            float? spacing,
+            string layoutPreset)
             : base(ShaderGraphAction.AddNode, assetPath)
         {
-            NodeType = nodeType;
-            DisplayName = displayName;
+            NodeType = string.IsNullOrWhiteSpace(nodeType) ? string.Empty : nodeType.Trim();
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
+            HasExactPosition = x.HasValue && y.HasValue;
+            X = x ?? 0f;
+            Y = y ?? 0f;
+            AnchorNodeId = string.IsNullOrWhiteSpace(anchorNodeId) ? string.Empty : anchorNodeId.Trim();
+            AnchorDisplayName = string.IsNullOrWhiteSpace(anchorDisplayName) ? string.Empty : anchorDisplayName.Trim();
+            AnchorNodeType = string.IsNullOrWhiteSpace(anchorNodeType) ? string.Empty : anchorNodeType.Trim();
+            Direction = string.IsNullOrWhiteSpace(direction) ? string.Empty : direction.Trim();
+            Spacing = spacing;
+            LayoutPreset = string.IsNullOrWhiteSpace(layoutPreset) ? string.Empty : layoutPreset.Trim();
         }
     }
 

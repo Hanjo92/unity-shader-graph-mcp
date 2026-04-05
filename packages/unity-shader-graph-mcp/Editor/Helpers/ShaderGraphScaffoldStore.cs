@@ -23,6 +23,8 @@ namespace ShaderGraphMcp.Editor.Helpers
         private const string ManifestSuffix = ".mcp.json";
         private const string ScaffoldDefaultCategoryGuid = "scaffold-default-category";
         private const string ScaffoldDefaultCategoryName = "";
+        private const float DefaultHorizontalNodeSpacing = 280f;
+        private const float DefaultVerticalNodeSpacing = 180f;
         private static readonly Lazy<ShaderGraphCompatibilitySnapshot> CompatibilitySnapshot =
             new Lazy<ShaderGraphCompatibilitySnapshot>(ShaderGraphPackageCompatibility.Capture);
 
@@ -2985,8 +2987,19 @@ namespace ShaderGraphMcp.Editor.Helpers
                         return $"Node '{nodeId}' does not exist in the scaffold manifest.";
                     }
 
-                    existing.x = request.X;
-                    existing.y = request.Y;
+                    if (!TryResolveScaffoldRequestedNodePosition(
+                            manifest,
+                            request,
+                            out float resolvedX,
+                            out float resolvedY,
+                            out _,
+                            out string positionFailure))
+                    {
+                        return positionFailure;
+                    }
+
+                    existing.x = resolvedX;
+                    existing.y = resolvedY;
                     existing.updatedUtc = UtcNow();
                     return null;
                 },
@@ -3006,8 +3019,22 @@ namespace ShaderGraphMcp.Editor.Helpers
 
                     ShaderGraphScaffoldNode existing = manifest.nodes.First(
                         node => string.Equals(node.id, request.NodeId, StringComparison.Ordinal));
+                    TryResolveScaffoldRequestedNodePosition(
+                        manifest,
+                        request,
+                        out _,
+                        out _,
+                        out Dictionary<string, object> placementData,
+                        out _);
                     data["query"] = BuildNodeQuery(request.NodeId, null, null);
                     data["matchCount"] = 1;
+                    data["placement"] = placementData;
+                    data["layoutSemantics"] = new[]
+                    {
+                        "Exact x/y coordinates take precedence when both are provided.",
+                        "Relative placement resolves a unique scaffold anchor node and applies left/right/up/down spacing from the anchor origin.",
+                        "resolvedPosition is the final scaffold manifest node position.",
+                    };
                     data["movedNode"] = BuildScaffoldNodeData(existing);
                     return data;
                 }
@@ -3274,6 +3301,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 return ShaderGraphResponse.Fail("Add node request is required.");
             }
 
+            Dictionary<string, object> resolvedPlacementData = null;
             return MutateScaffold(
                 request.AssetPath,
                 "add_node",
@@ -3293,13 +3321,26 @@ namespace ShaderGraphMcp.Editor.Helpers
                     string displayName = request.DisplayName.Trim();
 
                     string nodeId = GenerateNodeId(manifest);
+                    if (!TryResolveScaffoldRequestedNodePosition(
+                            manifest,
+                            request,
+                            out float resolvedX,
+                            out float resolvedY,
+                            out Dictionary<string, object> placementData,
+                            out string positionFailure))
+                    {
+                        return positionFailure;
+                    }
+
+                    resolvedPlacementData = placementData;
+
                     manifest.nodes.Add(new ShaderGraphScaffoldNode
                     {
                         id = nodeId,
                         nodeType = nodeType,
                         displayName = displayName,
-                        x = 0f,
-                        y = 0f,
+                        x = resolvedX,
+                        y = resolvedY,
                         updatedUtc = UtcNow(),
                     });
 
@@ -3307,7 +3348,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 },
                 delegate(ShaderGraphScaffoldManifest manifest)
                 {
-                    return BuildSummaryData(
+                    var data = BuildSummaryData(
                         manifest,
                         NormalizeAssetPath(request.AssetPath),
                         ToAbsolutePath(NormalizeAssetPath(request.AssetPath)),
@@ -3318,6 +3359,27 @@ namespace ShaderGraphMcp.Editor.Helpers
                         new[] { $"Node '{request.DisplayName}' recorded in scaffold manifest." },
                         null
                     );
+
+                    ShaderGraphScaffoldNode addedNode = manifest.nodes.Last();
+                    data["placement"] = resolvedPlacementData ?? BuildScaffoldNodePlacementData(
+                        "suggested",
+                        addedNode.x,
+                        addedNode.y,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+                    data["layoutSemantics"] = new[]
+                    {
+                        "Exact x/y coordinates take precedence when both are provided.",
+                        "Relative placement resolves a unique scaffold anchor node and applies left/right/up/down spacing from the anchor origin.",
+                        "Without explicit placement hints, add_node uses the deterministic scaffold suggested layout buckets.",
+                    };
+                    data["addedNode"] = BuildScaffoldNodeData(addedNode);
+                    return data;
                 }
             );
         }
@@ -4619,6 +4681,356 @@ namespace ShaderGraphMcp.Editor.Helpers
             }
 
             return builder.ToString();
+        }
+
+        private static bool TryResolveScaffoldRequestedNodePosition(
+            ShaderGraphScaffoldManifest manifest,
+            MoveNodeRequest request,
+            out float resolvedX,
+            out float resolvedY,
+            out Dictionary<string, object> placementData,
+            out string failureReason)
+        {
+            resolvedX = 0f;
+            resolvedY = 0f;
+            placementData = null;
+            failureReason = null;
+
+            if (request == null)
+            {
+                failureReason = "Move node request is required.";
+                return false;
+            }
+
+            if (request.HasExactPosition)
+            {
+                resolvedX = request.X;
+                resolvedY = request.Y;
+                placementData = BuildScaffoldNodePlacementData("exact", resolvedX, resolvedY, null, null, null, null, null, null, null);
+                return true;
+            }
+
+            if (!HasRelativeNodePlacementHints(
+                    request.AnchorNodeId,
+                    request.AnchorDisplayName,
+                    request.AnchorNodeType,
+                    request.Direction,
+                    request.LayoutPreset,
+                    request.Spacing))
+            {
+                failureReason = "Move node requires either exact x/y coordinates or relative placement hints.";
+                return false;
+            }
+
+            return TryResolveScaffoldRelativeNodePosition(
+                manifest,
+                request.AnchorNodeId,
+                request.AnchorDisplayName,
+                request.AnchorNodeType,
+                request.Direction,
+                request.LayoutPreset,
+                request.Spacing,
+                out resolvedX,
+                out resolvedY,
+                out placementData,
+                out failureReason);
+        }
+
+        private static bool TryResolveScaffoldRequestedNodePosition(
+            ShaderGraphScaffoldManifest manifest,
+            AddNodeRequest request,
+            out float resolvedX,
+            out float resolvedY,
+            out Dictionary<string, object> placementData,
+            out string failureReason)
+        {
+            resolvedX = 0f;
+            resolvedY = 0f;
+            placementData = null;
+            failureReason = null;
+
+            if (request == null)
+            {
+                failureReason = "Add node request is required.";
+                return false;
+            }
+
+            if (request.HasExactPosition)
+            {
+                resolvedX = request.X;
+                resolvedY = request.Y;
+                placementData = BuildScaffoldNodePlacementData("exact", resolvedX, resolvedY, null, null, null, null, null, null, null);
+                return true;
+            }
+
+            if (HasRelativeNodePlacementHints(
+                    request.AnchorNodeId,
+                    request.AnchorDisplayName,
+                    request.AnchorNodeType,
+                    request.Direction,
+                    request.LayoutPreset,
+                    request.Spacing))
+            {
+                return TryResolveScaffoldRelativeNodePosition(
+                    manifest,
+                    request.AnchorNodeId,
+                    request.AnchorDisplayName,
+                    request.AnchorNodeType,
+                    request.Direction,
+                    request.LayoutPreset,
+                    request.Spacing,
+                    out resolvedX,
+                    out resolvedY,
+                    out placementData,
+                    out failureReason);
+            }
+
+            Vector2 suggestedOrigin = BuildScaffoldSuggestedNodeOrigin(manifest, request.NodeType);
+            resolvedX = suggestedOrigin.x;
+            resolvedY = suggestedOrigin.y;
+            placementData = BuildScaffoldNodePlacementData("suggested", resolvedX, resolvedY, null, null, null, null, null, null, null);
+            return true;
+        }
+
+        private static bool TryResolveScaffoldRelativeNodePosition(
+            ShaderGraphScaffoldManifest manifest,
+            string anchorNodeId,
+            string anchorDisplayName,
+            string anchorNodeType,
+            string direction,
+            string layoutPreset,
+            float? spacing,
+            out float resolvedX,
+            out float resolvedY,
+            out Dictionary<string, object> placementData,
+            out string failureReason)
+        {
+            resolvedX = 0f;
+            resolvedY = 0f;
+            placementData = null;
+            failureReason = null;
+
+            string normalizedDirection = NormalizeLayoutDirection(direction, layoutPreset);
+            if (string.IsNullOrWhiteSpace(normalizedDirection))
+            {
+                failureReason = "Relative placement requires direction/right/left/up/down or a supported layoutPreset.";
+                return false;
+            }
+
+            ShaderGraphScaffoldNode[] matches = (manifest?.nodes ?? new List<ShaderGraphScaffoldNode>())
+                .Where(node => NodeMatchesQuery(node, anchorNodeId, anchorDisplayName, anchorNodeType))
+                .ToArray();
+            if (matches.Length == 0)
+            {
+                failureReason = $"Could not resolve an anchor node using nodeId='{anchorNodeId}', displayName='{anchorDisplayName}', or nodeType='{anchorNodeType}'.";
+                return false;
+            }
+
+            if (matches.Length > 1)
+            {
+                failureReason = "Relative placement anchor query matched multiple scaffold nodes.";
+                return false;
+            }
+
+            ShaderGraphScaffoldNode anchorNode = matches[0];
+            float resolvedSpacing = ResolveRelativeSpacing(normalizedDirection, spacing);
+            if (resolvedSpacing < 0f)
+            {
+                failureReason = "Relative placement spacing must be greater than or equal to 0.";
+                return false;
+            }
+
+            resolvedX = anchorNode.x;
+            resolvedY = anchorNode.y;
+            switch (normalizedDirection)
+            {
+                case "right":
+                    resolvedX += resolvedSpacing;
+                    break;
+                case "left":
+                    resolvedX -= resolvedSpacing;
+                    break;
+                case "down":
+                    resolvedY += resolvedSpacing;
+                    break;
+                case "up":
+                    resolvedY -= resolvedSpacing;
+                    break;
+                default:
+                    failureReason = $"Unsupported relative placement direction '{normalizedDirection}'.";
+                    return false;
+            }
+
+            placementData = BuildScaffoldNodePlacementData(
+                "relative",
+                resolvedX,
+                resolvedY,
+                normalizedDirection,
+                resolvedSpacing,
+                NormalizeLayoutPreset(layoutPreset),
+                anchorNodeId,
+                anchorDisplayName,
+                anchorNodeType,
+                anchorNode);
+            return true;
+        }
+
+        private static bool HasRelativeNodePlacementHints(
+            string anchorNodeId,
+            string anchorDisplayName,
+            string anchorNodeType,
+            string direction,
+            string layoutPreset,
+            float? spacing)
+        {
+            return !string.IsNullOrWhiteSpace(anchorNodeId) ||
+                !string.IsNullOrWhiteSpace(anchorDisplayName) ||
+                !string.IsNullOrWhiteSpace(anchorNodeType) ||
+                !string.IsNullOrWhiteSpace(direction) ||
+                !string.IsNullOrWhiteSpace(layoutPreset) ||
+                spacing.HasValue;
+        }
+
+        private static Dictionary<string, object> BuildScaffoldNodePlacementData(
+            string mode,
+            float x,
+            float y,
+            string direction,
+            float? spacing,
+            string layoutPreset,
+            string anchorNodeId,
+            string anchorDisplayName,
+            string anchorNodeType,
+            ShaderGraphScaffoldNode anchorNode)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["mode"] = mode ?? string.Empty,
+                ["resolvedPosition"] = new Dictionary<string, object>
+                {
+                    ["x"] = x,
+                    ["y"] = y,
+                },
+            };
+
+            if (!string.IsNullOrWhiteSpace(direction))
+            {
+                data["direction"] = direction;
+            }
+
+            if (spacing.HasValue)
+            {
+                data["spacing"] = spacing.Value;
+            }
+
+            if (!string.IsNullOrWhiteSpace(layoutPreset))
+            {
+                data["layoutPreset"] = layoutPreset;
+            }
+
+            Dictionary<string, object> anchorQuery = BuildNodeQuery(anchorNodeId, anchorDisplayName, anchorNodeType);
+            if (anchorQuery.Count > 0)
+            {
+                data["anchorQuery"] = anchorQuery;
+                data["anchorMatchStrategy"] = BuildFindNodeMatchStrategy(anchorNodeId, anchorDisplayName, anchorNodeType);
+            }
+
+            if (anchorNode != null)
+            {
+                data["resolvedAnchorNode"] = BuildScaffoldNodeData(anchorNode);
+            }
+
+            return data;
+        }
+
+        private static string NormalizeLayoutPreset(string layoutPreset)
+        {
+            string normalized = (layoutPreset ?? string.Empty).Trim().Replace('-', '_').ToLowerInvariant();
+            return normalized switch
+            {
+                "chain_right" => "chain_right",
+                "chain_left" => "chain_left",
+                "chain_up" => "chain_up",
+                "chain_down" => "chain_down",
+                "stack_up" => "stack_up",
+                "stack_down" => "stack_down",
+                _ => string.Empty,
+            };
+        }
+
+        private static string NormalizeLayoutDirection(string direction, string layoutPreset)
+        {
+            string normalizedDirection = (direction ?? string.Empty).Trim().ToLowerInvariant();
+            normalizedDirection = normalizedDirection switch
+            {
+                "below" => "down",
+                "above" => "up",
+                _ => normalizedDirection,
+            };
+
+            if (!string.IsNullOrWhiteSpace(normalizedDirection))
+            {
+                return normalizedDirection is "left" or "right" or "up" or "down"
+                    ? normalizedDirection
+                    : string.Empty;
+            }
+
+            return NormalizeLayoutPreset(layoutPreset) switch
+            {
+                "chain_right" => "right",
+                "chain_left" => "left",
+                "chain_up" => "up",
+                "chain_down" => "down",
+                "stack_up" => "up",
+                "stack_down" => "down",
+                _ => string.Empty,
+            };
+        }
+
+        private static float ResolveRelativeSpacing(string direction, float? spacing)
+        {
+            if (spacing.HasValue)
+            {
+                return spacing.Value;
+            }
+
+            return direction is "left" or "right"
+                ? DefaultHorizontalNodeSpacing
+                : DefaultVerticalNodeSpacing;
+        }
+
+        private static Vector2 BuildScaffoldSuggestedNodeOrigin(ShaderGraphScaffoldManifest manifest, string nodeType)
+        {
+            IReadOnlyList<ShaderGraphScaffoldNode> nodes = manifest?.nodes != null
+                ? manifest.nodes
+                : Array.Empty<ShaderGraphScaffoldNode>();
+            string normalizedNodeType = NormalizeNodeToken(nodeType);
+            float stepX = DefaultHorizontalNodeSpacing;
+            float stepY = DefaultVerticalNodeSpacing;
+
+            if (string.Equals(normalizedNodeType, NormalizeNodeToken("Color"), StringComparison.Ordinal))
+            {
+                int typeIndex = nodes.Count(node => string.Equals(NormalizeNodeToken(node.nodeType), NormalizeNodeToken("Color"), StringComparison.Ordinal));
+                return new Vector2(-620f + (typeIndex * stepX), -120f);
+            }
+
+            if (string.Equals(normalizedNodeType, NormalizeNodeToken("Split"), StringComparison.Ordinal))
+            {
+                int typeIndex = nodes.Count(node => string.Equals(NormalizeNodeToken(node.nodeType), NormalizeNodeToken("Split"), StringComparison.Ordinal));
+                return new Vector2(-260f + (typeIndex * stepX), -120f);
+            }
+
+            if (string.Equals(normalizedNodeType, NormalizeNodeToken("Vector1"), StringComparison.Ordinal) ||
+                string.Equals(normalizedNodeType, NormalizeNodeToken("Float/Vector1"), StringComparison.Ordinal))
+            {
+                int typeIndex = nodes.Count(node =>
+                    string.Equals(NormalizeNodeToken(node.nodeType), NormalizeNodeToken("Vector1"), StringComparison.Ordinal) ||
+                    string.Equals(NormalizeNodeToken(node.nodeType), NormalizeNodeToken("Float/Vector1"), StringComparison.Ordinal));
+                return new Vector2(-620f + (typeIndex * stepX), 140f);
+            }
+
+            int totalIndex = nodes.Count;
+            return new Vector2(-620f + ((totalIndex % 3) * stepX), -120f + ((totalIndex / 3) * stepY));
         }
 
         private static bool TryLoadManifest(string absoluteManifestPath, out ShaderGraphScaffoldManifest manifest)

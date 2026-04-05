@@ -783,6 +783,33 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsMoveNodeRequest_FromRelativePlacementFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""move_node"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""objectId"": ""node-17"",
+                ""anchorDisplayName"": ""Lookup Source"",
+                ""direction"": ""right"",
+                ""spacing"": ""320""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var moveNodeRequest = request as MoveNodeRequest;
+            Assert.That(moveNodeRequest, Is.Not.Null);
+            Assert.That(moveNodeRequest.HasExactPosition, Is.False);
+            Assert.That(moveNodeRequest.NodeId, Is.EqualTo("node-17"));
+            Assert.That(moveNodeRequest.AnchorDisplayName, Is.EqualTo("Lookup Source"));
+            Assert.That(moveNodeRequest.Direction, Is.EqualTo("right"));
+            Assert.That(moveNodeRequest.Spacing, Is.EqualTo(320f));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsDeleteNodeRequest_FromAliasFields()
         {
             string json = @"{
@@ -822,6 +849,34 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(removePropertyRequest, Is.Not.Null);
             Assert.That(removePropertyRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
             Assert.That(removePropertyRequest.PropertyName, Is.EqualTo("Tint"));
+        }
+
+        [Test]
+        public void TryParseRequest_ReturnsAddNodeRequest_FromRelativePlacementFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""add_node"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""nodeType"": ""Vector1"",
+                ""displayName"": ""Placed Sink"",
+                ""anchorNodeId"": ""node-17"",
+                ""layoutPreset"": ""chain_right""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var addNodeRequest = request as AddNodeRequest;
+            Assert.That(addNodeRequest, Is.Not.Null);
+            Assert.That(addNodeRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(addNodeRequest.NodeType, Is.EqualTo("Vector1"));
+            Assert.That(addNodeRequest.DisplayName, Is.EqualTo("Placed Sink"));
+            Assert.That(addNodeRequest.AnchorNodeId, Is.EqualTo("node-17"));
+            Assert.That(addNodeRequest.LayoutPreset, Is.EqualTo("chain_right"));
+            Assert.That(addNodeRequest.HasExactPosition, Is.False);
         }
 
         [Test]

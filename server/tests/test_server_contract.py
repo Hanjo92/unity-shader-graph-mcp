@@ -381,6 +381,16 @@ class ShaderGraphServerContractTests(unittest.TestCase):
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request(
+                {
+                    "action": "move_node",
+                    "path": "Assets/X.shadergraph",
+                    "objectId": "node-1",
+                    "direction": "right",
+                }
+            )
+
+        with self.assertRaises(ShaderGraphRequestError):
+            normalize_shadergraph_asset_request(
                 {"action": "rename_node", "path": "Assets/X.shadergraph", "objectId": "node-1"}
             )
 
@@ -427,6 +437,22 @@ class ShaderGraphServerContractTests(unittest.TestCase):
         self.assertFalse(response["success"])
         self.assertIn("Missing required field", response["message"])
         self.assertEqual(response["data"]["supportedActions"], list(SUPPORTED_SHADERGRAPH_ASSET_ACTIONS))
+
+        with patch(
+            "unity_shader_graph_mcp.tools.shadergraph_asset.build_unity_batchmode_bridge",
+            return_value=None,
+        ):
+            response = handle_shadergraph_asset(
+                {
+                    "action": "add_node",
+                    "path": "Assets/X.shadergraph",
+                    "nodeType": "Vector1",
+                    "displayName": "Placed",
+                    "direction": "right",
+                }
+            )
+        self.assertFalse(response["success"])
+        self.assertIn("anchorNodeId/anchorDisplayName/anchorNodeType", response["message"])
 
     def test_server_registry_exposes_shadergraph_asset_tool(self) -> None:
         server = build_server()

@@ -446,6 +446,8 @@ namespace ShaderGraphMcp.Editor.Adapters
         private const string DefaultSubGraphPathLabel = "Sub Graphs";
         private const float DuplicateNodeOffsetX = 220f;
         private const float DuplicateNodeOffsetY = 60f;
+        private const float DefaultHorizontalNodeSpacing = 280f;
+        private const float DefaultVerticalNodeSpacing = 180f;
 
         private static readonly BindingFlags InstanceFlags =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -6413,8 +6415,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             object node = matches[0];
             Rect previousPosition = default;
             bool hadPreviousPosition = TryGetNodePositionRect(node, out previousPosition);
+            Dictionary<string, object> placementData;
 
-            if (!TryAssignExactNodePosition(node, request.X, request.Y, out Rect movedPosition, out string moveFailure))
+            if (!TryAssignRequestedMoveNodeLayout(
+                    graphData,
+                    node,
+                    request,
+                    out Rect movedPosition,
+                    out placementData,
+                    out string moveFailure))
             {
                 return ShaderGraphResponse.Fail(
                     $"Unable to move Shader Graph node '{nodeId}' in '{assetPath}': {moveFailure}",
@@ -6464,6 +6473,13 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["matchCount"] = 1,
                 ["matchStrategy"] = BuildFindNodeMatchStrategy(nodeId, null, null),
                 ["movedNode"] = BuildMovedNodeData(node, movedPosition, hadPreviousPosition ? previousPosition : (Rect?)null),
+                ["placement"] = placementData,
+                ["layoutSemantics"] = new[]
+                {
+                    "Exact x/y coordinates take precedence when both are provided.",
+                    "Relative placement resolves a unique anchor node and applies left/right/up/down spacing from the anchor origin.",
+                    "resolvedPosition is the final persisted node drawState position after save and import.",
+                },
             };
 
             return ShaderGraphResponse.Ok(
@@ -6708,11 +6724,14 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             Rect assignedNodePosition = default;
-            if (TryAssignVisibleNodeLayout(
+            Dictionary<string, object> placementData;
+            if (TryAssignRequestedAddNodeLayout(
                     graphData,
                     shaderNode,
                     canonicalNodeType,
+                    request,
                     out assignedNodePosition,
+                    out placementData,
                     out string layoutFailure))
             {
                 loadNotes.Add(
@@ -6721,6 +6740,28 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
             else
             {
+                if (request.HasExactPosition ||
+                    HasRelativeNodePlacementHints(
+                        request.AnchorNodeId,
+                        request.AnchorDisplayName,
+                        request.AnchorNodeType,
+                        request.Direction,
+                        request.LayoutPreset,
+                        request.Spacing))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to place Shader Graph node '{nodeTypeInput}' in '{assetPath}': {layoutFailure}",
+                        BuildUnsupportedNodeData(
+                            assetPath,
+                            compatibility,
+                            executionKind,
+                            loadNotes,
+                            nodeTypeInput,
+                            request.DisplayName
+                        )
+                    );
+                }
+
                 loadNotes.Add($"Node draw position could not be assigned: {layoutFailure}");
             }
 
@@ -6794,6 +6835,13 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["discoveredNodeTypes"] = GetDiscoveredNodeTypeLabels(),
                 ["discoveredNodeCount"] = GetDiscoveredNodeCatalog().Count,
                 ["nodeCatalogSemantics"] = "supported=graph-addable",
+                ["placement"] = placementData,
+                ["layoutSemantics"] = new[]
+                {
+                    "Exact x/y coordinates take precedence when both are provided.",
+                    "Relative placement resolves a unique anchor node and applies left/right/up/down spacing from the anchor origin.",
+                    "Without explicit placement hints, add_node uses the deterministic suggested layout buckets already used by the smoke suite.",
+                },
                 ["addedNode"] = new Dictionary<string, object>
                 {
                     ["requestedNodeType"] = nodeTypeInput,
@@ -8725,6 +8773,53 @@ namespace ShaderGraphMcp.Editor.Adapters
             return data;
         }
 
+        private static Dictionary<string, object> BuildNodePlacementData(
+            string mode,
+            Rect resolvedPosition,
+            string direction,
+            float? spacing,
+            string layoutPreset,
+            string anchorNodeId,
+            string anchorDisplayName,
+            string anchorNodeType,
+            object resolvedAnchorNode)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["mode"] = mode ?? string.Empty,
+                ["resolvedPosition"] = BuildPositionData(resolvedPosition),
+            };
+
+            if (!string.IsNullOrWhiteSpace(direction))
+            {
+                data["direction"] = direction;
+            }
+
+            if (spacing.HasValue)
+            {
+                data["spacing"] = spacing.Value;
+            }
+
+            if (!string.IsNullOrWhiteSpace(layoutPreset))
+            {
+                data["layoutPreset"] = layoutPreset;
+            }
+
+            Dictionary<string, object> anchorQuery = BuildNodeQuery(anchorNodeId, anchorDisplayName, anchorNodeType);
+            if (anchorQuery.Count > 0)
+            {
+                data["anchorQuery"] = anchorQuery;
+                data["anchorMatchStrategy"] = BuildFindNodeMatchStrategy(anchorNodeId, anchorDisplayName, anchorNodeType);
+            }
+
+            if (resolvedAnchorNode != null)
+            {
+                data["resolvedAnchorNode"] = BuildNodeLookupData(resolvedAnchorNode);
+            }
+
+            return data;
+        }
+
         private static Dictionary<string, object> BuildMovedNodeData(
             object node,
             Rect movedPosition,
@@ -10097,6 +10192,315 @@ namespace ShaderGraphMcp.Editor.Adapters
                 canonicalNodeType,
                 out assignedPosition,
                 out failureReason);
+        }
+
+        private static bool TryAssignRequestedAddNodeLayout(
+            object graphData,
+            object node,
+            string canonicalNodeType,
+            AddNodeRequest request,
+            out Rect assignedPosition,
+            out Dictionary<string, object> placementData,
+            out string failureReason)
+        {
+            assignedPosition = default;
+            placementData = null;
+            failureReason = null;
+
+            if (request == null)
+            {
+                failureReason = "Add node request is required.";
+                return false;
+            }
+
+            if (request.HasExactPosition)
+            {
+                if (!TryAssignExactNodePosition(node, request.X, request.Y, out assignedPosition, out failureReason))
+                {
+                    return false;
+                }
+
+                placementData = BuildNodePlacementData("exact", assignedPosition, null, null, null, null, null, null, null);
+                return true;
+            }
+
+            if (HasRelativeNodePlacementHints(
+                    request.AnchorNodeId,
+                    request.AnchorDisplayName,
+                    request.AnchorNodeType,
+                    request.Direction,
+                    request.LayoutPreset,
+                    request.Spacing))
+            {
+                if (!TryAssignRelativeNodePosition(
+                        graphData,
+                        node,
+                        request.AnchorNodeId,
+                        request.AnchorDisplayName,
+                        request.AnchorNodeType,
+                        request.Direction,
+                        request.LayoutPreset,
+                        request.Spacing,
+                        out assignedPosition,
+                        out string resolvedDirection,
+                        out string resolvedLayoutPreset,
+                        out float resolvedSpacing,
+                        out object resolvedAnchorNode,
+                        out failureReason))
+                {
+                    return false;
+                }
+
+                placementData = BuildNodePlacementData(
+                    "relative",
+                    assignedPosition,
+                    resolvedDirection,
+                    resolvedSpacing,
+                    resolvedLayoutPreset,
+                    request.AnchorNodeId,
+                    request.AnchorDisplayName,
+                    request.AnchorNodeType,
+                    resolvedAnchorNode);
+                return true;
+            }
+
+            if (!TryAssignVisibleNodeLayout(graphData, node, canonicalNodeType, out assignedPosition, out failureReason))
+            {
+                return false;
+            }
+
+            placementData = BuildNodePlacementData("suggested", assignedPosition, null, null, null, null, null, null, null);
+            return true;
+        }
+
+        private static bool TryAssignRequestedMoveNodeLayout(
+            object graphData,
+            object node,
+            MoveNodeRequest request,
+            out Rect assignedPosition,
+            out Dictionary<string, object> placementData,
+            out string failureReason)
+        {
+            assignedPosition = default;
+            placementData = null;
+            failureReason = null;
+
+            if (request == null)
+            {
+                failureReason = "Move node request is required.";
+                return false;
+            }
+
+            if (request.HasExactPosition)
+            {
+                if (!TryAssignExactNodePosition(node, request.X, request.Y, out assignedPosition, out failureReason))
+                {
+                    return false;
+                }
+
+                placementData = BuildNodePlacementData("exact", assignedPosition, null, null, null, null, null, null, null);
+                return true;
+            }
+
+            if (!HasRelativeNodePlacementHints(
+                    request.AnchorNodeId,
+                    request.AnchorDisplayName,
+                    request.AnchorNodeType,
+                    request.Direction,
+                    request.LayoutPreset,
+                    request.Spacing))
+            {
+                failureReason = "Move node requires either exact x/y coordinates or relative placement hints.";
+                return false;
+            }
+
+            if (!TryAssignRelativeNodePosition(
+                    graphData,
+                    node,
+                    request.AnchorNodeId,
+                    request.AnchorDisplayName,
+                    request.AnchorNodeType,
+                    request.Direction,
+                    request.LayoutPreset,
+                    request.Spacing,
+                    out assignedPosition,
+                    out string resolvedDirection,
+                    out string resolvedLayoutPreset,
+                    out float resolvedSpacing,
+                    out object resolvedAnchorNode,
+                    out failureReason))
+            {
+                return false;
+            }
+
+            placementData = BuildNodePlacementData(
+                "relative",
+                assignedPosition,
+                resolvedDirection,
+                resolvedSpacing,
+                resolvedLayoutPreset,
+                request.AnchorNodeId,
+                request.AnchorDisplayName,
+                request.AnchorNodeType,
+                resolvedAnchorNode);
+            return true;
+        }
+
+        private static bool HasRelativeNodePlacementHints(
+            string anchorNodeId,
+            string anchorDisplayName,
+            string anchorNodeType,
+            string direction,
+            string layoutPreset,
+            float? spacing)
+        {
+            return !string.IsNullOrWhiteSpace(anchorNodeId) ||
+                !string.IsNullOrWhiteSpace(anchorDisplayName) ||
+                !string.IsNullOrWhiteSpace(anchorNodeType) ||
+                !string.IsNullOrWhiteSpace(direction) ||
+                !string.IsNullOrWhiteSpace(layoutPreset) ||
+                spacing.HasValue;
+        }
+
+        private static bool TryAssignRelativeNodePosition(
+            object graphData,
+            object node,
+            string anchorNodeId,
+            string anchorDisplayName,
+            string anchorNodeType,
+            string direction,
+            string layoutPreset,
+            float? spacing,
+            out Rect assignedPosition,
+            out string resolvedDirection,
+            out string resolvedLayoutPreset,
+            out float resolvedSpacing,
+            out object resolvedAnchorNode,
+            out string failureReason)
+        {
+            assignedPosition = default;
+            resolvedDirection = null;
+            resolvedLayoutPreset = NormalizeLayoutPreset(layoutPreset);
+            resolvedSpacing = 0f;
+            resolvedAnchorNode = null;
+            failureReason = null;
+
+            string normalizedDirection = NormalizeLayoutDirection(direction, resolvedLayoutPreset);
+            if (string.IsNullOrWhiteSpace(normalizedDirection))
+            {
+                failureReason = "Relative placement requires direction/right/left/up/down or a supported layoutPreset.";
+                return false;
+            }
+
+            object[] matches = EnumerateMember(graphData, "nodes")
+                .Where(candidate => NodeMatchesQuery(candidate, anchorNodeId, anchorDisplayName, anchorNodeType))
+                .ToArray();
+
+            if (matches.Length == 0)
+            {
+                failureReason = $"Could not resolve an anchor node using nodeId='{anchorNodeId}', displayName='{anchorDisplayName}', or nodeType='{anchorNodeType}'.";
+                return false;
+            }
+
+            if (matches.Length > 1)
+            {
+                failureReason = "Relative placement anchor query matched multiple graph nodes.";
+                return false;
+            }
+
+            resolvedAnchorNode = matches[0];
+            if (!TryGetNodePositionRect(resolvedAnchorNode, out Rect anchorPosition))
+            {
+                failureReason = "Resolved anchor node does not expose a readable draw position.";
+                return false;
+            }
+
+            resolvedDirection = normalizedDirection;
+            resolvedSpacing = ResolveRelativeSpacing(normalizedDirection, spacing);
+            if (resolvedSpacing < 0f)
+            {
+                failureReason = "Relative placement spacing must be greater than or equal to 0.";
+                return false;
+            }
+
+            float targetX = anchorPosition.x;
+            float targetY = anchorPosition.y;
+            switch (normalizedDirection)
+            {
+                case "right":
+                    targetX += resolvedSpacing;
+                    break;
+                case "left":
+                    targetX -= resolvedSpacing;
+                    break;
+                case "down":
+                    targetY += resolvedSpacing;
+                    break;
+                case "up":
+                    targetY -= resolvedSpacing;
+                    break;
+                default:
+                    failureReason = $"Unsupported relative placement direction '{normalizedDirection}'.";
+                    return false;
+            }
+
+            return TryAssignExactNodePosition(node, targetX, targetY, out assignedPosition, out failureReason);
+        }
+
+        private static string NormalizeLayoutPreset(string layoutPreset)
+        {
+            string normalized = (layoutPreset ?? string.Empty).Trim().Replace('-', '_').ToLowerInvariant();
+            return normalized switch
+            {
+                "chain_right" => "chain_right",
+                "chain_left" => "chain_left",
+                "chain_up" => "chain_up",
+                "chain_down" => "chain_down",
+                "stack_up" => "stack_up",
+                "stack_down" => "stack_down",
+                _ => string.Empty,
+            };
+        }
+
+        private static string NormalizeLayoutDirection(string direction, string layoutPreset)
+        {
+            string normalizedDirection = (direction ?? string.Empty).Trim().ToLowerInvariant();
+            normalizedDirection = normalizedDirection switch
+            {
+                "below" => "down",
+                "above" => "up",
+                _ => normalizedDirection,
+            };
+
+            if (!string.IsNullOrWhiteSpace(normalizedDirection))
+            {
+                return normalizedDirection is "left" or "right" or "up" or "down"
+                    ? normalizedDirection
+                    : string.Empty;
+            }
+
+            return layoutPreset switch
+            {
+                "chain_right" => "right",
+                "chain_left" => "left",
+                "chain_up" => "up",
+                "chain_down" => "down",
+                "stack_up" => "up",
+                "stack_down" => "down",
+                _ => string.Empty,
+            };
+        }
+
+        private static float ResolveRelativeSpacing(string direction, float? spacing)
+        {
+            if (spacing.HasValue)
+            {
+                return spacing.Value;
+            }
+
+            return direction is "left" or "right"
+                ? DefaultHorizontalNodeSpacing
+                : DefaultVerticalNodeSpacing;
         }
 
         private static IReadOnlyList<ShaderGraphNodeDescriptor> GetSupportedNodeCatalog()

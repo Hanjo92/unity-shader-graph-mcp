@@ -556,6 +556,15 @@ namespace ShaderGraphMcp.Editor.Tests
                         "Float/Vector1 (UnityEditor.ShaderGraph.Vector1Node)",
                     },
                     ["discoveredNodeCount"] = 4,
+                    ["placement"] = new Dictionary<string, object>
+                    {
+                        ["mode"] = "suggested",
+                        ["resolvedPosition"] = new Dictionary<string, object>
+                        {
+                            ["x"] = -620f,
+                            ["y"] = 140f,
+                        },
+                    },
                     ["addedNode"] = new Dictionary<string, object>
                     {
                         ["requestedNodeType"] = "Vector1",
@@ -577,6 +586,9 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(response.Data["nodeCatalogSemantics"], Is.EqualTo("supported=graph-addable"));
             Assert.That(response.Data["supportedNodeCount"], Is.EqualTo(3));
             Assert.That(response.Data["discoveredNodeCount"], Is.EqualTo(4));
+
+            var placement = (IReadOnlyDictionary<string, object>)response.Data["placement"];
+            Assert.That(placement["mode"], Is.EqualTo("suggested"));
 
             var addedNode = (IReadOnlyDictionary<string, object>)response.Data["addedNode"];
             Assert.That(addedNode["requestedNodeType"], Is.EqualTo("Vector1"));
@@ -987,6 +999,21 @@ namespace ShaderGraphMcp.Editor.Tests
                         ["nodeId"] = "node-17",
                         ["objectId"] = "node-17",
                     },
+                    ["placement"] = new Dictionary<string, object>
+                    {
+                        ["mode"] = "relative",
+                        ["direction"] = "down",
+                        ["spacing"] = 200f,
+                        ["resolvedPosition"] = new Dictionary<string, object>
+                        {
+                            ["x"] = -420f,
+                            ["y"] = 180f,
+                        },
+                        ["anchorQuery"] = new Dictionary<string, object>
+                        {
+                            ["displayName"] = "Anchor Source",
+                        },
+                    },
                     ["movedNode"] = new Dictionary<string, object>
                     {
                         ["objectId"] = "node-17",
@@ -1010,6 +1037,10 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
             Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
             Assert.That(response.Data["matchCount"], Is.EqualTo(1));
+
+            var placement = (IReadOnlyDictionary<string, object>)response.Data["placement"];
+            Assert.That(placement["mode"], Is.EqualTo("relative"));
+            Assert.That(placement["direction"], Is.EqualTo("down"));
 
             var movedNode = (IReadOnlyDictionary<string, object>)response.Data["movedNode"];
             Assert.That(movedNode["objectId"], Is.EqualTo("node-17"));

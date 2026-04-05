@@ -391,6 +391,42 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.payload["x"], "-420")
         self.assertEqual(request.payload["y"], "180.5")
 
+    def test_request_normalization_accepts_move_node_with_relative_anchor(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "move_node",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "objectId": "node-17",
+                "anchorDisplayName": "Source Anchor",
+                "direction": "right",
+                "spacing": 320,
+            }
+        )
+
+        self.assertEqual(request.action, "move_node")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["objectId"], "node-17")
+        self.assertEqual(request.payload["anchorDisplayName"], "Source Anchor")
+        self.assertEqual(request.payload["direction"], "right")
+        self.assertEqual(request.payload["spacing"], "320")
+
+    def test_request_normalization_accepts_add_node_with_relative_preset(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "add_node",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "nodeType": "Vector1",
+                "displayName": "Placed Sink",
+                "anchorNodeId": "node-17",
+                "layoutPreset": "chain_right",
+            }
+        )
+
+        self.assertEqual(request.action, "add_node")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["anchorNodeId"], "node-17")
+        self.assertEqual(request.payload["layoutPreset"], "chain_right")
+
     def test_request_normalization_accepts_rename_node_with_alias_display_name(self) -> None:
         request = normalize_shadergraph_asset_request(
             {

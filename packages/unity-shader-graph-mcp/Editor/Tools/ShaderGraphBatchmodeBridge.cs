@@ -1107,21 +1107,80 @@ namespace ShaderGraphMcp.Editor.Tools
                 return false;
             }
 
-            if (!TryParseSingle(payload.x, out float x))
+            bool hasX = TryParseOptionalSingle(payload.x, out float x);
+            bool hasY = TryParseOptionalSingle(payload.y, out float y);
+            if (hasX != hasY)
             {
                 request = null;
-                errorMessage = "Move node requires a valid x coordinate.";
+                errorMessage = "Move node requires both x and y when using exact coordinates.";
                 return false;
             }
 
-            if (!TryParseSingle(payload.y, out float y))
+            string anchorNodeId = FirstNonBlank(
+                payload.anchorNodeId,
+                payload.anchorObjectId,
+                payload.relativeToNodeId,
+                payload.relativeToObjectId);
+            string anchorDisplayName = FirstNonBlank(payload.anchorDisplayName, payload.relativeToDisplayName);
+            string anchorNodeType = FirstNonBlank(payload.anchorNodeType, payload.relativeToNodeType);
+            string direction = FirstNonBlank(payload.direction, payload.relativeDirection);
+            string layoutPreset = FirstNonBlank(payload.layoutPreset, payload.preset);
+            bool hasAnchorQuery =
+                !string.IsNullOrWhiteSpace(anchorNodeId) ||
+                !string.IsNullOrWhiteSpace(anchorDisplayName) ||
+                !string.IsNullOrWhiteSpace(anchorNodeType);
+
+            float? spacing = null;
+            if (!string.IsNullOrWhiteSpace(payload.spacing))
+            {
+                if (!TryParseSingle(payload.spacing, out float parsedSpacing))
+                {
+                    request = null;
+                    errorMessage = "Move node requires spacing to be a valid number when provided.";
+                    return false;
+                }
+
+                spacing = parsedSpacing;
+            }
+
+            bool hasRelativeHints =
+                hasAnchorQuery ||
+                !string.IsNullOrWhiteSpace(direction) ||
+                !string.IsNullOrWhiteSpace(layoutPreset) ||
+                spacing.HasValue;
+
+            if (!hasX && !hasRelativeHints)
             {
                 request = null;
-                errorMessage = "Move node requires a valid y coordinate.";
+                errorMessage = "Move node requires either x/y or anchorNodeId/anchorDisplayName/anchorNodeType with direction/layoutPreset.";
                 return false;
             }
 
-            request = new MoveNodeRequest(assetPath, nodeId, x, y);
+            if (!hasX && hasRelativeHints && !hasAnchorQuery)
+            {
+                request = null;
+                errorMessage = "Move node relative placement requires anchorNodeId/anchorDisplayName/anchorNodeType.";
+                return false;
+            }
+
+            if (!hasX && hasRelativeHints && string.IsNullOrWhiteSpace(direction) && string.IsNullOrWhiteSpace(layoutPreset))
+            {
+                request = null;
+                errorMessage = "Move node relative placement requires direction/relativeDirection or layoutPreset/preset.";
+                return false;
+            }
+
+            request = new MoveNodeRequest(
+                assetPath,
+                nodeId,
+                hasX ? x : (float?)null,
+                hasY ? y : (float?)null,
+                anchorNodeId,
+                anchorDisplayName,
+                anchorNodeType,
+                direction,
+                spacing,
+                layoutPreset);
             errorMessage = null;
             return true;
         }
@@ -1181,7 +1240,74 @@ namespace ShaderGraphMcp.Editor.Tools
                 return false;
             }
 
-            request = new AddNodeRequest(assetPath, payload.nodeType, payload.displayName);
+            bool hasX = TryParseOptionalSingle(payload.x, out float x);
+            bool hasY = TryParseOptionalSingle(payload.y, out float y);
+            if (hasX != hasY)
+            {
+                request = null;
+                errorMessage = "Add node requires both x and y when using exact coordinates.";
+                return false;
+            }
+
+            string anchorNodeId = FirstNonBlank(
+                payload.anchorNodeId,
+                payload.anchorObjectId,
+                payload.relativeToNodeId,
+                payload.relativeToObjectId);
+            string anchorDisplayName = FirstNonBlank(payload.anchorDisplayName, payload.relativeToDisplayName);
+            string anchorNodeType = FirstNonBlank(payload.anchorNodeType, payload.relativeToNodeType);
+            string direction = FirstNonBlank(payload.direction, payload.relativeDirection);
+            string layoutPreset = FirstNonBlank(payload.layoutPreset, payload.preset);
+            bool hasAnchorQuery =
+                !string.IsNullOrWhiteSpace(anchorNodeId) ||
+                !string.IsNullOrWhiteSpace(anchorDisplayName) ||
+                !string.IsNullOrWhiteSpace(anchorNodeType);
+
+            float? spacing = null;
+            if (!string.IsNullOrWhiteSpace(payload.spacing))
+            {
+                if (!TryParseSingle(payload.spacing, out float parsedSpacing))
+                {
+                    request = null;
+                    errorMessage = "Add node requires spacing to be a valid number when provided.";
+                    return false;
+                }
+
+                spacing = parsedSpacing;
+            }
+
+            bool hasRelativeHints =
+                hasAnchorQuery ||
+                !string.IsNullOrWhiteSpace(direction) ||
+                !string.IsNullOrWhiteSpace(layoutPreset) ||
+                spacing.HasValue;
+
+            if (!hasX && hasRelativeHints && !hasAnchorQuery)
+            {
+                request = null;
+                errorMessage = "Add node relative placement requires anchorNodeId/anchorDisplayName/anchorNodeType.";
+                return false;
+            }
+
+            if (!hasX && hasRelativeHints && string.IsNullOrWhiteSpace(direction) && string.IsNullOrWhiteSpace(layoutPreset))
+            {
+                request = null;
+                errorMessage = "Add node relative placement requires direction/relativeDirection or layoutPreset/preset.";
+                return false;
+            }
+
+            request = new AddNodeRequest(
+                assetPath,
+                payload.nodeType,
+                payload.displayName,
+                hasX ? x : (float?)null,
+                hasY ? y : (float?)null,
+                anchorNodeId,
+                anchorDisplayName,
+                anchorNodeType,
+                direction,
+                spacing,
+                layoutPreset);
             errorMessage = null;
             return true;
         }
@@ -1462,6 +1588,12 @@ namespace ShaderGraphMcp.Editor.Tools
                 NumberStyles.Float | NumberStyles.AllowLeadingSign,
                 CultureInfo.InvariantCulture,
                 out result);
+        }
+
+        private static bool TryParseOptionalSingle(string value, out float result)
+        {
+            result = default;
+            return !string.IsNullOrWhiteSpace(value) && TryParseSingle(value, out result);
         }
 
         private static string GetNameFromKnownAssetPath(string assetPath)
@@ -1914,6 +2046,19 @@ namespace ShaderGraphMcp.Editor.Tools
             public string targetIndex;
             public string nodeId;
             public string objectId;
+            public string anchorNodeId;
+            public string anchorObjectId;
+            public string anchorDisplayName;
+            public string anchorNodeType;
+            public string relativeToNodeId;
+            public string relativeToObjectId;
+            public string relativeToDisplayName;
+            public string relativeToNodeType;
+            public string direction;
+            public string relativeDirection;
+            public string spacing;
+            public string layoutPreset;
+            public string preset;
             public string x;
             public string y;
             public string nodeType;
