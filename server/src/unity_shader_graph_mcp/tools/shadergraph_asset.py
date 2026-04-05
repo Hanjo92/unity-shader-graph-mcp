@@ -26,6 +26,7 @@ from ..unity_bridge import (
 
 SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "create_graph",
+    "create_subgraph",
     "rename_graph",
     "duplicate_graph",
     "delete_graph",
@@ -70,6 +71,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
 
 ACTION_DEFAULT_PATHS: dict[str, str] = {
     "create_graph": "Assets/ShaderGraphs",
+    "create_subgraph": "Assets/ShaderSubGraphs",
 }
 
 
@@ -221,7 +223,7 @@ def _pick_text_sequence(payload: Mapping[str, Any], *keys: str) -> list[str]:
 def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> None:
     """Enforce per-action requirements with clear error messages."""
 
-    if request.action == "create_graph" and request.name is None:
+    if request.action in {"create_graph", "create_subgraph"} and request.name is None:
         raise ShaderGraphRequestError("Missing required field 'name'.")
 
     if request.action == "rename_graph":
@@ -741,8 +743,8 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
             "Invalid template. Expected one of: urp_lit, urp_unlit, blank."
         )
 
-    if request.action == "create_graph" and request.path is None:
-        default_path = ACTION_DEFAULT_PATHS["create_graph"]
+    if request.action in {"create_graph", "create_subgraph"} and request.path is None:
+        default_path = ACTION_DEFAULT_PATHS[request.action]
         request.payload.setdefault("path", default_path)
 
     if request.action == "save_graph" and request.path is None:
@@ -897,6 +899,12 @@ def _derive_asset_path(request: ShaderGraphAssetRequest) -> str | None:
             return None
         directory = effective_path or ACTION_DEFAULT_PATHS["create_graph"]
         return str(PurePosixPath(directory) / f"{name}.shadergraph")
+    if request.action == "create_subgraph":
+        name = request.name
+        if name is None:
+            return None
+        directory = effective_path or ACTION_DEFAULT_PATHS["create_subgraph"]
+        return str(PurePosixPath(directory) / f"{name}.shadersubgraph")
     return effective_path
 
 

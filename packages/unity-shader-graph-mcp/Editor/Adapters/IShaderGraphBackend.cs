@@ -6,6 +6,7 @@ namespace ShaderGraphMcp.Editor.Adapters
     {
         ShaderGraphExecutionKind ExecutionKind { get; }
         ShaderGraphResponse CreateGraph(CreateGraphRequest request);
+        ShaderGraphResponse CreateSubGraph(CreateSubGraphRequest request);
         ShaderGraphResponse RenameGraph(RenameGraphRequest request);
         ShaderGraphResponse DuplicateGraph(DuplicateGraphRequest request);
         ShaderGraphResponse DeleteGraph(DeleteGraphRequest request);

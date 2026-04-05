@@ -16,7 +16,9 @@ namespace ShaderGraphMcp.Editor.Helpers
         private const string ScaffoldSchema = "unity-shader-graph-mcp/scaffold-v1";
         private const string DefaultTemplate = "blank";
         private const string DefaultFolder = "Assets/ShaderGraphs";
+        private const string DefaultSubGraphFolder = "Assets/ShaderSubGraphs";
         private const string DefaultGraphPathLabel = "Shader Graphs";
+        private const string DefaultSubGraphPathLabel = "Sub Graphs";
         private const string DefaultGraphDefaultPrecision = "Single";
         private const string ManifestSuffix = ".mcp.json";
         private const string ScaffoldDefaultCategoryGuid = "scaffold-default-category";
@@ -104,6 +106,102 @@ namespace ShaderGraphMcp.Editor.Helpers
                     new[] { "Created scaffold placeholder asset and sidecar manifest." },
                     null
                 )
+            );
+        }
+
+        public static ShaderGraphResponse CreateSubGraph(
+            CreateSubGraphRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Create sub graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Sub Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+
+            try
+            {
+                EnsureParentDirectory(absoluteAssetPath);
+            }
+            catch (Exception ex)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to prepare folder for '{assetPath}': {ex.Message}"
+                );
+            }
+
+            if (File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset already exists at '{assetPath}'."
+                );
+            }
+
+            var now = UtcNow();
+            var manifest = new ShaderGraphScaffoldManifest
+            {
+                schema = ScaffoldSchema,
+                assetPath = assetPath,
+                assetName = Path.GetFileNameWithoutExtension(assetPath),
+                template = string.IsNullOrWhiteSpace(request.Template) ? DefaultTemplate : request.Template,
+                graphPathLabel = DefaultSubGraphPathLabel,
+                graphDefaultPrecision = DefaultGraphDefaultPrecision,
+                createdUtc = now,
+                updatedUtc = now,
+                isSubGraph = true,
+            };
+            EnsureManifestCategories(manifest);
+
+            try
+            {
+                File.WriteAllText(
+                    absoluteAssetPath,
+                    BuildPlaceholderPayload(manifest),
+                    new UTF8Encoding(false)
+                );
+                WriteManifest(absoluteManifestPath, manifest);
+                ImportAsset(assetPath);
+            }
+            catch (Exception ex)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to create scaffold Shader Sub Graph at '{assetPath}': {ex.Message}"
+                );
+            }
+
+            var data = BuildSummaryData(
+                manifest,
+                assetPath,
+                absoluteAssetPath,
+                true,
+                true,
+                executionKind,
+                "create_subgraph",
+                new[] { "Created scaffold placeholder sub graph asset and sidecar manifest." },
+                null
+            );
+            data["isSubGraph"] = true;
+            data["template"] = "blank";
+            data["supportedCreateTemplates"] = new[] { "blank" };
+            data["createdSubGraph"] = new Dictionary<string, object>
+            {
+                ["name"] = request.Name,
+                ["requestedTemplate"] = string.IsNullOrWhiteSpace(request.Template) ? DefaultTemplate : request.Template,
+                ["resolvedTemplate"] = "blank",
+                ["graphPathLabel"] = DefaultSubGraphPathLabel,
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Scaffold Shader Sub Graph created at '{assetPath}'.",
+                data
             );
         }
 
@@ -1733,18 +1831,45 @@ namespace ShaderGraphMcp.Editor.Helpers
                 );
             }
 
-            return ShaderGraphResponse.Fail(
-                $"'read_subgraph_summary' requires the package-backed Shader Graph runtime. Scaffold mode does not model Shader Sub Graph assets.",
-                new Dictionary<string, object>
-                {
-                    ["operation"] = "read_subgraph_summary",
-                    ["assetPath"] = assetPath,
-                    ["absolutePath"] = absoluteAssetPath,
-                    ["exists"] = true,
-                    ["executionBackendKind"] = executionKind.ToString(),
-                    ["backendKind"] = ShaderGraphBackendKind.Scaffold.ToString(),
-                    ["isSubGraph"] = false,
-                }
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            bool hasManifest = TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest);
+            bool isSubGraph = (manifest?.isSubGraph ?? false) ||
+                              assetPath.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase);
+
+            if (!hasManifest)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"'read_subgraph_summary' requires a scaffold manifest or the package-backed Shader Graph runtime.",
+                    new Dictionary<string, object>
+                    {
+                        ["operation"] = "read_subgraph_summary",
+                        ["assetPath"] = assetPath,
+                        ["absolutePath"] = absoluteAssetPath,
+                        ["exists"] = true,
+                        ["executionBackendKind"] = executionKind.ToString(),
+                        ["backendKind"] = ShaderGraphBackendKind.Scaffold.ToString(),
+                        ["isSubGraph"] = isSubGraph,
+                    }
+                );
+            }
+
+            string[] previewLines = ReadPreviewLines(absoluteAssetPath, 16);
+            var data = BuildSummaryData(
+                manifest,
+                assetPath,
+                absoluteAssetPath,
+                true,
+                true,
+                executionKind,
+                "read_subgraph_summary",
+                new[] { "Scaffold sub graph manifest loaded successfully." },
+                previewLines
+            );
+            data["isSubGraph"] = isSubGraph;
+
+            return ShaderGraphResponse.Ok(
+                $"Scaffold sub graph summary loaded for '{assetPath}'.",
+                data
             );
         }
 
@@ -3832,6 +3957,7 @@ namespace ShaderGraphMcp.Editor.Helpers
             builder.AppendLine("# assetPath: " + manifest.assetPath);
             builder.AppendLine("# assetName: " + manifest.assetName);
             builder.AppendLine("# template: " + manifest.template);
+            builder.AppendLine("# isSubGraph: " + manifest.isSubGraph.ToString().ToLowerInvariant());
             builder.AppendLine("# graphPathLabel: " + manifest.graphPathLabel);
             builder.AppendLine("# graphDefaultPrecision: " + manifest.graphDefaultPrecision);
             builder.AppendLine("# createdUtc: " + manifest.createdUtc);
@@ -4738,6 +4864,7 @@ namespace ShaderGraphMcp.Editor.Helpers
         public string assetPath;
         public string assetName;
         public string template;
+        public bool isSubGraph;
         public string graphPathLabel;
         public string graphDefaultPrecision;
         public string createdUtc;

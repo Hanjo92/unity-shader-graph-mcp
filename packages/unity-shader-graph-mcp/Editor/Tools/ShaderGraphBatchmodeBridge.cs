@@ -217,6 +217,8 @@ namespace ShaderGraphMcp.Editor.Tools
             {
                 case ShaderGraphAction.CreateGraph:
                     return TryCreateGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.CreateSubGraph:
+                    return TryCreateSubGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.RenameGraph:
                     return TryCreateRenameGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DuplicateGraph:
@@ -311,10 +313,10 @@ namespace ShaderGraphMcp.Editor.Tools
 
         private static bool TryCreateGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
         {
-            string name = FirstNonBlank(payload.name, GetNameFromAssetPath(payload.assetPath), GetNameFromAssetPath(payload.path));
+            string name = FirstNonBlank(payload.name, GetNameFromKnownAssetPath(payload.assetPath), GetNameFromKnownAssetPath(payload.path));
             string directoryPath = FirstNonBlank(payload.path, payload.assetPath);
 
-            if (!string.IsNullOrWhiteSpace(directoryPath) && LooksLikeShaderGraphAssetPath(directoryPath))
+            if (!string.IsNullOrWhiteSpace(directoryPath) && LooksLikeKnownShaderAssetPath(directoryPath))
             {
                 if (string.IsNullOrWhiteSpace(name))
                 {
@@ -330,6 +332,31 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new CreateGraphRequest(name, directoryPath, payload.template);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateSubGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string name = FirstNonBlank(payload.name, GetNameFromKnownAssetPath(payload.assetPath), GetNameFromKnownAssetPath(payload.path));
+            string directoryPath = FirstNonBlank(payload.path, payload.assetPath);
+
+            if (!string.IsNullOrWhiteSpace(directoryPath) && LooksLikeKnownShaderAssetPath(directoryPath))
+            {
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    name = Path.GetFileNameWithoutExtension(directoryPath);
+                }
+
+                directoryPath = Path.GetDirectoryName(directoryPath)?.Replace('\\', '/');
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = "UntitledShaderSubGraph";
+            }
+
+            request = new CreateSubGraphRequest(name, directoryPath, payload.template);
             errorMessage = null;
             return true;
         }
@@ -1284,6 +1311,8 @@ namespace ShaderGraphMcp.Editor.Tools
             {
                 case "create_graph":
                     return ShaderGraphAction.CreateGraph;
+                case "create_subgraph":
+                    return ShaderGraphAction.CreateSubGraph;
                 case "rename_graph":
                     return ShaderGraphAction.RenameGraph;
                 case "duplicate_graph":
@@ -1435,7 +1464,7 @@ namespace ShaderGraphMcp.Editor.Tools
                 out result);
         }
 
-        private static string GetNameFromAssetPath(string assetPath)
+        private static string GetNameFromKnownAssetPath(string assetPath)
         {
             if (string.IsNullOrWhiteSpace(assetPath))
             {
@@ -1443,7 +1472,8 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             string normalized = assetPath.Trim().Replace('\\', '/');
-            if (!normalized.EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase))
+            if (!normalized.EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase) &&
+                !normalized.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase))
             {
                 return null;
             }
@@ -1455,6 +1485,13 @@ namespace ShaderGraphMcp.Editor.Tools
         {
             return !string.IsNullOrWhiteSpace(value) &&
                    value.Trim().Replace('\\', '/').EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool LooksLikeKnownShaderAssetPath(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value) &&
+                   (value.Trim().Replace('\\', '/').EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase) ||
+                    value.Trim().Replace('\\', '/').EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase));
         }
 
         private static string TryGetArgumentValue(IEnumerable<string> args, IReadOnlyList<string> optionNames)

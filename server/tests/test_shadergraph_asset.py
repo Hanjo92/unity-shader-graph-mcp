@@ -25,6 +25,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
             SUPPORTED_SHADERGRAPH_ASSET_ACTIONS,
             (
                 "create_graph",
+                "create_subgraph",
                 "rename_graph",
                 "duplicate_graph",
                 "delete_graph",
@@ -113,6 +114,19 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
 
         self.assertEqual(request.action, "export_graph_contract")
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+
+    def test_request_normalization_accepts_create_subgraph_with_default_path(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "create_subgraph",
+                "name": "ExampleSubGraph",
+                "template": "blank",
+            }
+        )
+
+        self.assertEqual(request.action, "create_subgraph")
+        self.assertEqual(request.name, "ExampleSubGraph")
+        self.assertEqual(request.payload["path"], "Assets/ShaderSubGraphs")
 
     def test_request_normalization_accepts_read_subgraph_summary_with_asset_path(self) -> None:
         request = normalize_shadergraph_asset_request(

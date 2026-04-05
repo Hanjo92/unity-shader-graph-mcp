@@ -5,6 +5,7 @@ namespace ShaderGraphMcp.Editor.Adapters
     public interface IShaderGraphAdapter
     {
         ShaderGraphResponse CreateGraph(CreateGraphRequest request);
+        ShaderGraphResponse CreateSubGraph(CreateSubGraphRequest request);
         ShaderGraphResponse RenameGraph(RenameGraphRequest request);
         ShaderGraphResponse DuplicateGraph(DuplicateGraphRequest request);
         ShaderGraphResponse DeleteGraph(DeleteGraphRequest request);
@@ -64,6 +65,11 @@ namespace ShaderGraphMcp.Editor.Adapters
         public ShaderGraphResponse CreateGraph(CreateGraphRequest request)
         {
             return backend.CreateGraph(request);
+        }
+
+        public ShaderGraphResponse CreateSubGraph(CreateSubGraphRequest request)
+        {
+            return backend.CreateSubGraph(request);
         }
 
         public ShaderGraphResponse RenameGraph(RenameGraphRequest request)

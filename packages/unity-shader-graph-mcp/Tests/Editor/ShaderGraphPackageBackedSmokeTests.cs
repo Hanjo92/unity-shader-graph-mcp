@@ -124,6 +124,29 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankCreateSubGraph_ThenReadSummary_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankSubGraph("BlankCreateSubGraphReadSummary", out ShaderGraphResponse createResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(createResponse.Data, "template"), Is.EqualTo("blank"));
+            Assert.That(ShaderGraphTestAssets.GetString(createResponse.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
+            Assert.That(createResponse.Data["isSubGraph"], Is.EqualTo(true));
+
+            var createdSubGraph = ShaderGraphTestAssets.RequireDictionary(createResponse.Data, "createdSubGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(createdSubGraph, "resolvedTemplate"), Is.EqualTo("blank"));
+            Assert.That(ShaderGraphTestAssets.GetString(createdSubGraph, "graphPathLabel"), Is.EqualTo("Sub Graphs"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(summaryResponse.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
+            Assert.That(summaryResponse.Data["isSubGraph"], Is.EqualTo(true));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.GreaterThanOrEqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(0));
+        }
+
+        [Test]
         public void BlankSubGraph_ReadSubGraphSummary_StaysPackageBacked()
         {
             string assetPath = CreateSampleSubGraph("BlankSubGraphReadSummary", out string sourceAssetPath);
@@ -3867,6 +3890,21 @@ namespace ShaderGraphMcp.Editor.Tests
 
             string assetPath = ShaderGraphTestAssets.GetString(createResponse.Data, "assetPath");
             Assert.That(assetPath, Does.EndWith(".shadergraph"));
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Not.Null);
+            return assetPath;
+        }
+
+        private string CreateBlankSubGraph(string graphNamePrefix, out ShaderGraphResponse createResponse)
+        {
+            string graphName = $"{graphNamePrefix}_{Guid.NewGuid():N}";
+            createResponse = ShaderGraphAssetTool.HandleCreateSubGraph(
+                graphName,
+                temporaryFolder.AssetPath,
+                "blank");
+            ShaderGraphTestAssets.RequirePackageReady(createResponse);
+
+            string assetPath = ShaderGraphTestAssets.GetString(createResponse.Data, "assetPath");
+            Assert.That(assetPath, Does.EndWith(".shadersubgraph"));
             Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Not.Null);
             return assetPath;
         }

@@ -8,6 +8,7 @@ namespace ShaderGraphMcp.Editor.Models
     public enum ShaderGraphAction
     {
         CreateGraph,
+        CreateSubGraph,
         RenameGraph,
         DuplicateGraph,
         DeleteGraph,
@@ -117,6 +118,69 @@ namespace ShaderGraphMcp.Editor.Models
             return name.EndsWith(".shadergraph", System.StringComparison.OrdinalIgnoreCase)
                 ? name
                 : $"{name}.shadergraph";
+        }
+
+        private static string NormalizeAssetPath(string assetPath)
+        {
+            return assetPath.Replace('\\', '/');
+        }
+    }
+
+    public sealed class CreateSubGraphRequest : ShaderGraphRequest
+    {
+        public string Name { get; }
+        public string Path { get; }
+        public string Template { get; }
+
+        public CreateSubGraphRequest(string name, string path, string template)
+            : base(ShaderGraphAction.CreateSubGraph, CombinePath(path, name))
+        {
+            Name = NormalizeName(name);
+            Path = NormalizeDirectory(path);
+            Template = string.IsNullOrWhiteSpace(template) ? "blank" : template.Trim();
+        }
+
+        private static string CombinePath(string path, string name)
+        {
+            string directory = NormalizeDirectory(path);
+            string fileName = EnsureShaderSubGraphExtension(NormalizeName(name));
+
+            return NormalizeAssetPath(System.IO.Path.Combine(directory, fileName));
+        }
+
+        private static string NormalizeName(string name)
+        {
+            string normalized = string.IsNullOrWhiteSpace(name)
+                ? "UntitledShaderSubGraph"
+                : System.IO.Path.GetFileNameWithoutExtension(name.Trim());
+
+            return string.IsNullOrWhiteSpace(normalized) ? "UntitledShaderSubGraph" : normalized;
+        }
+
+        private static string NormalizeDirectory(string path)
+        {
+            string normalized = string.IsNullOrWhiteSpace(path)
+                ? "Assets/ShaderSubGraphs"
+                : path.Replace('\\', '/').Trim().TrimEnd('/');
+
+            if (string.Equals(normalized, "Assets", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return "Assets";
+            }
+
+            if (!normalized.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = $"Assets/{normalized.TrimStart('/')}";
+            }
+
+            return normalized;
+        }
+
+        private static string EnsureShaderSubGraphExtension(string name)
+        {
+            return name.EndsWith(".shadersubgraph", System.StringComparison.OrdinalIgnoreCase)
+                ? name
+                : $"{name}.shadersubgraph";
         }
 
         private static string NormalizeAssetPath(string assetPath)

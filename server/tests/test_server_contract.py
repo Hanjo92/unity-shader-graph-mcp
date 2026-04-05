@@ -32,6 +32,12 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "path": "Assets/ShaderGraphs",
         "template": "urp_lit",
     },
+    "create_subgraph": {
+        "action": "create_subgraph",
+        "name": "ExampleSubGraph",
+        "path": "Assets/ShaderSubGraphs",
+        "template": "blank",
+    },
     "rename_graph": {
         "action": "rename_graph",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",

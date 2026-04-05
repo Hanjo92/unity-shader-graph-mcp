@@ -1396,6 +1396,41 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedCreateSubGraphEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Created blank package-backed Shader Sub Graph at 'Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "create_subgraph",
+                    ["assetPath"] = "Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["template"] = "blank",
+                    ["isSubGraph"] = true,
+                    ["supportedCreateTemplates"] = new[] { "blank" },
+                    ["createdSubGraph"] = new Dictionary<string, object>
+                    {
+                        ["name"] = "BlankSubGraph",
+                        ["requestedTemplate"] = "blank",
+                        ["resolvedTemplate"] = "blank",
+                        ["graphPathLabel"] = "Sub Graphs",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("create_subgraph"));
+            Assert.That(response.Data["template"], Is.EqualTo("blank"));
+            Assert.That(response.Data["isSubGraph"], Is.EqualTo(true));
+
+            var createdSubGraph = (IReadOnlyDictionary<string, object>)response.Data["createdSubGraph"];
+            Assert.That(createdSubGraph["name"], Is.EqualTo("BlankSubGraph"));
+            Assert.That(createdSubGraph["requestedTemplate"], Is.EqualTo("blank"));
+            Assert.That(createdSubGraph["resolvedTemplate"], Is.EqualTo("blank"));
+            Assert.That(createdSubGraph["graphPathLabel"], Is.EqualTo("Sub Graphs"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedRenameGraphEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

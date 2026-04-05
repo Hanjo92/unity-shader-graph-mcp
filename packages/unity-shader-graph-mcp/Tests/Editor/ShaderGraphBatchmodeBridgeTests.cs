@@ -71,6 +71,29 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsCreateSubGraphRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""create_subgraph"",
+                ""assetPath"": ""Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"",
+                ""template"": ""blank""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var createSubGraphRequest = request as CreateSubGraphRequest;
+            Assert.That(createSubGraphRequest, Is.Not.Null);
+            Assert.That(createSubGraphRequest.Name, Is.EqualTo("ExampleSubGraph"));
+            Assert.That(createSubGraphRequest.Path, Is.EqualTo("Assets/ShaderSubGraphs"));
+            Assert.That(createSubGraphRequest.AssetPath, Is.EqualTo("Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"));
+            Assert.That(createSubGraphRequest.Template, Is.EqualTo("blank"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsRenameGraphRequest_FromAssetPathPayload()
         {
             string json = @"{

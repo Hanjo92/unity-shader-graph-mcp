@@ -33,6 +33,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse CreateSubGraph(CreateSubGraphRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.CreateSubGraph(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse RenameGraph(RenameGraphRequest request)
         {
             return ShaderGraphPackageGraphInspector.RenameGraph(
@@ -426,12 +435,15 @@ namespace ShaderGraphMcp.Editor.Adapters
         private const string GraphDataTypeName = "UnityEditor.ShaderGraph.GraphData";
         private const string GraphPrecisionTypeName = "UnityEditor.ShaderGraph.GraphPrecision";
         private const string CategoryDataTypeName = "UnityEditor.ShaderGraph.CategoryData";
+        private const string ConcreteSlotValueTypeTypeName = "UnityEditor.ShaderGraph.ConcreteSlotValueType";
+        private const string SubGraphOutputNodeTypeName = "UnityEditor.ShaderGraph.SubGraphOutputNode";
         private const string FileUtilitiesTypeName = "UnityEditor.ShaderGraph.FileUtilities";
         private const string MultiJsonTypeName = "UnityEditor.ShaderGraph.Serialization.MultiJson";
         private const string MessageManagerTypeName = "UnityEditor.Graphing.Util.MessageManager";
         private const string DrawStateTypeName = "UnityEditor.Graphing.DrawState";
         private const string PackageSchema = "unity-shader-graph-mcp/package-backed-v1";
         private const string DefaultGraphPathLabel = "Shader Graphs";
+        private const string DefaultSubGraphPathLabel = "Sub Graphs";
         private const float DuplicateNodeOffsetX = 220f;
         private const float DuplicateNodeOffsetY = 60f;
 
@@ -508,12 +520,13 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Shader Graph asset already exists at '{assetPath}'.",
-                    BuildUnsupportedCreateGraphData(
+                    BuildUnsupportedCreateAssetData(
                         assetPath,
                         compatibility,
                         executionKind,
                         Array.Empty<string>(),
-                        request.Template
+                        request.Template,
+                        "create_graph"
                     )
                 );
             }
@@ -525,12 +538,13 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Unsupported create_graph template '{requestedTemplate}'. Only 'blank' is currently package-backed.",
-                    BuildUnsupportedCreateGraphData(
+                    BuildUnsupportedCreateAssetData(
                         assetPath,
                         compatibility,
                         executionKind,
                         Array.Empty<string>(),
-                        requestedTemplate
+                        requestedTemplate,
+                        "create_graph"
                     )
                 );
             }
@@ -546,12 +560,13 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Unable to create blank Shader Graph data for '{assetPath}': {creationFailure}",
-                    BuildUnsupportedCreateGraphData(
+                    BuildUnsupportedCreateAssetData(
                         assetPath,
                         compatibility,
                         executionKind,
                         creationNotes,
-                        requestedTemplate
+                        requestedTemplate,
+                        "create_graph"
                     )
                 );
             }
@@ -560,12 +575,13 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Unable to write blank Shader Graph to '{assetPath}': {writeFailure}",
-                    BuildUnsupportedCreateGraphData(
+                    BuildUnsupportedCreateAssetData(
                         assetPath,
                         compatibility,
                         executionKind,
                         creationNotes,
-                        requestedTemplate
+                        requestedTemplate,
+                        "create_graph"
                     )
                 );
             }
@@ -625,6 +641,153 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return ShaderGraphResponse.Ok(
                 $"Created blank package-backed Shader Graph at '{assetPath}'.",
+                data
+            );
+        }
+
+        public static ShaderGraphResponse CreateSubGraph(
+            CreateSubGraphRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Create sub graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Sub Graph asset path is required.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset already exists at '{assetPath}'.",
+                    BuildUnsupportedCreateAssetData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>(),
+                        request.Template,
+                        "create_subgraph"
+                    )
+                );
+            }
+
+            string requestedTemplate = string.IsNullOrWhiteSpace(request.Template)
+                ? "blank"
+                : request.Template.Trim();
+            if (!string.Equals(requestedTemplate, "blank", StringComparison.OrdinalIgnoreCase))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unsupported create_subgraph template '{requestedTemplate}'. Only 'blank' is currently package-backed.",
+                    BuildUnsupportedCreateAssetData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>(),
+                        requestedTemplate,
+                        "create_subgraph"
+                    )
+                );
+            }
+
+            string parentDirectory = Path.GetDirectoryName(absolutePath);
+            if (!string.IsNullOrWhiteSpace(parentDirectory))
+            {
+                Directory.CreateDirectory(parentDirectory);
+            }
+
+            var creationNotes = new List<string>();
+            if (!TryCreateBlankSubGraphData(assetPath, out object graphData, creationNotes, out string creationFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to create blank Shader Sub Graph data for '{assetPath}': {creationFailure}",
+                    BuildUnsupportedCreateAssetData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        creationNotes,
+                        requestedTemplate,
+                        "create_subgraph"
+                    )
+                );
+            }
+
+            if (!TryWriteGraphDataToDisk(assetPath, graphData, out string writeFailure))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Unable to write blank Shader Sub Graph to '{assetPath}': {writeFailure}",
+                    BuildUnsupportedCreateAssetData(
+                        assetPath,
+                        compatibility,
+                        executionKind,
+                        creationNotes,
+                        requestedTemplate,
+                        "create_subgraph"
+                    )
+                );
+            }
+
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+
+            object loadedGraphData = graphData;
+            if (TryLoadGraphData(assetPath, absolutePath, out object reloadedGraphData, creationNotes, out string reloadFailure))
+            {
+                loadedGraphData = reloadedGraphData;
+
+                if (TryInvokeInstanceMethod(loadedGraphData, "OnEnable", out string onEnableFailure))
+                {
+                    creationNotes.Add("GraphData.OnEnable() invoked successfully after create_subgraph.");
+                }
+                else
+                {
+                    creationNotes.Add($"GraphData.OnEnable() could not be invoked after create_subgraph: {onEnableFailure}");
+                }
+
+                if (TryInvokeInstanceMethod(loadedGraphData, "ValidateGraph", out string validateFailure))
+                {
+                    creationNotes.Add("GraphData.ValidateGraph() invoked successfully after create_subgraph.");
+                }
+                else
+                {
+                    creationNotes.Add($"GraphData.ValidateGraph() could not be invoked after create_subgraph: {validateFailure}");
+                }
+            }
+            else
+            {
+                creationNotes.Add($"Reload after create_subgraph fell back to the in-memory graph: {reloadFailure}");
+            }
+
+            var snapshot = BuildSnapshot(
+                loadedGraphData,
+                assetPath,
+                absolutePath,
+                executionKind,
+                compatibility,
+                creationNotes,
+                "create_subgraph"
+            );
+
+            var data = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["template"] = "blank",
+                ["isSubGraph"] = true,
+                ["supportedCreateTemplates"] = SupportedCreateTemplates.ToArray(),
+                ["createdSubGraph"] = new Dictionary<string, object>
+                {
+                    ["name"] = request.Name,
+                    ["requestedTemplate"] = requestedTemplate,
+                    ["resolvedTemplate"] = "blank",
+                    ["graphPathLabel"] = DefaultSubGraphPathLabel,
+                },
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Created blank package-backed Shader Sub Graph at '{assetPath}'.",
                 data
             );
         }
@@ -9499,16 +9662,17 @@ namespace ShaderGraphMcp.Editor.Adapters
             return data;
         }
 
-        private static Dictionary<string, object> BuildUnsupportedCreateGraphData(
+        private static Dictionary<string, object> BuildUnsupportedCreateAssetData(
             string assetPath,
             ShaderGraphCompatibilitySnapshot compatibility,
             ShaderGraphExecutionKind executionKind,
             IReadOnlyList<string> loadNotes,
-            string requestedTemplate)
+            string requestedTemplate,
+            string actionName)
         {
             var data = new Dictionary<string, object>
             {
-                ["action"] = "create_graph",
+                ["action"] = actionName,
                 ["assetPath"] = assetPath,
                 ["executionBackendKind"] = executionKind.ToString(),
                 ["backendKind"] = compatibility.BackendKind.ToString(),
@@ -12066,6 +12230,105 @@ namespace ShaderGraphMcp.Editor.Adapters
             else
             {
                 notes?.Add($"GraphData.ValidateGraph() could not be invoked during create_graph: {validateFailure}");
+            }
+
+            return true;
+        }
+
+        private static bool TryCreateBlankSubGraphData(
+            string assetPath,
+            out object graphData,
+            IList<string> notes,
+            out string failureReason)
+        {
+            graphData = null;
+            failureReason = null;
+
+            Type graphType = ResolveType(GraphDataTypeName);
+            if (graphType == null)
+            {
+                failureReason = $"Could not resolve {GraphDataTypeName}.";
+                return false;
+            }
+
+            try
+            {
+                graphData = Activator.CreateInstance(graphType, true);
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to create {GraphDataTypeName}: {GetRootMessage(ex)}";
+                return false;
+            }
+
+            SetMemberValue(graphData, "messageManager", CreateMessageManagerInstance());
+            SetMemberValue(graphData, "isSubGraph", true);
+            SetMemberValue(graphData, "path", DefaultSubGraphPathLabel);
+            notes?.Add("GraphData.isSubGraph set to true.");
+            notes?.Add($"GraphData.path set to '{DefaultSubGraphPathLabel}'.");
+
+            Type outputNodeType = ResolveType(SubGraphOutputNodeTypeName);
+            if (outputNodeType == null)
+            {
+                failureReason = $"Could not resolve {SubGraphOutputNodeTypeName}.";
+                return false;
+            }
+
+            object outputNode;
+            try
+            {
+                outputNode = Activator.CreateInstance(outputNodeType, true);
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to create {SubGraphOutputNodeTypeName}: {GetRootMessage(ex)}";
+                return false;
+            }
+
+            if (!TryInvokeGraphAddNode(graphData, outputNode, out string addNodeFailure))
+            {
+                failureReason = $"Unable to add the Sub Graph output node: {addNodeFailure}";
+                return false;
+            }
+
+            notes?.Add("GraphData.AddNode(SubGraphOutputNode) invoked successfully.");
+
+            SetMemberValue(graphData, "outputNode", outputNode);
+            notes?.Add("GraphData.outputNode set to SubGraphOutputNode.");
+
+            Type concreteSlotValueType = ResolveType(ConcreteSlotValueTypeTypeName);
+            if (concreteSlotValueType == null || !concreteSlotValueType.IsEnum)
+            {
+                failureReason = $"Could not resolve {ConcreteSlotValueTypeTypeName}.";
+                return false;
+            }
+
+            object vector4Value;
+            try
+            {
+                vector4Value = Enum.Parse(concreteSlotValueType, "Vector4", true);
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to resolve ConcreteSlotValueType.Vector4: {GetRootMessage(ex)}";
+                return false;
+            }
+
+            if (!TryInvokeInstanceMethod(outputNode, "AddSlot", new[] { vector4Value }, out string addSlotFailure))
+            {
+                failureReason = $"Unable to add the default Sub Graph output slot: {addSlotFailure}";
+                return false;
+            }
+
+            notes?.Add("SubGraphOutputNode.AddSlot(ConcreteSlotValueType.Vector4) invoked successfully.");
+
+            if (TryInvokeInstanceMethod(graphData, "ValidateGraph", out string validateFailure))
+            {
+                notes?.Add("GraphData.ValidateGraph() invoked successfully during create_subgraph.");
+            }
+            else
+            {
+                notes?.Add($"GraphData.ValidateGraph() could not be invoked during create_subgraph: {validateFailure}");
             }
 
             return true;
