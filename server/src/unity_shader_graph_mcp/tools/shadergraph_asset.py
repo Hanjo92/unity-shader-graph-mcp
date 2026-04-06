@@ -32,6 +32,7 @@ SUPPORTED_SHADERGRAPH_ASSET_ACTIONS: tuple[str, ...] = (
     "duplicate_graph",
     "duplicate_subgraph",
     "delete_graph",
+    "delete_subgraph",
     "move_graph",
     "set_graph_metadata",
     "create_category",
@@ -309,6 +310,9 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         request.payload.setdefault("displayName", display_name)
 
     if request.action == "delete_graph" and request.path is None:
+        raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
+
+    if request.action == "delete_subgraph" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
     if request.action == "move_graph":

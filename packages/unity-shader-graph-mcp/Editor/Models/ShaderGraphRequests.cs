@@ -14,6 +14,7 @@ namespace ShaderGraphMcp.Editor.Models
         DuplicateGraph,
         DuplicateSubGraph,
         DeleteGraph,
+        DeleteSubGraph,
         MoveGraph,
         SetGraphMetadata,
         CreateCategory,
@@ -452,6 +453,14 @@ namespace ShaderGraphMcp.Editor.Models
     {
         public DeleteGraphRequest(string assetPath)
             : base(ShaderGraphAction.DeleteGraph, assetPath)
+        {
+        }
+    }
+
+    public sealed class DeleteSubGraphRequest : ShaderGraphRequest
+    {
+        public DeleteSubGraphRequest(string assetPath)
+            : base(ShaderGraphAction.DeleteSubGraph, assetPath)
         {
         }
     }

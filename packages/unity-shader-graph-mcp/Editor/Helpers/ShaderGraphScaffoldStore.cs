@@ -904,6 +904,102 @@ namespace ShaderGraphMcp.Editor.Helpers
             );
         }
 
+        public static ShaderGraphResponse DeleteSubGraph(
+            DeleteSubGraphRequest request,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Delete sub graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Sub Graph asset path is required.");
+            }
+
+            string absoluteAssetPath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absoluteAssetPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset not found at '{assetPath}'."
+                );
+            }
+
+            string absoluteManifestPath = ToAbsolutePath(GetManifestPath(assetPath));
+            bool hasManifest = TryLoadManifest(absoluteManifestPath, out ShaderGraphScaffoldManifest manifest);
+            string assetName = Path.GetFileNameWithoutExtension(assetPath);
+            var deleteNotes = new List<string>();
+
+            try
+            {
+                if (!AssetDatabase.DeleteAsset(assetPath))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to delete Shader Sub Graph asset at '{assetPath}'."
+                    );
+                }
+
+                deleteNotes.Add("AssetDatabase.DeleteAsset(...) invoked successfully.");
+
+                if (File.Exists(absoluteManifestPath))
+                {
+                    File.Delete(absoluteManifestPath);
+                    deleteNotes.Add("Scaffold sidecar manifest deleted from disk.");
+                }
+
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+            catch (Exception ex)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Failed to delete scaffold Shader Sub Graph at '{assetPath}': {ex.Message}"
+                );
+            }
+
+            Dictionary<string, object> data;
+            if (hasManifest)
+            {
+                data = BuildSummaryData(
+                    manifest,
+                    assetPath,
+                    absoluteAssetPath,
+                    false,
+                    false,
+                    executionKind,
+                    "delete_subgraph",
+                    deleteNotes,
+                    null
+                );
+            }
+            else
+            {
+                data = BuildDeletedRawScaffoldData(
+                    assetPath,
+                    absoluteAssetPath,
+                    executionKind,
+                    deleteNotes
+                );
+                data["operation"] = "delete_subgraph";
+            }
+
+            data["isSubGraph"] = true;
+            data["deletedSubGraph"] = BuildScaffoldDeletedGraphData(assetPath);
+            data["deleteSubGraphSemantics"] = new[]
+            {
+                "delete_subgraph removes the current .shadersubgraph asset at its existing path.",
+                "The response assetPath continues to point at the deleted asset path and exists is false.",
+                "Scaffold sidecar manifests are removed alongside the deleted sub graph when present.",
+            };
+
+            return ShaderGraphResponse.Ok(
+                $"Deleted scaffold Shader Sub Graph '{assetName}' at '{assetPath}'.",
+                data
+            );
+        }
+
         public static ShaderGraphResponse MoveGraph(
             MoveGraphRequest request,
             ShaderGraphExecutionKind executionKind)

@@ -1770,6 +1770,70 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedDeleteSubGraphEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Deleted Shader Sub Graph 'BlankSubGraph' at 'Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "delete_subgraph",
+                    ["assetPath"] = "Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph",
+                    ["manifestPath"] = string.Empty,
+                    ["absolutePath"] = "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph",
+                    ["exists"] = false,
+                    ["hasManifest"] = false,
+                    ["schema"] = "unity-shader-graph-mcp/package-backed-v1",
+                    ["assetName"] = "BlankSubGraph",
+                    ["template"] = "blank",
+                    ["createdUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["updatedUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["propertyCount"] = 0,
+                    ["nodeCount"] = 1,
+                    ["connectionCount"] = 0,
+                    ["categoryCount"] = 0,
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["properties"] = new string[0],
+                    ["nodes"] = new[] { "Output (node-1) [SubGraphOutputNode] @ (0, 0)" },
+                    ["connections"] = new string[0],
+                    ["notes"] = new[] { "AssetDatabase.DeleteAsset(...) invoked successfully." },
+                    ["preview"] = new[] { "deleted sub graph preview" },
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["packageDetected"] = true,
+                    ["isSubGraph"] = true,
+                    ["compatibility"] = new Dictionary<string, object>
+                    {
+                        ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                        ["packageDetected"] = true,
+                        ["notes"] = new[] { "package present" },
+                    },
+                    ["deleteSubGraphSemantics"] = new[]
+                    {
+                        "delete_subgraph removes the current .shadersubgraph asset at its existing path.",
+                        "The response assetPath continues to point at the deleted asset path and exists is false.",
+                        "Package-backed sub graph delete is followed by synchronous refresh so Unity no longer resolves the deleted asset.",
+                    },
+                    ["deletedSubGraph"] = new Dictionary<string, object>
+                    {
+                        ["assetPath"] = "Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph",
+                        ["assetName"] = "BlankSubGraph",
+                        ["displayName"] = "BlankSubGraph",
+                        ["name"] = "BlankSubGraph",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("delete_subgraph"));
+            Assert.That(response.Data["assetPath"], Is.EqualTo("Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph"));
+            Assert.That(response.Data["exists"], Is.False);
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["isSubGraph"], Is.EqualTo(true));
+
+            var deletedSubGraph = (IReadOnlyDictionary<string, object>)response.Data["deletedSubGraph"];
+            Assert.That(deletedSubGraph["assetPath"], Is.EqualTo("Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph"));
+            Assert.That(deletedSubGraph["assetName"], Is.EqualTo("BlankSubGraph"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedMoveGraphEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

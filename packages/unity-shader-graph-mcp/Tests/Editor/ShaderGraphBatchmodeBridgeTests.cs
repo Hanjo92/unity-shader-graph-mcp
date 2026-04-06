@@ -201,6 +201,25 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsDeleteSubGraphRequest_FromAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""delete_subgraph"",
+                ""assetPath"": ""Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var deleteSubGraphRequest = request as DeleteSubGraphRequest;
+            Assert.That(deleteSubGraphRequest, Is.Not.Null);
+            Assert.That(deleteSubGraphRequest.AssetPath, Is.EqualTo("Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsMoveGraphRequest_FromAliasFields()
         {
             string json = @"{

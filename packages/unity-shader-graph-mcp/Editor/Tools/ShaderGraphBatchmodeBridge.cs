@@ -229,6 +229,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateDuplicateSubGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.DeleteGraph:
                     return TryCreateDeleteGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.DeleteSubGraph:
+                    return TryCreateDeleteSubGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.MoveGraph:
                     return TryCreateMoveGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.SetGraphMetadata:
@@ -536,6 +538,21 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new DeleteGraphRequest(assetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateDeleteSubGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Delete sub graph requires an asset path.";
+                return false;
+            }
+
+            request = new DeleteSubGraphRequest(assetPath);
             errorMessage = null;
             return true;
         }
@@ -1499,6 +1516,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.DuplicateSubGraph;
                 case "delete_graph":
                     return ShaderGraphAction.DeleteGraph;
+                case "delete_subgraph":
+                    return ShaderGraphAction.DeleteSubGraph;
                 case "move_graph":
                     return ShaderGraphAction.MoveGraph;
                 case "set_graph_metadata":
