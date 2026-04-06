@@ -4337,10 +4337,12 @@ namespace ShaderGraphMcp.Editor.Adapters
                 loadNotes,
                 "export_graph_contract"
             );
+            bool isSubGraph = IsShaderSubGraph(graphData, assetPath);
 
             var data = new Dictionary<string, object>(snapshot.ToDictionary())
             {
                 ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                ["isSubGraph"] = isSubGraph,
                 ["exportGraphContractSemantics"] = new[]
                 {
                     "exportedGraphContract is read-only structured output for external tooling.",
@@ -4351,7 +4353,9 @@ namespace ShaderGraphMcp.Editor.Adapters
             };
 
             return ShaderGraphResponse.Ok(
-                $"Exported package-backed Shader Graph contract from '{assetPath}'.",
+                isSubGraph
+                    ? $"Exported package-backed Shader Sub Graph contract from '{assetPath}'."
+                    : $"Exported package-backed Shader Graph contract from '{assetPath}'.",
                 data
             );
         }
@@ -4432,26 +4436,55 @@ namespace ShaderGraphMcp.Editor.Adapters
                 loadNotes,
                 "import_graph_contract"
             );
+            bool targetIsSubGraph = IsShaderSubGraph(graphData, assetPath);
+            bool contractIsSubGraph = IsImportedSubGraphContract(contract);
 
-            var initialData = new Dictionary<string, object>(snapshot.ToDictionary())
-            {
-                ["contractVersion"] = contract.contractVersion ?? "unity-shader-graph-mcp/export-graph-contract-v1",
-                ["importGraphContractSemantics"] = new[]
+            string[] importSemantics = targetIsSubGraph
+                ? new[]
                 {
                     "import_graph_contract replays an exportedGraphContract payload into the target graph asset.",
                     "Package-backed import currently requires a blank or near-blank target graph.",
                     "Node objectIds and categoryGuids are regenerated during import.",
-                },
+                    "Sub graph imports reuse the built-in SubGraphOutputNode instead of creating a duplicate output node.",
+                }
+                : new[]
+                {
+                    "import_graph_contract replays an exportedGraphContract payload into the target graph asset.",
+                    "Package-backed import currently requires a blank or near-blank target graph.",
+                    "Node objectIds and categoryGuids are regenerated during import.",
+                };
+
+            var initialData = new Dictionary<string, object>(snapshot.ToDictionary())
+            {
+                ["contractVersion"] = contract.contractVersion ?? "unity-shader-graph-mcp/export-graph-contract-v1",
+                ["isSubGraph"] = targetIsSubGraph,
+                ["contractIsSubGraph"] = contractIsSubGraph,
+                ["importGraphContractSemantics"] = importSemantics,
             };
+
+            if (targetIsSubGraph != contractIsSubGraph)
+            {
+                return ShaderGraphResponse.Fail(
+                    targetIsSubGraph
+                        ? $"import_graph_contract cannot replay a Shader Graph contract into sub graph '{assetPath}'. Export a Shader Sub Graph contract instead."
+                        : $"import_graph_contract cannot replay a Shader Sub Graph contract into graph '{assetPath}'. Create or target a .shadersubgraph asset instead.",
+                    initialData
+                );
+            }
 
             int existingCategoryCount = CountEnumerableProperty(graphData, "categories");
             int existingPropertyCount = EnumerateMember(graphData, "properties").Count;
-            int existingNodeCount = EnumerateMember(graphData, "nodes").Count;
+            IReadOnlyList<object> existingNodes = EnumerateMember(graphData, "nodes");
+            int existingNodeCount = existingNodes.Count;
             int existingConnectionCount = EnumerateMember(graphData, "edges").Count;
-            if (existingPropertyCount > 0 ||
-                existingNodeCount > 0 ||
-                existingConnectionCount > 0 ||
-                existingCategoryCount > 1)
+            int existingSubGraphOutputNodeCount = existingNodes.Count(IsSubGraphOutputNode);
+            int existingUserNodeCount = targetIsSubGraph
+                ? existingNodeCount - existingSubGraphOutputNodeCount
+                : existingNodeCount;
+            bool hasNonBlankTarget = targetIsSubGraph
+                ? (existingPropertyCount > 0 || existingConnectionCount > 0 || existingUserNodeCount > 0 || existingSubGraphOutputNodeCount > 1)
+                : (existingPropertyCount > 0 || existingNodeCount > 0 || existingConnectionCount > 0 || existingCategoryCount > 1);
+            if (hasNonBlankTarget)
             {
                 initialData["existingCounts"] = new Dictionary<string, object>
                 {
@@ -4459,6 +4492,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                     ["propertyCount"] = existingPropertyCount,
                     ["nodeCount"] = existingNodeCount,
                     ["connectionCount"] = existingConnectionCount,
+                    ["subGraphOutputNodeCount"] = existingSubGraphOutputNodeCount,
+                    ["userAuthoredNodeCount"] = existingUserNodeCount,
                 };
                 return ShaderGraphResponse.Fail(
                     $"import_graph_contract currently requires a blank or near-blank target graph. '{assetPath}' already contains user-authored categories, properties, nodes, or connections.",
@@ -4610,6 +4645,9 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             var nodeIdMap = new Dictionary<string, string>(StringComparer.Ordinal);
+            object existingSubGraphOutputNode = targetIsSubGraph
+                ? ResolveExistingSubGraphOutputNode(graphData)
+                : null;
             foreach (ImportedGraphContractNode importedNode in contract.nodes ?? Array.Empty<ImportedGraphContractNode>())
             {
                 if (importedNode == null)
@@ -4624,6 +4662,29 @@ namespace ShaderGraphMcp.Editor.Adapters
                         "Imported graph contract contained a node without objectId/nodeId.",
                         initialData
                     );
+                }
+
+                if (targetIsSubGraph && IsSubGraphOutputNodeType(importedNode.nodeType))
+                {
+                    if (existingSubGraphOutputNode == null)
+                    {
+                        return ShaderGraphResponse.Fail(
+                            $"Imported sub graph contract expected a built-in SubGraphOutputNode, but '{assetPath}' did not expose one.",
+                            initialData
+                        );
+                    }
+
+                    string existingOutputNodeId = GetStringProperty(existingSubGraphOutputNode, "objectId");
+                    if (string.IsNullOrWhiteSpace(existingOutputNodeId))
+                    {
+                        return ShaderGraphResponse.Fail(
+                            $"Imported sub graph contract could not resolve a stable objectId for the built-in SubGraphOutputNode in '{assetPath}'.",
+                            initialData
+                        );
+                    }
+
+                    nodeIdMap[sourceNodeId] = existingOutputNodeId;
+                    continue;
                 }
 
                 ShaderGraphResponse addNodeResponse = AddNode(
@@ -4690,25 +4751,26 @@ namespace ShaderGraphMcp.Editor.Adapters
                 }
             }
 
-            ShaderGraphResponse summaryResponse = ReadGraphSummary(
-                new ReadGraphSummaryRequest(assetPath),
-                compatibility,
-                executionKind);
+            ShaderGraphResponse summaryResponse = targetIsSubGraph
+                ? ReadSubGraphSummary(
+                    new ReadSubGraphSummaryRequest(assetPath),
+                    compatibility,
+                    executionKind)
+                : ReadGraphSummary(
+                    new ReadGraphSummaryRequest(assetPath),
+                    compatibility,
+                    executionKind);
             if (!summaryResponse.Success)
             {
-                return AppendImportStepFailure(summaryResponse, "read_graph_summary");
+                return AppendImportStepFailure(summaryResponse, targetIsSubGraph ? "read_subgraph_summary" : "read_graph_summary");
             }
 
             var data = new Dictionary<string, object>(summaryResponse.Data ?? new Dictionary<string, object>())
             {
                 ["operation"] = "import_graph_contract",
                 ["contractVersion"] = contract.contractVersion ?? "unity-shader-graph-mcp/export-graph-contract-v1",
-                ["importGraphContractSemantics"] = new[]
-                {
-                    "import_graph_contract replays an exportedGraphContract payload into the target graph asset.",
-                    "Package-backed import currently requires a blank or near-blank target graph.",
-                    "Node objectIds and categoryGuids are regenerated during import.",
-                },
+                ["isSubGraph"] = targetIsSubGraph,
+                ["importGraphContractSemantics"] = importSemantics,
                 ["importedCounts"] = new Dictionary<string, object>
                 {
                     ["categoryCount"] = contract.categories?.Length ?? 0,
@@ -4734,7 +4796,9 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             return ShaderGraphResponse.Ok(
-                $"Imported Shader Graph contract into '{assetPath}'.",
+                targetIsSubGraph
+                    ? $"Imported Shader Sub Graph contract into '{assetPath}'."
+                    : $"Imported Shader Graph contract into '{assetPath}'.",
                 data
             );
         }
@@ -15596,6 +15660,65 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             return false;
+        }
+
+        private static bool IsImportedSubGraphContract(ImportedGraphContract contract)
+        {
+            if (contract == null)
+            {
+                return false;
+            }
+
+            if (contract.isSubGraph)
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(contract.assetPath) &&
+                contract.assetPath.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            foreach (ImportedGraphContractNode node in contract.nodes ?? Array.Empty<ImportedGraphContractNode>())
+            {
+                if (node != null && IsSubGraphOutputNodeType(node.nodeType))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsSubGraphOutputNodeType(string nodeTypeName)
+        {
+            if (string.IsNullOrWhiteSpace(nodeTypeName))
+            {
+                return false;
+            }
+
+            string normalized = nodeTypeName.Trim();
+            return string.Equals(normalized, SubGraphOutputNodeTypeName, StringComparison.Ordinal) ||
+                   string.Equals(normalized, "SubGraphOutputNode", StringComparison.Ordinal) ||
+                   string.Equals(normalized, "SubGraphOutput", StringComparison.Ordinal);
+        }
+
+        private static bool IsSubGraphOutputNode(object node)
+        {
+            return node != null && IsSubGraphOutputNodeType(GetTypeName(node));
+        }
+
+        private static object ResolveExistingSubGraphOutputNode(object graphData)
+        {
+            object outputNode = GetMemberValue(graphData, "outputNode");
+            if (IsSubGraphOutputNode(outputNode))
+            {
+                return outputNode;
+            }
+
+            return EnumerateMember(graphData, "nodes")
+                .FirstOrDefault(IsSubGraphOutputNode);
         }
 
         private static int GetIntProperty(object target, string memberName)

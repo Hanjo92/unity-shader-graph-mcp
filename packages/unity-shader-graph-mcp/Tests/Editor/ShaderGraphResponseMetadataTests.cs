@@ -2148,6 +2148,71 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedExportSubGraphContractEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Exported package-backed Shader Sub Graph contract from 'Assets/ShaderSubGraphs/Example.shadersubgraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "export_graph_contract",
+                    ["assetPath"] = "Assets/ShaderSubGraphs/Example.shadersubgraph",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                    ["isSubGraph"] = true,
+                    ["exportedGraphContract"] = new Dictionary<string, object>
+                    {
+                        ["assetPath"] = "Assets/ShaderSubGraphs/Example.shadersubgraph",
+                        ["isSubGraph"] = true,
+                        ["nodeCount"] = 2,
+                        ["connectionCount"] = 1,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("export_graph_contract"));
+            Assert.That(response.Data["isSubGraph"], Is.EqualTo(true));
+
+            var exportedGraphContract = (IReadOnlyDictionary<string, object>)response.Data["exportedGraphContract"];
+            Assert.That(exportedGraphContract["isSubGraph"], Is.EqualTo(true));
+            Assert.That(exportedGraphContract["nodeCount"], Is.EqualTo(2));
+            Assert.That(exportedGraphContract["connectionCount"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedImportSubGraphContractEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Imported Shader Sub Graph contract into 'Assets/ShaderSubGraphs/Imported.shadersubgraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "import_graph_contract",
+                    ["assetPath"] = "Assets/ShaderSubGraphs/Imported.shadersubgraph",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                    ["isSubGraph"] = true,
+                    ["importedCounts"] = new Dictionary<string, object>
+                    {
+                        ["categoryCount"] = 0,
+                        ["propertyCount"] = 0,
+                        ["nodeCount"] = 2,
+                        ["connectionCount"] = 1,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("import_graph_contract"));
+            Assert.That(response.Data["isSubGraph"], Is.EqualTo(true));
+
+            var importedCounts = (IReadOnlyDictionary<string, object>)response.Data["importedCounts"];
+            Assert.That(importedCounts["categoryCount"], Is.EqualTo(0));
+            Assert.That(importedCounts["propertyCount"], Is.EqualTo(0));
+            Assert.That(importedCounts["nodeCount"], Is.EqualTo(2));
+            Assert.That(importedCounts["connectionCount"], Is.EqualTo(1));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedReadSubGraphSummaryEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

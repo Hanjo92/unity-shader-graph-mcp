@@ -504,6 +504,92 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankSubGraph_ExportGraphContract_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphExportGraphContract", out _);
+
+            ShaderGraphResponse addVector4Response = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector4", "Sub Graph Contract Source");
+            ShaderGraphTestAssets.RequirePackageReady(addVector4Response);
+            string vector4NodeId = ShaderGraphTestAssets.GetAddedNodeId(addVector4Response);
+
+            ShaderGraphResponse findOutputNodeResponse = ShaderGraphAssetTool.HandleFindNode(assetPath, null, null, "SubGraphOutput");
+            ShaderGraphTestAssets.RequirePackageReady(findOutputNodeResponse);
+            string outputNodeId = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(findOutputNodeResponse.Data, "foundNode"),
+                "objectId");
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                vector4NodeId,
+                "Out",
+                outputNodeId,
+                "Out");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            ShaderGraphResponse exportResponse = ShaderGraphAssetTool.HandleExportGraphContract(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(exportResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(exportResponse.Data, "operation"), Is.EqualTo("export_graph_contract"));
+            Assert.That(exportResponse.Data["isSubGraph"], Is.EqualTo(true));
+
+            var exportedGraphContract = ShaderGraphTestAssets.RequireDictionary(exportResponse.Data, "exportedGraphContract");
+            Assert.That(exportedGraphContract["isSubGraph"], Is.EqualTo(true));
+            Assert.That(ShaderGraphTestAssets.GetInt(exportedGraphContract, "propertyCount"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetInt(exportedGraphContract, "nodeCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(exportedGraphContract, "connectionCount"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BlankSubGraph_ImportGraphContract_StaysPackageBacked()
+        {
+            string sourceAssetPath = CreateBlankSubGraph("BlankSubGraphImportGraphContractSource", out _);
+
+            ShaderGraphResponse addVector4Response = ShaderGraphAssetTool.HandleAddNode(sourceAssetPath, "Vector4", "Imported Sub Graph Source");
+            ShaderGraphTestAssets.RequirePackageReady(addVector4Response);
+            string vector4NodeId = ShaderGraphTestAssets.GetAddedNodeId(addVector4Response);
+
+            ShaderGraphResponse findOutputNodeResponse = ShaderGraphAssetTool.HandleFindNode(sourceAssetPath, null, null, "SubGraphOutput");
+            ShaderGraphTestAssets.RequirePackageReady(findOutputNodeResponse);
+            string outputNodeId = ShaderGraphTestAssets.GetString(
+                ShaderGraphTestAssets.RequireDictionary(findOutputNodeResponse.Data, "foundNode"),
+                "objectId");
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                sourceAssetPath,
+                vector4NodeId,
+                "Out",
+                outputNodeId,
+                "Out");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            ShaderGraphResponse exportResponse = ShaderGraphAssetTool.HandleExportGraphContract(sourceAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(exportResponse);
+            IReadOnlyDictionary<string, object> exportedGraphContract = ShaderGraphTestAssets.RequireDictionary(exportResponse.Data, "exportedGraphContract");
+
+            string targetAssetPath = CreateBlankSubGraph("BlankSubGraphImportGraphContractTarget", out _);
+            ShaderGraphResponse importResponse = ShaderGraphAssetTool.HandleImportGraphContract(
+                targetAssetPath,
+                ShaderGraphTestAssets.SerializeToJson(exportedGraphContract));
+            ShaderGraphTestAssets.RequirePackageReady(importResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(importResponse.Data, "operation"), Is.EqualTo("import_graph_contract"));
+            Assert.That(importResponse.Data["isSubGraph"], Is.EqualTo(true));
+
+            var importedCounts = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedCounts");
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "categoryCount"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "propertyCount"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "nodeCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "connectionCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(targetAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(summaryResponse.Data["isSubGraph"], Is.EqualTo(true));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+        }
+
+        [Test]
         public void BlankGraph_SetGraphMetadata_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphSetGraphMetadata", out _);

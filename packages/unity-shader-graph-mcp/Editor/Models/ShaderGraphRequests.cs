@@ -1122,6 +1122,7 @@ namespace ShaderGraphMcp.Editor.Models
         public string template;
         public string graphPathLabel;
         public string graphDefaultPrecision;
+        public bool isSubGraph;
         public ImportedGraphContractCategory[] categories = Array.Empty<ImportedGraphContractCategory>();
         public ImportedGraphContractProperty[] properties = Array.Empty<ImportedGraphContractProperty>();
         public ImportedGraphContractNode[] nodes = Array.Empty<ImportedGraphContractNode>();

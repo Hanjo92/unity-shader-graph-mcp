@@ -2479,6 +2479,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 null
             );
             data["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1";
+            data["isSubGraph"] = manifest.isSubGraph;
             data["exportGraphContractSemantics"] = new[]
             {
                 "exportedGraphContract is read-only structured output for external tooling.",
@@ -2672,6 +2673,9 @@ namespace ShaderGraphMcp.Editor.Helpers
             manifest.template = string.IsNullOrWhiteSpace(contract.template)
                 ? (string.IsNullOrWhiteSpace(manifest.template) ? "blank" : manifest.template)
                 : contract.template.Trim();
+            manifest.isSubGraph = contract.isSubGraph ||
+                                  manifest.isSubGraph ||
+                                  assetPath.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase);
             manifest.graphPathLabel = string.IsNullOrWhiteSpace(contract.graphPathLabel)
                 ? manifest.graphPathLabel
                 : contract.graphPathLabel.Trim();
@@ -2721,6 +2725,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 null
             );
             data["contractVersion"] = contract.contractVersion ?? "unity-shader-graph-mcp/export-graph-contract-v1";
+            data["isSubGraph"] = manifest.isSubGraph;
             data["importGraphContractSemantics"] = new[]
             {
                 "import_graph_contract replays an exportedGraphContract payload into the target graph asset.",
@@ -5123,6 +5128,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ["template"] = manifest.template ?? string.Empty,
                 ["graphPathLabel"] = manifest.graphPathLabel ?? string.Empty,
                 ["graphDefaultPrecision"] = manifest.graphDefaultPrecision ?? string.Empty,
+                ["isSubGraph"] = manifest.isSubGraph,
                 ["categoryCount"] = manifest.categories.Count,
                 ["propertyCount"] = manifest.properties.Count,
                 ["nodeCount"] = manifest.nodes.Count,
