@@ -459,6 +459,51 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankSubGraph_Vector4ToOutput_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphVector4ToOutput", out _);
+
+            ShaderGraphResponse addVector4Response = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector4", "Sub Graph Vector4");
+            ShaderGraphTestAssets.RequirePackageReady(addVector4Response);
+
+            string vector4NodeId = ShaderGraphTestAssets.GetAddedNodeId(addVector4Response);
+            Assert.That(vector4NodeId, Is.Not.Empty);
+
+            ShaderGraphResponse findOutputNodeResponse = ShaderGraphAssetTool.HandleFindNode(
+                assetPath,
+                null,
+                null,
+                "SubGraphOutput");
+            ShaderGraphTestAssets.RequirePackageReady(findOutputNodeResponse);
+
+            var foundOutputNode = ShaderGraphTestAssets.RequireDictionary(findOutputNodeResponse.Data, "foundNode");
+            string outputNodeId = ShaderGraphTestAssets.GetString(foundOutputNode, "objectId");
+            Assert.That(outputNodeId, Is.Not.Empty);
+            Assert.That(ShaderGraphTestAssets.GetString(foundOutputNode, "nodeType"), Is.EqualTo("SubGraphOutput"));
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                vector4NodeId,
+                "Out",
+                outputNodeId,
+                "Out");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(connectResponse.Data, "operation"), Is.EqualTo("connect_ports"));
+            var resolvedConnection = ShaderGraphTestAssets.RequireDictionary(connectResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedConnection, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.Vector4Node"));
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedConnection, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SubGraphOutputNode"));
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedConnection, "inputPort"), Is.EqualTo("Out"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+
+            Assert.That(summaryResponse.Data["isSubGraph"], Is.EqualTo(true));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.GreaterThanOrEqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+        }
+
+        [Test]
         public void BlankGraph_SetGraphMetadata_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphSetGraphMetadata", out _);

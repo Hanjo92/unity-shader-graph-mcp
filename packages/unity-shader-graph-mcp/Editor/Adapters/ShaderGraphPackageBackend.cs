@@ -10331,6 +10331,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             "Node ids must be exact GraphData objectId values reported by add_node or read_graph_summary.",
             "This first path only supports Vector1Node output slot 0 / Out into a different Vector1Node input slot 1 / X.",
             "ColorNode output slot 0 / Out is supported only when the input node is SplitNode input slot 0 / In.",
+            "Vector4Node output slot 0 / Out is supported when the input node is SubGraphOutputNode input slot 0 / Out.",
             "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",
             "Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In.",
@@ -12118,6 +12119,17 @@ namespace ShaderGraphMcp.Editor.Adapters
                     return false;
                 }
 
+                if (string.Equals(nodeTypeName, SubGraphOutputNodeTypeName, StringComparison.Ordinal))
+                {
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "SubGraphOutputNode only exposes input ports in the current release matrix."
+                    );
+                    return false;
+                }
+
                 if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal))
                 {
                     if (IsPortAlias(normalizedPort, "3", "Out"))
@@ -12219,7 +12231,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                     "UnityEditor.ShaderGraph.SaturateNode",
                     "UnityEditor.ShaderGraph.OneMinusNode",
                     "UnityEditor.ShaderGraph.ComparisonNode",
-                    "UnityEditor.ShaderGraph.BranchNode"
+                    "UnityEditor.ShaderGraph.BranchNode",
+                    SubGraphOutputNodeTypeName
                 );
                 return false;
             }
@@ -12477,6 +12490,22 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
+            if (string.Equals(nodeTypeName, SubGraphOutputNodeTypeName, StringComparison.Ordinal))
+            {
+                if (TryResolveSubGraphOutputInputPort(node, normalizedPort, out slotId, out canonicalPort))
+                {
+                    return true;
+                }
+
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    "Supported input ports are resolved from the current SubGraphOutputNode slot list; use the canonical aliases reported by read_subgraph_summary or the default Out slot."
+                );
+                return false;
+            }
+
             if (TryResolveArithmeticConnectionPort(
                     nodeTypeName,
                     normalizedPort,
@@ -12559,7 +12588,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                 "UnityEditor.ShaderGraph.SaturateNode",
                 "UnityEditor.ShaderGraph.OneMinusNode",
                 "UnityEditor.ShaderGraph.ComparisonNode",
-                "UnityEditor.ShaderGraph.BranchNode"
+                "UnityEditor.ShaderGraph.BranchNode",
+                SubGraphOutputNodeTypeName
             );
             return false;
         }
@@ -13037,6 +13067,14 @@ namespace ShaderGraphMcp.Editor.Adapters
                 (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "B", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "T", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector4Node", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, SubGraphOutputNodeTypeName, StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "Out", StringComparison.Ordinal))
             {
                 return true;
             }
@@ -13877,6 +13915,227 @@ namespace ShaderGraphMcp.Editor.Adapters
                    string.Equals(requestedPort, displayPort, StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(normalizedRequestedPort, displayPort, StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(normalizedRequestedPort, normalizedDisplayPort, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryResolveSubGraphOutputInputPort(
+            object node,
+            string requestedPort,
+            out int slotId,
+            out string canonicalPort)
+        {
+            slotId = -1;
+            canonicalPort = string.Empty;
+
+            IReadOnlyList<object> slots = EnumerateNodeSlots(node);
+            if (slots.Count == 0)
+            {
+                return false;
+            }
+
+            object[] candidateSlots = slots
+                .Where(slot => IsInputMaterialSlot(slot))
+                .OrderBy(slot => GetIntProperty(slot, "id"))
+                .ToArray();
+
+            if (candidateSlots.Length == 0)
+            {
+                candidateSlots = slots
+                    .OrderBy(slot => GetIntProperty(slot, "id"))
+                    .ToArray();
+            }
+
+            foreach (object slot in candidateSlots)
+            {
+                int candidateSlotId = GetIntProperty(slot, "id");
+                string candidatePortName = GetStringProperty(slot, "displayName", "name");
+                if (candidateSlotId < 0)
+                {
+                    continue;
+                }
+
+                if (IsPortAlias(requestedPort, candidateSlotId.ToString(CultureInfo.InvariantCulture), candidatePortName))
+                {
+                    slotId = candidateSlotId;
+                    canonicalPort = NormalizeSubGraphOutputPortAlias(candidatePortName, candidateSlotId);
+                    return true;
+                }
+            }
+
+            if (candidateSlots.Length == 1 && IsPortAlias(requestedPort, "0", "Out"))
+            {
+                int candidateSlotId = GetIntProperty(candidateSlots[0], "id");
+                if (candidateSlotId >= 0)
+                {
+                    string candidatePortName = GetStringProperty(candidateSlots[0], "displayName", "name");
+                    slotId = candidateSlotId;
+                    canonicalPort = NormalizeSubGraphOutputPortAlias(candidatePortName, candidateSlotId);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string NormalizeSubGraphOutputPortAlias(string candidatePortName, int slotId)
+        {
+            string normalized = NormalizePortAliasText(candidatePortName);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return slotId >= 0 ? $"slot-{slotId}" : "Out";
+            }
+
+            if (normalized.StartsWith("Out", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Out";
+            }
+
+            return normalized;
+        }
+
+        private static IReadOnlyList<object> EnumerateNodeSlots(object node)
+        {
+            if (node == null)
+            {
+                return Array.Empty<object>();
+            }
+
+            object slots = GetMemberValue(node, "m_Slots") ?? GetMemberValue(node, "slots");
+            if (slots is IDictionary dictionary)
+            {
+                var values = new List<object>();
+                foreach (DictionaryEntry entry in dictionary)
+                {
+                    if (entry.Value != null)
+                    {
+                        values.Add(entry.Value);
+                    }
+                }
+
+                return values;
+            }
+
+            if (slots is IEnumerable enumerable)
+            {
+                return enumerable.Cast<object>().Where(item => item != null).ToArray();
+            }
+
+            if (TryInvokeNodeSlotFallback(node, out IReadOnlyList<object> fallbackSlots))
+            {
+                return fallbackSlots;
+            }
+
+            return Array.Empty<object>();
+        }
+
+        private static bool TryInvokeNodeSlotFallback(object node, out IReadOnlyList<object> slots)
+        {
+            slots = Array.Empty<object>();
+            if (node == null)
+            {
+                return false;
+            }
+
+            Type materialSlotType = ResolveType("UnityEditor.ShaderGraph.MaterialSlot");
+            if (materialSlotType == null)
+            {
+                return false;
+            }
+
+            return TryInvokeNodeSlotCollector(node, "GetInputSlots", materialSlotType, out slots) ||
+                   TryInvokeNodeSlotCollector(node, "GetSlots", materialSlotType, out slots) ||
+                   TryInvokeNodeSlotCollector(node, "GetOutputSlots", materialSlotType, out slots);
+        }
+
+        private static bool TryInvokeNodeSlotCollector(
+            object node,
+            string methodName,
+            Type slotType,
+            out IReadOnlyList<object> slots)
+        {
+            slots = Array.Empty<object>();
+            if (node == null || slotType == null || string.IsNullOrWhiteSpace(methodName))
+            {
+                return false;
+            }
+
+            MethodInfo method = node.GetType()
+                .GetMethods(InstanceFlags)
+                .FirstOrDefault(candidate =>
+                    string.Equals(candidate.Name, methodName, StringComparison.Ordinal) &&
+                    candidate.GetParameters().Length == 1);
+            if (method == null)
+            {
+                return false;
+            }
+
+            Type listType = typeof(List<>).MakeGenericType(slotType);
+            object listInstance;
+            try
+            {
+                listInstance = Activator.CreateInstance(listType);
+            }
+            catch
+            {
+                return false;
+            }
+
+            try
+            {
+                if (method.IsGenericMethodDefinition)
+                {
+                    method = method.MakeGenericMethod(slotType);
+                }
+
+                method.Invoke(node, new[] { listInstance });
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (listInstance is IEnumerable enumerable)
+            {
+                object[] items = enumerable.Cast<object>().Where(item => item != null).ToArray();
+                if (items.Length > 0)
+                {
+                    slots = items;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsInputMaterialSlot(object slot)
+        {
+            if (slot == null)
+            {
+                return false;
+            }
+
+            object slotType = GetMemberValue(slot, "slotType") ?? GetMemberValue(slot, "m_SlotType");
+            string slotTypeText = slotType?.ToString() ?? string.Empty;
+            if (slotTypeText.IndexOf("Input", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            if (slotTypeText.IndexOf("Output", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return false;
+            }
+
+            if (GetBoolProperty(slot, "isInputSlot"))
+            {
+                return true;
+            }
+
+            if (GetBoolProperty(slot, "isOutputSlot"))
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private static string NormalizePortAliasText(string port)

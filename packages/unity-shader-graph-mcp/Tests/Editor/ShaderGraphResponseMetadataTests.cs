@@ -12,6 +12,7 @@ namespace ShaderGraphMcp.Editor.Tests
             "Node ids must be exact GraphData objectId values reported by add_node or read_graph_summary.",
             "This first path only supports Vector1Node output slot 0 / Out into a different Vector1Node input slot 1 / X.",
             "ColorNode output slot 0 / Out is supported only when the input node is SplitNode input slot 0 / In.",
+            "Vector4Node output slot 0 / Out is supported when the input node is SubGraphOutputNode input slot 0 / Out.",
             "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",
             "Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In.",
