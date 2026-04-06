@@ -241,6 +241,27 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsMoveSubGraphRequest_FromAliasFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""move_subgraph"",
+                ""assetPath"": ""Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"",
+                ""targetPath"": ""Assets/ShaderSubGraphs/Moved""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var moveSubGraphRequest = request as MoveSubGraphRequest;
+            Assert.That(moveSubGraphRequest, Is.Not.Null);
+            Assert.That(moveSubGraphRequest.AssetPath, Is.EqualTo("Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"));
+            Assert.That(moveSubGraphRequest.TargetAssetPath, Is.EqualTo("Assets/ShaderSubGraphs/Moved/ExampleSubGraph.shadersubgraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsSetGraphMetadataRequest_FromAliasFields()
         {
             string json = @"{

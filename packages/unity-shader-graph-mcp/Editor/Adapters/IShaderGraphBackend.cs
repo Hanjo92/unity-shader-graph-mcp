@@ -14,6 +14,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         ShaderGraphResponse DeleteGraph(DeleteGraphRequest request);
         ShaderGraphResponse DeleteSubGraph(DeleteSubGraphRequest request);
         ShaderGraphResponse MoveGraph(MoveGraphRequest request);
+        ShaderGraphResponse MoveSubGraph(MoveSubGraphRequest request);
         ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request);
         ShaderGraphResponse CreateCategory(CreateCategoryRequest request);
         ShaderGraphResponse RenameCategory(RenameCategoryRequest request);

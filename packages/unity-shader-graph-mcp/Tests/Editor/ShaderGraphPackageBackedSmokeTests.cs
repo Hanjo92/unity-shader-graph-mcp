@@ -428,6 +428,37 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankSubGraph_MoveSubGraph_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphMoveSubGraph", out _);
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            string movedAssetPath = Path.Combine(
+                temporaryFolder.AssetPath,
+                "MovedSubGraphs",
+                Path.GetFileName(assetPath)).Replace('\\', '/');
+
+            ShaderGraphResponse moveResponse = ShaderGraphAssetTool.HandleMoveSubGraph(assetPath, movedAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(moveResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(moveResponse.Data, "operation"), Is.EqualTo("move_subgraph"));
+            Assert.That(ShaderGraphTestAssets.GetString(moveResponse.Data, "previousAssetPath"), Is.EqualTo(assetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(moveResponse.Data, "assetPath"), Is.EqualTo(movedAssetPath));
+            Assert.That(moveResponse.Data["isSubGraph"], Is.EqualTo(true));
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath), Is.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(movedAssetPath), Is.Not.Null);
+
+            var movedSubGraph = ShaderGraphTestAssets.RequireDictionary(moveResponse.Data, "movedSubGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(movedSubGraph, "assetPath"), Is.EqualTo(movedAssetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(movedSubGraph, "assetName"), Is.EqualTo(previousAssetName));
+            Assert.That(ShaderGraphTestAssets.GetString(movedSubGraph, "previousAssetName"), Is.EqualTo(previousAssetName));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(movedAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(summaryResponse.Data["isSubGraph"], Is.EqualTo(true));
+            Assert.That(ShaderGraphTestAssets.GetString(summaryResponse.Data, "assetPath"), Is.EqualTo(movedAssetPath));
+        }
+
+        [Test]
         public void BlankGraph_SetGraphMetadata_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphSetGraphMetadata", out _);

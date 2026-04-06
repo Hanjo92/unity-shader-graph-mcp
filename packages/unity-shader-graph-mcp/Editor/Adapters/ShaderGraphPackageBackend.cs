@@ -105,6 +105,15 @@ namespace ShaderGraphMcp.Editor.Adapters
             );
         }
 
+        public ShaderGraphResponse MoveSubGraph(MoveSubGraphRequest request)
+        {
+            return ShaderGraphPackageGraphInspector.MoveSubGraph(
+                request,
+                compatibility,
+                ExecutionKind
+            );
+        }
+
         public ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request)
         {
             return ShaderGraphPackageGraphInspector.SetGraphMetadata(
@@ -1672,6 +1681,152 @@ namespace ShaderGraphMcp.Editor.Adapters
             string message = string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase)
                 ? $"Shader Graph already exists at '{movedAssetPath}'."
                 : $"Moved Shader Graph '{previousAssetName}' to '{movedAssetPath}'.";
+            return ShaderGraphResponse.Ok(message, data);
+        }
+
+        public static ShaderGraphResponse MoveSubGraph(
+            MoveSubGraphRequest request,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind)
+        {
+            if (request == null)
+            {
+                return ShaderGraphResponse.Fail("Move sub graph request is required.");
+            }
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return ShaderGraphResponse.Fail("A valid Shader Sub Graph asset path is required.");
+            }
+
+            string movedAssetPath = NormalizeAssetPath(request.TargetAssetPath);
+            if (string.IsNullOrWhiteSpace(movedAssetPath))
+            {
+                return ShaderGraphResponse.Fail("Move sub graph could not resolve the target asset path.");
+            }
+
+            string absolutePath = ToAbsolutePath(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset not found at '{assetPath}'.",
+                    BuildUnsupportedMoveSubGraphData(
+                        assetPath,
+                        movedAssetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>())
+                );
+            }
+
+            string absoluteMovedPath = ToAbsolutePath(movedAssetPath);
+            if (!string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(absoluteMovedPath))
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Shader Sub Graph asset already exists at '{movedAssetPath}'.",
+                    BuildUnsupportedMoveSubGraphData(
+                        assetPath,
+                        movedAssetPath,
+                        compatibility,
+                        executionKind,
+                        Array.Empty<string>())
+                );
+            }
+
+            string previousAssetName = Path.GetFileNameWithoutExtension(assetPath);
+            var moveNotes = new List<string>();
+
+            if (!string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    string directory = Path.GetDirectoryName(absoluteMovedPath);
+                    if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                        moveNotes.Add("Created parent folder for the moved sub graph asset.");
+                    }
+
+                    string moveError = AssetDatabase.MoveAsset(assetPath, movedAssetPath);
+                    if (!string.IsNullOrWhiteSpace(moveError))
+                    {
+                        return ShaderGraphResponse.Fail(
+                            $"Unable to move Shader Sub Graph '{assetPath}' to '{movedAssetPath}': {moveError}",
+                            BuildUnsupportedMoveSubGraphData(
+                                assetPath,
+                                movedAssetPath,
+                                compatibility,
+                                executionKind,
+                                moveNotes)
+                        );
+                    }
+
+                    moveNotes.Add("AssetDatabase.MoveAsset(...) invoked successfully.");
+
+                    AssetDatabase.SaveAssets();
+                    moveNotes.Add("AssetDatabase.SaveAssets() invoked successfully.");
+
+                    AssetDatabase.ImportAsset(
+                        movedAssetPath,
+                        ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
+                    );
+                    moveNotes.Add("AssetDatabase.ImportAsset(..., ForceSynchronousImport | ForceUpdate) invoked successfully.");
+
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    moveNotes.Add("AssetDatabase.Refresh(ForceSynchronousImport) invoked successfully.");
+                }
+                catch (Exception exception)
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Moved Shader Sub Graph asset to '{movedAssetPath}' but failed to refresh it: {exception.Message}",
+                        BuildUnsupportedMoveSubGraphData(
+                            assetPath,
+                            movedAssetPath,
+                            compatibility,
+                            executionKind,
+                            moveNotes)
+                    );
+                }
+            }
+            else
+            {
+                moveNotes.Add("Requested target asset path already matches the current asset path.");
+            }
+
+            ShaderGraphResponse summaryResponse = ReadSubGraphSummary(
+                new ReadSubGraphSummaryRequest(movedAssetPath),
+                compatibility,
+                executionKind
+            );
+
+            var data = summaryResponse.Data == null
+                ? new Dictionary<string, object>()
+                : new Dictionary<string, object>(summaryResponse.Data);
+            data["operation"] = "move_subgraph";
+            data["previousAssetPath"] = assetPath;
+            data["isSubGraph"] = true;
+            data["movedSubGraph"] = BuildMovedGraphData(assetPath, movedAssetPath);
+            data["moveSubGraphSemantics"] = new[]
+            {
+                "move_subgraph moves the current .shadersubgraph asset to the exact target asset path, including folder changes.",
+                "The response assetPath always points at the moved asset path.",
+                "Package-backed sub graph move is followed by synchronous import and refresh before the summary is rebuilt.",
+            };
+
+            if (!summaryResponse.Success)
+            {
+                return ShaderGraphResponse.Fail(
+                    $"Moved Shader Sub Graph asset to '{movedAssetPath}' but could not read the updated sub graph summary: {summaryResponse.Message}",
+                    data
+                );
+            }
+
+            string message = string.Equals(assetPath, movedAssetPath, StringComparison.OrdinalIgnoreCase)
+                ? $"Shader Sub Graph already exists at '{movedAssetPath}'."
+                : $"Moved Shader Sub Graph '{previousAssetName}' to '{movedAssetPath}'.";
             return ShaderGraphResponse.Ok(message, data);
         }
 
@@ -10545,6 +10700,33 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["moveGraphSemantics"] = new[]
                 {
                     "move_graph moves the current .shadergraph asset to the exact target asset path, including folder changes.",
+                    "The response assetPath always points at the moved asset path.",
+                },
+                ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
+            };
+
+            return data;
+        }
+
+        private static Dictionary<string, object> BuildUnsupportedMoveSubGraphData(
+            string previousAssetPath,
+            string assetPath,
+            ShaderGraphCompatibilitySnapshot compatibility,
+            ShaderGraphExecutionKind executionKind,
+            IReadOnlyList<string> loadNotes)
+        {
+            var data = new Dictionary<string, object>
+            {
+                ["action"] = "move_subgraph",
+                ["assetPath"] = assetPath,
+                ["previousAssetPath"] = previousAssetPath,
+                ["executionBackendKind"] = executionKind.ToString(),
+                ["backendKind"] = compatibility.BackendKind.ToString(),
+                ["packageDetected"] = compatibility.HasShaderGraphPackage,
+                ["compatibility"] = compatibility.ToDictionary(),
+                ["moveSubGraphSemantics"] = new[]
+                {
+                    "move_subgraph moves the current .shadersubgraph asset to the exact target asset path, including folder changes.",
                     "The response assetPath always points at the moved asset path.",
                 },
                 ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),

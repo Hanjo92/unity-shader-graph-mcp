@@ -33,6 +33,7 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
                 "delete_graph",
                 "delete_subgraph",
                 "move_graph",
+                "move_subgraph",
                 "set_graph_metadata",
                 "create_category",
                 "rename_category",
@@ -267,6 +268,22 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(
             request.payload["targetAssetPath"],
             "Assets/ShaderGraphs/Moved/ExampleLitGraph.shadergraph",
+        )
+
+    def test_request_normalization_accepts_move_subgraph_with_target_asset_path(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "move_subgraph",
+                "assetPath": "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph",
+                "targetPath": "Assets/ShaderSubGraphs/Moved",
+            }
+        )
+
+        self.assertEqual(request.action, "move_subgraph")
+        self.assertEqual(request.path, "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph")
+        self.assertEqual(
+            request.payload["targetAssetPath"],
+            "Assets/ShaderSubGraphs/Moved/ExampleSubGraph.shadersubgraph",
         )
 
     def test_request_normalization_accepts_set_graph_metadata_with_alias_fields(self) -> None:

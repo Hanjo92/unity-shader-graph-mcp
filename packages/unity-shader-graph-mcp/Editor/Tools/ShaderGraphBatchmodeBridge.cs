@@ -233,6 +233,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return TryCreateDeleteSubGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.MoveGraph:
                     return TryCreateMoveGraphRequest(payload, out request, out errorMessage);
+                case ShaderGraphAction.MoveSubGraph:
+                    return TryCreateMoveSubGraphRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.SetGraphMetadata:
                     return TryCreateSetGraphMetadataRequest(payload, out request, out errorMessage);
                 case ShaderGraphAction.CreateCategory:
@@ -576,6 +578,29 @@ namespace ShaderGraphMcp.Editor.Tools
             }
 
             request = new MoveGraphRequest(assetPath, targetAssetPath);
+            errorMessage = null;
+            return true;
+        }
+
+        private static bool TryCreateMoveSubGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
+        {
+            string assetPath = ResolveAssetPath(payload);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                request = null;
+                errorMessage = "Move sub graph requires an asset path.";
+                return false;
+            }
+
+            string targetAssetPath = ResolveMoveSubGraphTargetAssetPath(payload, assetPath);
+            if (string.IsNullOrWhiteSpace(targetAssetPath))
+            {
+                request = null;
+                errorMessage = "Move sub graph requires targetAssetPath/targetPath/newAssetPath/newPath/destinationPath.";
+                return false;
+            }
+
+            request = new MoveSubGraphRequest(assetPath, targetAssetPath);
             errorMessage = null;
             return true;
         }
@@ -1520,6 +1545,8 @@ namespace ShaderGraphMcp.Editor.Tools
                     return ShaderGraphAction.DeleteSubGraph;
                 case "move_graph":
                     return ShaderGraphAction.MoveGraph;
+                case "move_subgraph":
+                    return ShaderGraphAction.MoveSubGraph;
                 case "set_graph_metadata":
                     return ShaderGraphAction.SetGraphMetadata;
                 case "create_category":
@@ -1617,6 +1644,34 @@ namespace ShaderGraphMcp.Editor.Tools
 
             string normalizedTargetPath = rawTargetPath.Trim().Replace('\\', '/');
             if (LooksLikeShaderGraphAssetPath(normalizedTargetPath))
+            {
+                return normalizedTargetPath;
+            }
+
+            string sourceFileName = Path.GetFileName((assetPath ?? string.Empty).Trim().Replace('\\', '/'));
+            if (string.IsNullOrWhiteSpace(sourceFileName))
+            {
+                return normalizedTargetPath;
+            }
+
+            return Path.Combine(normalizedTargetPath.TrimEnd('/'), sourceFileName).Replace('\\', '/');
+        }
+
+        private static string ResolveMoveSubGraphTargetAssetPath(ShaderGraphBatchmodeRequestPayload payload, string assetPath)
+        {
+            string rawTargetPath = FirstNonBlank(
+                payload.targetAssetPath,
+                payload.newAssetPath,
+                payload.targetPath,
+                payload.newPath,
+                payload.destinationPath);
+            if (string.IsNullOrWhiteSpace(rawTargetPath))
+            {
+                return null;
+            }
+
+            string normalizedTargetPath = rawTargetPath.Trim().Replace('\\', '/');
+            if (normalizedTargetPath.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase))
             {
                 return normalizedTargetPath;
             }

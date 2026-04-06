@@ -1899,6 +1899,74 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPackageBackedMoveSubGraphEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Moved Shader Sub Graph 'BlankSubGraph' to 'Assets/ShaderSubGraphs/Moved/BlankSubGraph.shadersubgraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "move_subgraph",
+                    ["assetPath"] = "Assets/ShaderSubGraphs/Moved/BlankSubGraph.shadersubgraph",
+                    ["previousAssetPath"] = "Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph",
+                    ["manifestPath"] = string.Empty,
+                    ["absolutePath"] = "/Users/song/Projects/unity-shader-graph-mcp/Assets/ShaderSubGraphs/Moved/BlankSubGraph.shadersubgraph",
+                    ["exists"] = true,
+                    ["hasManifest"] = false,
+                    ["schema"] = "unity-shader-graph-mcp/package-backed-v1",
+                    ["assetName"] = "BlankSubGraph",
+                    ["template"] = "blank",
+                    ["createdUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["updatedUtc"] = "2026-03-19T00:00:00.0000000Z",
+                    ["propertyCount"] = 0,
+                    ["nodeCount"] = 1,
+                    ["connectionCount"] = 0,
+                    ["categoryCount"] = 0,
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["properties"] = new string[0],
+                    ["nodes"] = new[] { "Output (node-1) [SubGraphOutputNode] @ (0, 0)" },
+                    ["connections"] = new string[0],
+                    ["notes"] = new[] { "AssetDatabase.MoveAsset(...) invoked successfully." },
+                    ["preview"] = new[] { "moved sub graph preview" },
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["packageDetected"] = true,
+                    ["isSubGraph"] = true,
+                    ["compatibility"] = new Dictionary<string, object>
+                    {
+                        ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                        ["packageDetected"] = true,
+                        ["notes"] = new[] { "package present" },
+                    },
+                    ["moveSubGraphSemantics"] = new[]
+                    {
+                        "move_subgraph moves the current .shadersubgraph asset to the exact target asset path, including folder changes.",
+                        "The response assetPath always points at the moved asset path.",
+                        "Package-backed sub graph move is followed by synchronous import and refresh before the summary is rebuilt.",
+                    },
+                    ["movedSubGraph"] = new Dictionary<string, object>
+                    {
+                        ["assetPath"] = "Assets/ShaderSubGraphs/Moved/BlankSubGraph.shadersubgraph",
+                        ["assetName"] = "BlankSubGraph",
+                        ["displayName"] = "BlankSubGraph",
+                        ["name"] = "BlankSubGraph",
+                        ["previousAssetPath"] = "Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph",
+                        ["previousAssetName"] = "BlankSubGraph",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That(response.Data["operation"], Is.EqualTo("move_subgraph"));
+            Assert.That(response.Data["assetPath"], Is.EqualTo("Assets/ShaderSubGraphs/Moved/BlankSubGraph.shadersubgraph"));
+            Assert.That(response.Data["previousAssetPath"], Is.EqualTo("Assets/ShaderSubGraphs/BlankSubGraph.shadersubgraph"));
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["isSubGraph"], Is.EqualTo(true));
+
+            var movedSubGraph = (IReadOnlyDictionary<string, object>)response.Data["movedSubGraph"];
+            Assert.That(movedSubGraph["assetPath"], Is.EqualTo("Assets/ShaderSubGraphs/Moved/BlankSubGraph.shadersubgraph"));
+            Assert.That(movedSubGraph["assetName"], Is.EqualTo("BlankSubGraph"));
+            Assert.That(movedSubGraph["previousAssetName"], Is.EqualTo("BlankSubGraph"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedSetGraphMetadataEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

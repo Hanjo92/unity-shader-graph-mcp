@@ -52,6 +52,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             return ShaderGraphScaffoldStore.MoveGraph(request, ExecutionKind);
         }
 
+        public ShaderGraphResponse MoveSubGraph(MoveSubGraphRequest request)
+        {
+            return ShaderGraphScaffoldStore.MoveSubGraph(request, ExecutionKind);
+        }
+
         public ShaderGraphResponse SetGraphMetadata(SetGraphMetadataRequest request)
         {
             return ShaderGraphScaffoldStore.SetGraphMetadata(request, ExecutionKind);

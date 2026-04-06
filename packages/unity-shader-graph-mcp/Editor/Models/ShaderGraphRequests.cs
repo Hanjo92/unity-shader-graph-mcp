@@ -16,6 +16,7 @@ namespace ShaderGraphMcp.Editor.Models
         DeleteGraph,
         DeleteSubGraph,
         MoveGraph,
+        MoveSubGraph,
         SetGraphMetadata,
         CreateCategory,
         RenameCategory,
@@ -486,6 +487,48 @@ namespace ShaderGraphMcp.Editor.Models
             }
 
             if (normalizedTargetPath.EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalizedTargetPath;
+            }
+
+            string fileName = Path.GetFileName(normalizedAssetPath);
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return normalizedTargetPath;
+            }
+
+            return NormalizeAssetPath(Path.Combine(normalizedTargetPath.TrimEnd('/'), fileName));
+        }
+
+        private static string NormalizeAssetPath(string assetPath)
+        {
+            return string.IsNullOrWhiteSpace(assetPath)
+                ? string.Empty
+                : assetPath.Replace('\\', '/').Trim();
+        }
+    }
+
+    public sealed class MoveSubGraphRequest : ShaderGraphRequest
+    {
+        public string TargetPath { get; }
+        public string TargetAssetPath => BuildTargetAssetPath(AssetPath, TargetPath);
+
+        public MoveSubGraphRequest(string assetPath, string targetPath)
+            : base(ShaderGraphAction.MoveSubGraph, assetPath)
+        {
+            TargetPath = NormalizeAssetPath(targetPath);
+        }
+
+        private static string BuildTargetAssetPath(string assetPath, string targetPath)
+        {
+            string normalizedAssetPath = NormalizeAssetPath(assetPath);
+            string normalizedTargetPath = NormalizeAssetPath(targetPath);
+            if (string.IsNullOrWhiteSpace(normalizedTargetPath))
+            {
+                return string.Empty;
+            }
+
+            if (normalizedTargetPath.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase))
             {
                 return normalizedTargetPath;
             }
