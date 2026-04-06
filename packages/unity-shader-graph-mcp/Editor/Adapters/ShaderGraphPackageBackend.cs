@@ -10396,6 +10396,10 @@ namespace ShaderGraphMcp.Editor.Adapters
             "This first path only supports Vector1Node output slot 0 / Out into a different Vector1Node input slot 1 / X.",
             "ColorNode output slot 0 / Out is supported only when the input node is SplitNode input slot 0 / In.",
             "Vector4Node output slot 0 / Out is supported when the input node is SubGraphOutputNode input slot 0 / Out.",
+            "UVNode output slot Out / UV is supported when the input node is TilingAndOffsetNode input slot UV or SampleTexture2DNode input slot UV.",
+            "TilingAndOffsetNode output slot Out is supported when the input node is SampleTexture2DNode input slot UV.",
+            "Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture.",
+            "SampleTexture2DNode output slot RGBA is supported when the input node is SplitNode input slot 0 / In.",
             "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",
             "Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In.",
@@ -12234,6 +12238,29 @@ namespace ShaderGraphMcp.Editor.Adapters
                     return false;
                 }
 
+                if (TryResolveTextureUvConnectionPort(
+                        nodeTypeName,
+                        node,
+                        normalizedPort,
+                        isOutput,
+                        out slotId,
+                        out canonicalPort,
+                        out string textureUvOutputSupportMessage))
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(textureUvOutputSupportMessage))
+                {
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        textureUvOutputSupportMessage
+                    );
+                    return false;
+                }
+
                 if (TryResolveLogicConnectionPort(
                         nodeTypeName,
                         normalizedPort,
@@ -12296,6 +12323,10 @@ namespace ShaderGraphMcp.Editor.Adapters
                     "UnityEditor.ShaderGraph.OneMinusNode",
                     "UnityEditor.ShaderGraph.ComparisonNode",
                     "UnityEditor.ShaderGraph.BranchNode",
+                    "UnityEditor.ShaderGraph.UVNode",
+                    "UnityEditor.ShaderGraph.TilingAndOffsetNode",
+                    "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                    "UnityEditor.ShaderGraph.Texture2DAssetNode",
                     SubGraphOutputNodeTypeName
                 );
                 return false;
@@ -12592,6 +12623,29 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
+            if (TryResolveTextureUvConnectionPort(
+                    nodeTypeName,
+                    node,
+                    normalizedPort,
+                    isOutput,
+                    out slotId,
+                    out canonicalPort,
+                    out string textureUvInputSupportMessage))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(textureUvInputSupportMessage))
+            {
+                failureReason = BuildConnectionPortFailure(
+                    node,
+                    isOutput,
+                    normalizedPort,
+                    textureUvInputSupportMessage
+                );
+                return false;
+            }
+
             if (TryResolveLogicConnectionPort(
                     nodeTypeName,
                     normalizedPort,
@@ -12653,6 +12707,10 @@ namespace ShaderGraphMcp.Editor.Adapters
                 "UnityEditor.ShaderGraph.OneMinusNode",
                 "UnityEditor.ShaderGraph.ComparisonNode",
                 "UnityEditor.ShaderGraph.BranchNode",
+                "UnityEditor.ShaderGraph.UVNode",
+                "UnityEditor.ShaderGraph.TilingAndOffsetNode",
+                "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                "UnityEditor.ShaderGraph.Texture2DAssetNode",
                 SubGraphOutputNodeTypeName
             );
             return false;
@@ -12988,6 +13046,443 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
         }
 
+        private static bool TryResolveTextureUvConnectionPort(
+            string nodeTypeName,
+            object node,
+            string requestedPort,
+            bool isOutput,
+            out int slotId,
+            out string canonicalPort,
+            out string supportMessage)
+        {
+            slotId = -1;
+            canonicalPort = string.Empty;
+            supportMessage = null;
+
+            switch (nodeTypeName)
+            {
+                case "UnityEditor.ShaderGraph.UVNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: Out/UV on UVNode.";
+                        return TryResolveDynamicPortAlias(
+                            node,
+                            requestedPort,
+                            true,
+                            out slotId,
+                            out canonicalPort,
+                            ("Out", new[] { "Out", "UV" }));
+                    }
+
+                    supportMessage = "UVNode does not expose supported input ports in the current release matrix.";
+                    return false;
+
+                case "UnityEditor.ShaderGraph.TilingAndOffsetNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: Out on TilingAndOffsetNode.";
+                        return TryResolveDynamicPortAlias(
+                            node,
+                            requestedPort,
+                            true,
+                            out slotId,
+                            out canonicalPort,
+                            ("Out", new[] { "Out" }));
+                    }
+
+                    supportMessage = "Supported input ports: UV, Tiling, Offset on TilingAndOffsetNode.";
+                    return TryResolveDynamicPortAlias(
+                        node,
+                        requestedPort,
+                        false,
+                        out slotId,
+                        out canonicalPort,
+                        ("UV", new[] { "UV" }),
+                        ("Tiling", new[] { "Tiling" }),
+                        ("Offset", new[] { "Offset" }));
+
+                case "UnityEditor.ShaderGraph.SampleTexture2DNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: RGBA on SampleTexture2DNode.";
+                        if (TryResolveKnownNodeSlotAlias(
+                                node,
+                                requestedPort,
+                                true,
+                                out slotId,
+                                out canonicalPort,
+                                ("RGBA", "OutputSlotRGBAId", 0, new[] { "RGBA", "Out" })))
+                        {
+                            return true;
+                        }
+
+                        return TryResolveDynamicPortAlias(
+                            node,
+                            requestedPort,
+                            true,
+                            out slotId,
+                            out canonicalPort,
+                            ("RGBA", new[] { "RGBA", "Out" }));
+                    }
+
+                    supportMessage = "Supported input ports: Texture, UV on SampleTexture2DNode.";
+                    if (TryResolveKnownNodeSlotAlias(
+                            node,
+                            requestedPort,
+                            false,
+                            out slotId,
+                            out canonicalPort,
+                            ("Texture", "TextureInputId", 1, new[] { "Texture", "Tex" }),
+                            ("UV", "UVInput", 2, new[] { "UV" })))
+                    {
+                        return true;
+                    }
+
+                    return TryResolveDynamicPortAlias(
+                        node,
+                        requestedPort,
+                        false,
+                        out slotId,
+                        out canonicalPort,
+                        ("Texture", new[] { "Texture", "Tex" }),
+                        ("UV", new[] { "UV" }));
+
+                case "UnityEditor.ShaderGraph.Texture2DAssetNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: Out/Texture on Texture2DAssetNode.";
+                        return TryResolveDynamicPortAlias(
+                            node,
+                            requestedPort,
+                            true,
+                            out slotId,
+                            out canonicalPort,
+                            ("Out", new[] { "Out", "Texture", "Tex" }));
+                    }
+
+                    supportMessage = "Texture2DAssetNode does not expose supported input ports in the current release matrix.";
+                    return false;
+
+                default:
+                    supportMessage = null;
+                    return false;
+            }
+        }
+
+        private static bool TryResolveKnownNodeSlotAlias(
+            object node,
+            string requestedPort,
+            bool isOutput,
+            out int slotId,
+            out string canonicalPort,
+            params (string CanonicalPort, string SlotIdFieldName, int FallbackSlotId, string[] Aliases)[] aliases)
+        {
+            slotId = -1;
+            canonicalPort = string.Empty;
+
+            if (node == null || aliases == null || aliases.Length == 0)
+            {
+                return false;
+            }
+
+            foreach ((string aliasCanonicalPort, string slotIdFieldName, int fallbackSlotId, string[] aliasValues) in aliases)
+            {
+                if (!RequestedPortMatchesDynamicAlias(requestedPort, fallbackSlotId, aliasCanonicalPort, aliasCanonicalPort, aliasValues))
+                {
+                    continue;
+                }
+
+                if (!TryGetKnownNodeSlotId(node, slotIdFieldName, fallbackSlotId, isOutput, out int resolvedSlotId))
+                {
+                    continue;
+                }
+
+                slotId = resolvedSlotId;
+                canonicalPort = aliasCanonicalPort;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryResolveDynamicPortAlias(
+            object node,
+            string requestedPort,
+            bool isOutput,
+            out int slotId,
+            out string canonicalPort,
+            params (string CanonicalPort, string[] Aliases)[] aliases)
+        {
+            slotId = -1;
+            canonicalPort = string.Empty;
+
+            if (node == null || aliases == null || aliases.Length == 0)
+            {
+                return false;
+            }
+
+            IReadOnlyList<object> slots = EnumerateNodeSlots(node);
+            if (slots.Count == 0)
+            {
+                return false;
+            }
+
+            object[] candidateSlots = slots
+                .Where(slot => isOutput ? !IsInputMaterialSlot(slot) : IsInputMaterialSlot(slot))
+                .OrderBy(slot => GetIntProperty(slot, "id"))
+                .ToArray();
+
+            if (candidateSlots.Length == 0)
+            {
+                candidateSlots = slots
+                    .OrderBy(slot => GetIntProperty(slot, "id"))
+                    .ToArray();
+            }
+
+            foreach (object slot in candidateSlots)
+            {
+                int candidateSlotId = GetIntProperty(slot, "id");
+                if (candidateSlotId < 0)
+                {
+                    continue;
+                }
+
+                string candidatePortName = GetStringProperty(slot, "displayName", "name");
+                foreach ((string aliasCanonicalPort, string[] aliasValues) in aliases)
+                {
+                    if (!SlotMatchesDynamicAlias(candidatePortName, aliasCanonicalPort, aliasValues))
+                    {
+                        continue;
+                    }
+
+                    if (RequestedPortMatchesDynamicAlias(requestedPort, candidateSlotId, candidatePortName, aliasCanonicalPort, aliasValues))
+                    {
+                        slotId = candidateSlotId;
+                        canonicalPort = aliasCanonicalPort;
+                        return true;
+                    }
+                }
+            }
+
+            if (candidateSlots.Length == 1)
+            {
+                object onlySlot = candidateSlots[0];
+                int onlySlotId = GetIntProperty(onlySlot, "id");
+                if (onlySlotId >= 0)
+                {
+                    string onlySlotDisplayName = GetStringProperty(onlySlot, "displayName", "name");
+                    foreach ((string aliasCanonicalPort, string[] aliasValues) in aliases)
+                    {
+                        if (RequestedPortMatchesDynamicAlias(
+                                requestedPort,
+                                onlySlotId,
+                                onlySlotDisplayName,
+                                aliasCanonicalPort,
+                                aliasValues))
+                        {
+                            slotId = onlySlotId;
+                            canonicalPort = aliasCanonicalPort;
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            if (TryGetDirectionalNodeSlots(node, isOutput, out IReadOnlyList<object> directionalSlots) &&
+                directionalSlots.Count > 0 &&
+                TryResolveDynamicPortAliasFromSlots(
+                    directionalSlots,
+                    requestedPort,
+                    aliases,
+                    out slotId,
+                    out canonicalPort))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetKnownNodeSlotId(
+            object node,
+            string slotIdFieldName,
+            int fallbackSlotId,
+            bool isOutput,
+            out int slotId)
+        {
+            slotId = -1;
+            if (node == null)
+            {
+                return false;
+            }
+
+            int candidateSlotId = fallbackSlotId;
+            FieldInfo field = node.GetType().GetField(slotIdFieldName, StaticFlags);
+            if (field != null && field.GetValue(null) is int intValue)
+            {
+                candidateSlotId = intValue;
+            }
+
+            IReadOnlyList<object> slots = EnumerateNodeSlots(node);
+            if (slots.Count == 0 &&
+                TryGetDirectionalNodeSlots(node, isOutput, out IReadOnlyList<object> directionalSlots))
+            {
+                slots = directionalSlots;
+            }
+
+            if (slots.Count == 0)
+            {
+                slotId = candidateSlotId;
+                return true;
+            }
+
+            if (slots.Any(slot => GetIntProperty(slot, "id") == candidateSlotId))
+            {
+                slotId = candidateSlotId;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryResolveDynamicPortAliasFromSlots(
+            IReadOnlyList<object> slots,
+            string requestedPort,
+            IReadOnlyList<(string CanonicalPort, string[] Aliases)> aliases,
+            out int slotId,
+            out string canonicalPort)
+        {
+            slotId = -1;
+            canonicalPort = string.Empty;
+
+            if (slots == null || slots.Count == 0 || aliases == null || aliases.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (object slot in slots)
+            {
+                int candidateSlotId = GetIntProperty(slot, "id");
+                if (candidateSlotId < 0)
+                {
+                    continue;
+                }
+
+                string candidatePortName = GetStringProperty(slot, "displayName", "name");
+                foreach ((string aliasCanonicalPort, string[] aliasValues) in aliases)
+                {
+                    if (!SlotMatchesDynamicAlias(candidatePortName, aliasCanonicalPort, aliasValues))
+                    {
+                        continue;
+                    }
+
+                    if (RequestedPortMatchesDynamicAlias(requestedPort, candidateSlotId, candidatePortName, aliasCanonicalPort, aliasValues))
+                    {
+                        slotId = candidateSlotId;
+                        canonicalPort = aliasCanonicalPort;
+                        return true;
+                    }
+                }
+            }
+
+            if (slots.Count == 1)
+            {
+                object onlySlot = slots[0];
+                int onlySlotId = GetIntProperty(onlySlot, "id");
+                if (onlySlotId >= 0)
+                {
+                    string onlySlotDisplayName = GetStringProperty(onlySlot, "displayName", "name");
+                    foreach ((string aliasCanonicalPort, string[] aliasValues) in aliases)
+                    {
+                        if (RequestedPortMatchesDynamicAlias(
+                                requestedPort,
+                                onlySlotId,
+                                onlySlotDisplayName,
+                                aliasCanonicalPort,
+                                aliasValues))
+                        {
+                            slotId = onlySlotId;
+                            canonicalPort = aliasCanonicalPort;
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryGetDirectionalNodeSlots(
+            object node,
+            bool isOutput,
+            out IReadOnlyList<object> slots)
+        {
+            slots = Array.Empty<object>();
+            if (node == null)
+            {
+                return false;
+            }
+
+            Type materialSlotType = ResolveType("UnityEditor.ShaderGraph.MaterialSlot");
+            if (materialSlotType == null)
+            {
+                return false;
+            }
+
+            return isOutput
+                ? TryInvokeNodeSlotCollector(node, "GetOutputSlots", materialSlotType, out slots)
+                : TryInvokeNodeSlotCollector(node, "GetInputSlots", materialSlotType, out slots);
+        }
+
+        private static bool SlotMatchesDynamicAlias(
+            string slotDisplayName,
+            string canonicalPort,
+            IReadOnlyList<string> aliases)
+        {
+            string normalizedSlotDisplayName = NormalizePortAliasText(slotDisplayName);
+
+            if (!string.IsNullOrWhiteSpace(canonicalPort) &&
+                string.Equals(normalizedSlotDisplayName, NormalizePortAliasText(canonicalPort), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            foreach (string alias in aliases ?? Array.Empty<string>())
+            {
+                if (string.Equals(normalizedSlotDisplayName, NormalizePortAliasText(alias), StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool RequestedPortMatchesDynamicAlias(
+            string requestedPort,
+            int slotId,
+            string slotDisplayName,
+            string canonicalPort,
+            IReadOnlyList<string> aliases)
+        {
+            string slotIdText = slotId.ToString(CultureInfo.InvariantCulture);
+            if (IsPortAlias(requestedPort, slotIdText, slotDisplayName) ||
+                IsPortAlias(requestedPort, slotIdText, canonicalPort))
+            {
+                return true;
+            }
+
+            foreach (string alias in aliases ?? Array.Empty<string>())
+            {
+                if (IsPortAlias(requestedPort, slotIdText, alias))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool TryResolvePortAlias(
             string requestedPort,
             out int slotId,
@@ -13143,6 +13638,39 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.UVNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.TilingAndOffsetNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "UV", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if ((string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.UVNode", StringComparison.Ordinal) ||
+                 string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.TilingAndOffsetNode", StringComparison.Ordinal)) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "UV", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Texture2DAssetNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "Texture", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "RGBA", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "In", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
             if (string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.AppendVectorNode", StringComparison.Ordinal) &&
                 IsSupportedAppendInputPort(canonicalInputPort) &&
                 (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) ||
@@ -13167,7 +13695,7 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             failureReason =
                 $"Unsupported connection pair '{outputNodeTypeName}.{canonicalOutputPort}' -> '{inputNodeTypeName}.{canonicalInputPort}'. " +
-                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append -> Split, Split -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1 -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out -> Branch Predicate, scalar outputs -> Branch True/False, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append -> Multiply A/B, Branch True/False, or Lerp A/B/T, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append plus Vector1/Split/scalar arithmetic -> Append A/B, and Branch Out -> Vector1 or arithmetic inputs.";
+                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D -> Split, Split -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1 -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out -> Branch Predicate, scalar outputs -> Branch True/False, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append -> Multiply A/B, Branch True/False, or Lerp A/B/T, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append plus Vector1/Split/scalar arithmetic -> Append A/B, Branch Out -> Vector1 or arithmetic inputs, UV -> TilingAndOffset/SampleTexture2D UV, TilingAndOffset.Out -> SampleTexture2D UV, and Texture2DAsset.Out -> SampleTexture2D Texture.";
             return false;
         }
 
