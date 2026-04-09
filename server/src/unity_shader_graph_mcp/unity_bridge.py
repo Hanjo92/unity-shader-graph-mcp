@@ -106,8 +106,11 @@ class UnityBatchmodeBridge:
                 return self._parse_response_file(response_path)
 
             raise UnityBridgeError(
-                "Unity batchmode bridge did not produce a response file. "
+                "Unity batchmode bridge did not produce a response file at "
+                f"'{response_path}'. Verify {UNITY_EXE_ENV} and {UNITY_PROJECT_ENV}, "
+                "and check the Unity log for batchmode failures. "
                 f"Exit code: {getattr(completed, 'returncode', 'unknown')}. "
+                f"Unity log: '{log_path}'. "
                 f"Stdout: {_clean_text(getattr(completed, 'stdout', None))!r}. "
                 f"Stderr: {_clean_text(getattr(completed, 'stderr', None))!r}."
             )

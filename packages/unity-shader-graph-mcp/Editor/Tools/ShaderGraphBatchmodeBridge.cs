@@ -213,110 +213,164 @@ namespace ShaderGraphMcp.Editor.Tools
         {
             request = null;
 
+            bool success;
             switch (NormalizeAction(payload.action))
             {
                 case ShaderGraphAction.CreateGraph:
-                    return TryCreateGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.CreateSubGraph:
-                    return TryCreateSubGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateSubGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.RenameGraph:
-                    return TryCreateRenameGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateRenameGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.RenameSubGraph:
-                    return TryCreateRenameSubGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateRenameSubGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.DuplicateGraph:
-                    return TryCreateDuplicateGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateDuplicateGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.DuplicateSubGraph:
-                    return TryCreateDuplicateSubGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateDuplicateSubGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.DeleteGraph:
-                    return TryCreateDeleteGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateDeleteGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.DeleteSubGraph:
-                    return TryCreateDeleteSubGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateDeleteSubGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.MoveGraph:
-                    return TryCreateMoveGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateMoveGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.MoveSubGraph:
-                    return TryCreateMoveSubGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateMoveSubGraphRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.SetGraphMetadata:
-                    return TryCreateSetGraphMetadataRequest(payload, out request, out errorMessage);
+                    success = TryCreateSetGraphMetadataRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.CreateCategory:
-                    return TryCreateCreateCategoryRequest(payload, out request, out errorMessage);
+                    success = TryCreateCreateCategoryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.RenameCategory:
-                    return TryCreateRenameCategoryRequest(payload, out request, out errorMessage);
+                    success = TryCreateRenameCategoryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.FindCategory:
-                    return TryCreateFindCategoryRequest(payload, out request, out errorMessage);
+                    success = TryCreateFindCategoryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.DeleteCategory:
-                    return TryCreateDeleteCategoryRequest(payload, out request, out errorMessage);
+                    success = TryCreateDeleteCategoryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ReorderCategory:
-                    return TryCreateReorderCategoryRequest(payload, out request, out errorMessage);
+                    success = TryCreateReorderCategoryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.MergeCategory:
-                    return TryCreateMergeCategoryRequest(payload, out request, out errorMessage);
+                    success = TryCreateMergeCategoryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.DuplicateCategory:
-                    return TryCreateDuplicateCategoryRequest(payload, out request, out errorMessage);
+                    success = TryCreateDuplicateCategoryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.SplitCategory:
-                    return TryCreateSplitCategoryRequest(payload, out request, out errorMessage);
+                    success = TryCreateSplitCategoryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ListCategories:
-                    return TryCreateListCategoriesRequest(payload, out request, out errorMessage);
+                    success = TryCreateListCategoriesRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ReadGraphSummary:
-                    return TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
+                    success = TryCreateReadGraphSummaryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ReadSubGraphSummary:
-                    return TryCreateReadSubGraphSummaryRequest(payload, out request, out errorMessage);
+                    success = TryCreateReadSubGraphSummaryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ExportGraphContract:
-                    return TryCreateExportGraphContractRequest(payload, out request, out errorMessage);
+                    success = TryCreateExportGraphContractRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ImportGraphContract:
-                    return TryCreateImportGraphContractRequest(payload, out request, out errorMessage);
+                    success = TryCreateImportGraphContractRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.FindNode:
-                    return TryCreateFindNodeRequest(payload, out request, out errorMessage);
+                    success = TryCreateFindNodeRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.FindProperty:
-                    return TryCreateFindPropertyRequest(payload, out request, out errorMessage);
+                    success = TryCreateFindPropertyRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ListSupportedNodes:
                     request = new ListSupportedNodesRequest();
                     errorMessage = null;
-                    return true;
+                    success = true;
+                    break;
                 case ShaderGraphAction.ListSupportedProperties:
                     request = new ListSupportedPropertiesRequest();
                     errorMessage = null;
-                    return true;
+                    success = true;
+                    break;
                 case ShaderGraphAction.ListSupportedConnections:
                     request = new ListSupportedConnectionsRequest();
                     errorMessage = null;
-                    return true;
+                    success = true;
+                    break;
                 case ShaderGraphAction.UpdateProperty:
-                    return TryCreateUpdatePropertyRequest(payload, out request, out errorMessage);
+                    success = TryCreateUpdatePropertyRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.RenameProperty:
-                    return TryCreateRenamePropertyRequest(payload, out request, out errorMessage);
+                    success = TryCreateRenamePropertyRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.DuplicateProperty:
-                    return TryCreateDuplicatePropertyRequest(payload, out request, out errorMessage);
+                    success = TryCreateDuplicatePropertyRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ReorderProperty:
-                    return TryCreateReorderPropertyRequest(payload, out request, out errorMessage);
+                    success = TryCreateReorderPropertyRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.MovePropertyToCategory:
-                    return TryCreateMovePropertyToCategoryRequest(payload, out request, out errorMessage);
+                    success = TryCreateMovePropertyToCategoryRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.RenameNode:
-                    return TryCreateRenameNodeRequest(payload, out request, out errorMessage);
+                    success = TryCreateRenameNodeRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.DuplicateNode:
-                    return TryCreateDuplicateNodeRequest(payload, out request, out errorMessage);
+                    success = TryCreateDuplicateNodeRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.MoveNode:
-                    return TryCreateMoveNodeRequest(payload, out request, out errorMessage);
+                    success = TryCreateMoveNodeRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.DeleteNode:
-                    return TryCreateDeleteNodeRequest(payload, out request, out errorMessage);
+                    success = TryCreateDeleteNodeRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.RemoveProperty:
-                    return TryCreateRemovePropertyRequest(payload, out request, out errorMessage);
+                    success = TryCreateRemovePropertyRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.AddProperty:
-                    return TryCreateAddPropertyRequest(payload, out request, out errorMessage);
+                    success = TryCreateAddPropertyRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.AddNode:
-                    return TryCreateAddNodeRequest(payload, out request, out errorMessage);
+                    success = TryCreateAddNodeRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ConnectPorts:
-                    return TryCreateConnectPortsRequest(payload, out request, out errorMessage);
+                    success = TryCreateConnectPortsRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.FindConnection:
-                    return TryCreateFindConnectionRequest(payload, out request, out errorMessage);
+                    success = TryCreateFindConnectionRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.RemoveConnection:
-                    return TryCreateRemoveConnectionRequest(payload, out request, out errorMessage);
+                    success = TryCreateRemoveConnectionRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.ReconnectConnection:
-                    return TryCreateReconnectConnectionRequest(payload, out request, out errorMessage);
+                    success = TryCreateReconnectConnectionRequest(payload, out request, out errorMessage);
+                    break;
                 case ShaderGraphAction.SaveGraph:
-                    return TryCreateSaveGraphRequest(payload, out request, out errorMessage);
+                    success = TryCreateSaveGraphRequest(payload, out request, out errorMessage);
+                    break;
                 default:
                     errorMessage = $"Unsupported or missing action '{payload.action}'.";
                     return false;
             }
+
+            if (!success)
+            {
+                return false;
+            }
+
+            return TryValidateRequestAssetPathKind(request, out errorMessage);
         }
 
         private static bool TryCreateGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
@@ -1629,6 +1683,83 @@ namespace ShaderGraphMcp.Editor.Tools
             return FirstNonBlank(payload.assetPath, payload.path);
         }
 
+        private static bool TryValidateRequestAssetPathKind(ShaderGraphRequest request, out string errorMessage)
+        {
+            errorMessage = null;
+            if (request == null || string.IsNullOrWhiteSpace(request.AssetPath))
+            {
+                return true;
+            }
+
+            string assetPath = request.AssetPath.Trim().Replace('\\', '/');
+            bool isShaderGraph = LooksLikeShaderGraphAssetPath(assetPath);
+            bool isShaderSubGraph = LooksLikeShaderSubGraphAssetPath(assetPath);
+
+            switch (request.Action)
+            {
+                case ShaderGraphAction.CreateSubGraph:
+                case ShaderGraphAction.RenameSubGraph:
+                case ShaderGraphAction.DuplicateSubGraph:
+                case ShaderGraphAction.DeleteSubGraph:
+                case ShaderGraphAction.MoveSubGraph:
+                case ShaderGraphAction.ReadSubGraphSummary:
+                    if (isShaderGraph)
+                    {
+                        errorMessage = $"{request.Action} requires a .shadersubgraph asset path, got '{request.AssetPath}'.";
+                        return false;
+                    }
+                    break;
+                case ShaderGraphAction.CreateGraph:
+                case ShaderGraphAction.RenameGraph:
+                case ShaderGraphAction.DuplicateGraph:
+                case ShaderGraphAction.DeleteGraph:
+                case ShaderGraphAction.MoveGraph:
+                case ShaderGraphAction.SetGraphMetadata:
+                case ShaderGraphAction.CreateCategory:
+                case ShaderGraphAction.RenameCategory:
+                case ShaderGraphAction.FindCategory:
+                case ShaderGraphAction.DeleteCategory:
+                case ShaderGraphAction.ReorderCategory:
+                case ShaderGraphAction.MergeCategory:
+                case ShaderGraphAction.DuplicateCategory:
+                case ShaderGraphAction.SplitCategory:
+                case ShaderGraphAction.ListCategories:
+                case ShaderGraphAction.ReadGraphSummary:
+                case ShaderGraphAction.ExportGraphContract:
+                case ShaderGraphAction.ImportGraphContract:
+                case ShaderGraphAction.FindNode:
+                case ShaderGraphAction.FindProperty:
+                case ShaderGraphAction.ListSupportedNodes:
+                case ShaderGraphAction.ListSupportedProperties:
+                case ShaderGraphAction.ListSupportedConnections:
+                case ShaderGraphAction.UpdateProperty:
+                case ShaderGraphAction.RenameProperty:
+                case ShaderGraphAction.DuplicateProperty:
+                case ShaderGraphAction.ReorderProperty:
+                case ShaderGraphAction.MovePropertyToCategory:
+                case ShaderGraphAction.RenameNode:
+                case ShaderGraphAction.DuplicateNode:
+                case ShaderGraphAction.MoveNode:
+                case ShaderGraphAction.DeleteNode:
+                case ShaderGraphAction.RemoveProperty:
+                case ShaderGraphAction.AddProperty:
+                case ShaderGraphAction.AddNode:
+                case ShaderGraphAction.ConnectPorts:
+                case ShaderGraphAction.FindConnection:
+                case ShaderGraphAction.RemoveConnection:
+                case ShaderGraphAction.ReconnectConnection:
+                case ShaderGraphAction.SaveGraph:
+                    if (isShaderSubGraph)
+                    {
+                        errorMessage = $"{request.Action} requires a .shadergraph asset path, got '{request.AssetPath}'.";
+                        return false;
+                    }
+                    break;
+            }
+
+            return true;
+        }
+
         private static string ResolveMoveGraphTargetAssetPath(ShaderGraphBatchmodeRequestPayload payload, string assetPath)
         {
             string rawTargetPath = FirstNonBlank(
@@ -1745,6 +1876,12 @@ namespace ShaderGraphMcp.Editor.Tools
         {
             return !string.IsNullOrWhiteSpace(value) &&
                    value.Trim().Replace('\\', '/').EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool LooksLikeShaderSubGraphAssetPath(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value) &&
+                   value.Trim().Replace('\\', '/').EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool LooksLikeKnownShaderAssetPath(string value)

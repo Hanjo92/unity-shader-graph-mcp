@@ -138,6 +138,23 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_RejectsRenameSubGraphWithShaderGraphAssetPath()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""rename_subgraph"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""newDisplayName"": ""RenamedSubGraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.False);
+            Assert.That(request, Is.Null);
+            Assert.That(errorMessage, Does.Contain(".shadersubgraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsDuplicateGraphRequest_FromAssetPathPayload()
         {
             string json = @"{
@@ -259,6 +276,22 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(moveSubGraphRequest, Is.Not.Null);
             Assert.That(moveSubGraphRequest.AssetPath, Is.EqualTo("Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"));
             Assert.That(moveSubGraphRequest.TargetAssetPath, Is.EqualTo("Assets/ShaderSubGraphs/Moved/ExampleSubGraph.shadersubgraph"));
+        }
+
+        [Test]
+        public void TryParseRequest_RejectsReadGraphSummaryWithSubGraphAssetPath()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""read_graph_summary"",
+                ""assetPath"": ""Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.False);
+            Assert.That(request, Is.Null);
+            Assert.That(errorMessage, Does.Contain(".shadergraph"));
         }
 
         [Test]

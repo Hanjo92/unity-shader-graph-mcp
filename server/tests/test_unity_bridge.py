@@ -113,7 +113,7 @@ class UnityBridgeTests(unittest.TestCase):
         )
         assert bridge is not None
 
-        with self.assertRaises(UnityBridgeError):
+        try:
             bridge.invoke(
                 {
                     "action": "save_graph",
@@ -126,6 +126,15 @@ class UnityBridgeTests(unittest.TestCase):
                     },
                 }
             )
+        except UnityBridgeError as exc:
+            message = str(exc)
+        else:  # pragma: no cover - defensive
+            self.fail("UnityBridgeError was not raised.")
+
+        self.assertIn("response file", message)
+        self.assertIn("UNITY_SHADER_GRAPH_MCP_UNITY_EXE", message)
+        self.assertIn("UNITY_SHADER_GRAPH_MCP_UNITY_PROJECT", message)
+        self.assertIn("Unity log:", message)
 
     def test_handler_uses_bridge_when_available(self) -> None:
         class FakeBridge:
@@ -175,6 +184,12 @@ class UnityBridgeTests(unittest.TestCase):
 
         self.assertTrue(response["success"])
         self.assertEqual(response["data"]["status"], "scaffold")
+        self.assertIn(UNITY_EXE_ENV, response["message"])
+        self.assertIn(UNITY_PROJECT_ENV, response["message"])
+        self.assertEqual(
+            response["data"]["bridgeEnvironment"],
+            [UNITY_EXE_ENV, UNITY_PROJECT_ENV],
+        )
 
 
 if __name__ == "__main__":

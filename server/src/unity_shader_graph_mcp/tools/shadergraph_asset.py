@@ -20,6 +20,8 @@ from ..contracts import (
     require_text,
 )
 from ..unity_bridge import (
+    UNITY_EXE_ENV,
+    UNITY_PROJECT_ENV,
     UnityBridgeError,
     build_unity_batchmode_bridge,
 )
@@ -77,6 +79,62 @@ ACTION_DEFAULT_PATHS: dict[str, str] = {
     "create_graph": "Assets/ShaderGraphs",
     "create_subgraph": "Assets/ShaderSubGraphs",
 }
+
+GRAPH_PATH_ACTIONS: frozenset[str] = frozenset(
+    {
+        "create_graph",
+        "rename_graph",
+        "duplicate_graph",
+        "delete_graph",
+        "move_graph",
+        "set_graph_metadata",
+        "create_category",
+        "rename_category",
+        "find_category",
+        "delete_category",
+        "reorder_category",
+        "merge_category",
+        "duplicate_category",
+        "split_category",
+        "list_categories",
+        "read_graph_summary",
+        "export_graph_contract",
+        "import_graph_contract",
+        "find_node",
+        "find_property",
+        "list_supported_nodes",
+        "list_supported_properties",
+        "list_supported_connections",
+        "update_property",
+        "rename_property",
+        "duplicate_property",
+        "reorder_property",
+        "move_property_to_category",
+        "rename_node",
+        "duplicate_node",
+        "move_node",
+        "delete_node",
+        "remove_property",
+        "add_property",
+        "add_node",
+        "connect_ports",
+        "find_connection",
+        "remove_connection",
+        "reconnect_connection",
+        "save_graph",
+    }
+)
+
+SUBGRAPH_PATH_ACTIONS: frozenset[str] = frozenset(
+    {
+        "create_subgraph",
+        "rename_subgraph",
+        "duplicate_subgraph",
+        "delete_subgraph",
+        "move_subgraph",
+        "read_subgraph_summary",
+    }
+)
 
 
 def normalize_shadergraph_asset_request(
@@ -595,6 +653,8 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
     if request.action == "read_subgraph_summary" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
+    _validate_shadergraph_asset_path_kind(request)
+
     if request.action == "export_graph_contract" and request.path is None:
         raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
@@ -971,11 +1031,15 @@ def handle_shadergraph_asset(
         if bridge_instance is None:
             return as_response(
                 success=True,
-                message=f"Shader Graph asset request validated for '{request.action}'.",
+                message=(
+                    f"Shader Graph asset request validated for '{request.action}'. "
+                    f"Set {UNITY_EXE_ENV} and {UNITY_PROJECT_ENV} to enable package-backed execution."
+                ),
                 data={
                     "request": summary,
                     "status": "scaffold",
                     "validationState": "validated",
+                    "bridgeEnvironment": [UNITY_EXE_ENV, UNITY_PROJECT_ENV],
                     "next_step": "Connect this contract to the Unity Editor implementation.",
                 },
             )
@@ -1180,6 +1244,27 @@ def _normalize_graph_contract_json(payload: Mapping[str, Any]) -> str | None:
             return text
 
     return None
+
+
+def _validate_shadergraph_asset_path_kind(request: ShaderGraphAssetRequest) -> None:
+    path = optional_text(request.path)
+    if path is None:
+        return
+
+    lowered_path = path.lower()
+    action = request.action
+
+    if action in SUBGRAPH_PATH_ACTIONS:
+        if lowered_path.endswith(".shadergraph"):
+            raise ShaderGraphRequestError(
+                f"{action} requires a .shadersubgraph asset path, got '{path}'."
+            )
+        return
+
+    if action in GRAPH_PATH_ACTIONS and lowered_path.endswith(".shadersubgraph"):
+        raise ShaderGraphRequestError(
+            f"{action} requires a .shadergraph asset path, got '{path}'."
+        )
 
 
 def _require_payload_text(payload: Mapping[str, Any], *keys: str) -> str:

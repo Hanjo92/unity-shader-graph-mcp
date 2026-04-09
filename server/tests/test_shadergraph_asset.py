@@ -17,6 +17,7 @@ from unity_shader_graph_mcp.tools import (
     handle_shadergraph_asset,
     normalize_shadergraph_asset_request,
 )
+from unity_shader_graph_mcp.unity_bridge import UNITY_EXE_ENV, UNITY_PROJECT_ENV
 
 
 class ShaderGraphAssetToolTests(unittest.TestCase):
@@ -90,6 +91,12 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(response["data"]["request"]["action"], "create_graph")
         self.assertIn(response["data"]["status"], {"scaffold", "validated_scaffold"})
         self.assertEqual(response["data"]["validationState"], "validated")
+        self.assertEqual(
+            response["data"]["bridgeEnvironment"],
+            [UNITY_EXE_ENV, UNITY_PROJECT_ENV],
+        )
+        self.assertIn(UNITY_EXE_ENV, response["message"])
+        self.assertIn(UNITY_PROJECT_ENV, response["message"])
 
     def test_request_normalization_rejects_unknown_action(self) -> None:
         with self.assertRaises(ShaderGraphRequestError):
