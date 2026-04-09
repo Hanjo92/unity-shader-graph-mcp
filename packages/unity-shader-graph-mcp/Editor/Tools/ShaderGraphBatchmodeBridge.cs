@@ -370,7 +370,13 @@ namespace ShaderGraphMcp.Editor.Tools
                 return false;
             }
 
-            return TryValidateRequestAssetPathKind(request, out errorMessage);
+            if (!TryValidateRequestAssetPathKind(request, out errorMessage))
+            {
+                request = null;
+                return false;
+            }
+
+            return true;
         }
 
         private static bool TryCreateGraphRequest(ShaderGraphBatchmodeRequestPayload payload, out ShaderGraphRequest request, out string errorMessage)
