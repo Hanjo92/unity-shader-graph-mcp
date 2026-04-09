@@ -17,17 +17,18 @@ namespace ShaderGraphMcp.Editor.Tests
             "TilingAndOffsetNode output slot Out is supported when the input node is SampleTexture2DNode input slot UV.",
             "Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is SplitNode input slot 0 / In.",
+            "SampleTexture2DNode output slots R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X, CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots, ComparisonNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or AppendVectorNode input slot 0 / A or 1 / B.",
             "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",
             "Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots.",
-            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is SplitNode input slot 0 / In.",
             "Vector1Node output slot 0 / Out is also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are supported when the input node is a different Vector1Node input slot 1 / X.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
-            "Vector1Node and scalar arithmetic output slot Out are supported when the input node is ComparisonNode input slot 0 / A or 1 / B.",
+            "Vector1Node, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are supported when the input node is ComparisonNode input slot 0 / A or 1 / B.",
             "ComparisonNode output slot 2 / Out is supported only when the input node is BranchNode input slot 0 / Predicate.",
-            "Vector1Node and scalar arithmetic output slot Out are supported when the input node is BranchNode input slot 1 / True or 2 / False.",
-            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T.",
-            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B.",
+            "Vector1Node, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are supported when the input node is BranchNode input slot 1 / True or 2 / False.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B.",
             "BranchNode output slot 3 / Out is supported when the input node is a different Vector1Node input slot 1 / X or scalar arithmetic input ports.",
             "Self-connections are rejected.",
         };
@@ -2523,7 +2524,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is SplitNode input slot 0 / In."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.CombineNode"));
@@ -2565,7 +2566,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.ColorNode"));
@@ -2607,7 +2608,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.ColorNode"));
@@ -2649,7 +2650,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.ColorNode"));
@@ -2691,7 +2692,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.CombineNode"));
@@ -2733,7 +2734,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Vector4Node"));
@@ -2864,7 +2865,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is SplitNode input slot 0 / In."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
@@ -2906,7 +2907,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is SplitNode input slot 0 / In."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.LerpNode"));
@@ -2948,7 +2949,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is SplitNode input slot 0 / In."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
@@ -2990,7 +2991,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
@@ -3032,7 +3033,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
@@ -3074,7 +3075,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
@@ -3116,7 +3117,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
@@ -3158,7 +3159,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.MultiplyNode"));
@@ -3200,7 +3201,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.LerpNode"));
@@ -3242,7 +3243,7 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));

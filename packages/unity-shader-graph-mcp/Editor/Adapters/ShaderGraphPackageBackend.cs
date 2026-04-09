@@ -10400,17 +10400,18 @@ namespace ShaderGraphMcp.Editor.Adapters
             "TilingAndOffsetNode output slot Out is supported when the input node is SampleTexture2DNode input slot UV.",
             "Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is SplitNode input slot 0 / In.",
+            "SampleTexture2DNode output slots R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X, CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots, ComparisonNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or AppendVectorNode input slot 0 / A or 1 / B.",
             "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",
             "Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots.",
-            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are supported when the input node is SplitNode input slot 0 / In.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is SplitNode input slot 0 / In.",
             "Vector1Node output slot 0 / Out is also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are supported when the input node is a different Vector1Node input slot 1 / X.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
-            "Vector1Node and scalar arithmetic output slot Out are supported when the input node is ComparisonNode input slot 0 / A or 1 / B.",
+            "Vector1Node, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are supported when the input node is ComparisonNode input slot 0 / A or 1 / B.",
             "ComparisonNode output slot 2 / Out is supported only when the input node is BranchNode input slot 0 / Predicate.",
-            "Vector1Node and scalar arithmetic output slot Out are supported when the input node is BranchNode input slot 1 / True or 2 / False.",
-            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, and AppendVectorNode output slot Out are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T.",
-            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, Vector1Node output slot 0 / Out, SplitNode channel outputs, and scalar arithmetic output slot Out are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B.",
+            "Vector1Node, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are supported when the input node is BranchNode input slot 1 / True or 2 / False.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B.",
             "BranchNode output slot 3 / Out is supported when the input node is a different Vector1Node input slot 1 / X or scalar arithmetic input ports.",
             "Self-connections are rejected.",
         };
@@ -13111,7 +13112,11 @@ namespace ShaderGraphMcp.Editor.Adapters
                                 true,
                                 out slotId,
                                 out canonicalPort,
-                                ("RGBA", "OutputSlotRGBAId", 0, new[] { "RGBA", "Out" })))
+                                ("RGBA", "OutputSlotRGBAId", 0, new[] { "RGBA", "Out" }),
+                                ("R", "OutputSlotRId", 4, new[] { "R" }),
+                                ("G", "OutputSlotGId", 5, new[] { "G" }),
+                                ("B", "OutputSlotBId", 6, new[] { "B" }),
+                                ("A", "OutputSlotAId", 7, new[] { "A" })))
                         {
                             return true;
                         }
@@ -13122,7 +13127,11 @@ namespace ShaderGraphMcp.Editor.Adapters
                             true,
                             out slotId,
                             out canonicalPort,
-                            ("RGBA", new[] { "RGBA", "Out" }));
+                            ("RGBA", new[] { "RGBA", "Out" }),
+                            ("R", new[] { "R" }),
+                            ("G", new[] { "G" }),
+                            ("B", new[] { "B" }),
+                            ("A", new[] { "A" }));
                     }
 
                     supportMessage = "Supported input ports: Texture, UV on SampleTexture2DNode.";
@@ -13551,8 +13560,9 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
-                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
+            if (IsSupportedScalarValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "X", StringComparison.Ordinal))
             {
                 return true;
             }
@@ -13581,7 +13591,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedScalarValueSourceNodeType(outputNodeTypeName) &&
+            if (IsSupportedScalarValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.ComparisonNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "B", StringComparison.Ordinal)))
@@ -13597,7 +13607,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedScalarValueSourceNodeType(outputNodeTypeName) &&
+            if (IsSupportedScalarValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "True", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "False", StringComparison.Ordinal)))
@@ -13695,7 +13705,7 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             failureReason =
                 $"Unsupported connection pair '{outputNodeTypeName}.{canonicalOutputPort}' -> '{inputNodeTypeName}.{canonicalInputPort}'. " +
-                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D -> Split, Split -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1 -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out -> Branch Predicate, scalar outputs -> Branch True/False, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append -> Multiply A/B, Branch True/False, or Lerp A/B/T, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append plus Vector1/Split/scalar arithmetic -> Append A/B, Branch Out -> Vector1 or arithmetic inputs, UV -> TilingAndOffset/SampleTexture2D UV, TilingAndOffset.Out -> SampleTexture2D UV, and Texture2DAsset.Out -> SampleTexture2D Texture.";
+                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D -> Split, scalar outputs including Split and SampleTexture2D channels -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1 -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out -> Branch Predicate, scalar outputs -> Branch True/False, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA -> Multiply A/B, Branch True/False, or Lerp A/B/T, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA plus Vector1/Split/scalar arithmetic/SampleTexture2D channels -> Append A/B, Branch Out -> Vector1 or arithmetic inputs, UV -> TilingAndOffset/SampleTexture2D UV, TilingAndOffset.Out -> SampleTexture2D UV, and Texture2DAsset.Out -> SampleTexture2D Texture.";
             return false;
         }
 
@@ -13730,13 +13740,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                    string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.OneMinusNode", StringComparison.Ordinal);
         }
 
-        private static bool IsSupportedScalarValueSourceNodeType(string nodeTypeName)
-        {
-            return string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) ||
-                   IsSupportedArithmeticConnectionNodeType(nodeTypeName);
-        }
-
-        private static bool IsSupportedScalarBuilderSourceOutput(string nodeTypeName, string canonicalOutputPort)
+        private static bool IsSupportedScalarValueSourceOutput(string nodeTypeName, string canonicalOutputPort)
         {
             if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) &&
                 string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
@@ -13750,11 +13754,24 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            return string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal))
+            {
+                return string.Equals(canonicalOutputPort, "R", StringComparison.Ordinal) ||
+                       string.Equals(canonicalOutputPort, "G", StringComparison.Ordinal) ||
+                       string.Equals(canonicalOutputPort, "B", StringComparison.Ordinal) ||
+                       string.Equals(canonicalOutputPort, "A", StringComparison.Ordinal);
+            }
+
+            return string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal) &&
                    (string.Equals(canonicalOutputPort, "R", StringComparison.Ordinal) ||
                     string.Equals(canonicalOutputPort, "G", StringComparison.Ordinal) ||
                     string.Equals(canonicalOutputPort, "B", StringComparison.Ordinal) ||
                     string.Equals(canonicalOutputPort, "A", StringComparison.Ordinal));
+        }
+
+        private static bool IsSupportedScalarBuilderSourceOutput(string nodeTypeName, string canonicalOutputPort)
+        {
+            return IsSupportedScalarValueSourceOutput(nodeTypeName, canonicalOutputPort);
         }
 
         private static bool IsSupportedVectorBuilderInputPort(string nodeTypeName, string canonicalInputPort)
@@ -13836,6 +13853,12 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.LerpNode", StringComparison.Ordinal) &&
                 string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "RGBA", StringComparison.Ordinal))
             {
                 return true;
             }
