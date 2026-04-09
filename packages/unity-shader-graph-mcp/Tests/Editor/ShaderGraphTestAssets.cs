@@ -13,6 +13,12 @@ namespace ShaderGraphMcp.Editor.Tests
     internal static class ShaderGraphTestAssets
     {
         public const string DefaultRootFolder = "Assets/ShaderGraphMcpSmokeTests";
+        public const string FixtureRootFolder = "Packages/com.song.shadergraph-mcp/Tests/Fixtures";
+
+        public static string GetFixtureAssetPath(string relativePath)
+        {
+            return NormalizeAssetPath($"{FixtureRootFolder}/{relativePath}");
+        }
 
         public static void RequirePackageReady()
         {
