@@ -1019,6 +1019,70 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             );
         }
 
+        [MenuItem("Tools/Shader Graph MCP/Debug/Add UV SampleTexture2D NormalStrength Split Sample")]
+        public static void AddUvSampleTexture2DNormalStrengthSplitSample()
+        {
+            string assetPath = ResolveTargetAssetPath();
+
+            IReadOnlyList<string> supportedNodeTypes = SelectPreferredSupportedNodeTypes(128);
+            if (!supportedNodeTypes.Contains("UV") ||
+                !supportedNodeTypes.Contains("TilingAndOffset") ||
+                !supportedNodeTypes.Contains("SampleTexture2D") ||
+                !supportedNodeTypes.Contains("Texture2DAsset") ||
+                !supportedNodeTypes.Contains("NormalStrength"))
+            {
+                Debug.LogWarning(
+                    "[ShaderGraphMcp] UV, TilingAndOffset, SampleTexture2D, Texture2DAsset, and NormalStrength must all be graph-addable before the UV SampleTexture2D normal workflow sample can run."
+                );
+                return;
+            }
+
+            ShaderGraphResponse addUv = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", $"UV {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTilingAndOffset = ShaderGraphAssetTool.HandleAddNode(assetPath, "TilingAndOffset", $"TilingOffset {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTexture = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", $"Texture {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSample = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", $"Sample {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addStrength = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"Normal Strength {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addNormalStrength = ShaderGraphAssetTool.HandleAddNode(assetPath, "NormalStrength", $"NormalStrength {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSplit = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", $"Normal Split {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSink = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"Normal Sink {DateTime.Now:HHmmss}");
+
+            LogResponse("add_node", assetPath, addUv);
+            LogResponse("add_node", assetPath, addTilingAndOffset);
+            LogResponse("add_node", assetPath, addTexture);
+            LogResponse("add_node", assetPath, addSample);
+            LogResponse("add_node", assetPath, addStrength);
+            LogResponse("add_node", assetPath, addNormalStrength);
+            LogResponse("add_node", assetPath, addSplit);
+            LogResponse("add_node", assetPath, addSink);
+
+            if (!TryExtractAddedNodeId(addUv, out string uvNodeId) ||
+                !TryExtractAddedNodeId(addTilingAndOffset, out string tilingAndOffsetNodeId) ||
+                !TryExtractAddedNodeId(addTexture, out string textureNodeId) ||
+                !TryExtractAddedNodeId(addSample, out string sampleNodeId) ||
+                !TryExtractAddedNodeId(addStrength, out string strengthNodeId) ||
+                !TryExtractAddedNodeId(addNormalStrength, out string normalStrengthNodeId) ||
+                !TryExtractAddedNodeId(addSplit, out string splitNodeId) ||
+                !TryExtractAddedNodeId(addSink, out string sinkNodeId))
+            {
+                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the UV SampleTexture2D NormalStrength workflow sample.");
+                return;
+            }
+
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", tilingAndOffsetNodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, tilingAndOffsetNodeId, "Out", sampleNodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleNodeId, "RGBA", normalStrengthNodeId, "In"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, strengthNodeId, "Out", normalStrengthNodeId, "Strength"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, normalStrengthNodeId, "Out", splitNodeId, "In"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, splitNodeId, "B", sinkNodeId, "X"));
+
+            LogResponse(
+                "read_graph_summary",
+                assetPath,
+                ShaderGraphAssetTool.HandleReadGraphSummary(assetPath)
+            );
+        }
+
         [MenuItem("Tools/Shader Graph MCP/Debug/Add Color Branch Split Sample")]
         public static void AddColorBranchSplitSample()
         {
