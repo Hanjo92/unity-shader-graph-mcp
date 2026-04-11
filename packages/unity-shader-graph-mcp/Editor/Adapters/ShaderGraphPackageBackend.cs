@@ -10403,6 +10403,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalStrengthNode input slot In.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalUnpackNode input slot In.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalBlendNode input slot 0 / A or 1 / B.",
+            "Vector2Node output slot Out is supported when the input node is NormalReconstructZNode input slot In.",
             "SampleTexture2DNode output slots R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X, CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots, ComparisonNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or AppendVectorNode input slot 0 / A or 1 / B.",
             "Vector1Node output slot 0 / Out and scalar arithmetic output slot Out are supported when the input node is NormalStrengthNode input slot Strength.",
             "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",
@@ -12336,6 +12337,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                     "UnityEditor.ShaderGraph.NormalStrengthNode",
                     "UnityEditor.ShaderGraph.NormalUnpackNode",
                     "UnityEditor.ShaderGraph.NormalBlendNode",
+                    "UnityEditor.ShaderGraph.NormalReconstructZNode",
                     SubGraphOutputNodeTypeName
                 );
                 return false;
@@ -12723,6 +12725,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 "UnityEditor.ShaderGraph.NormalStrengthNode",
                 "UnityEditor.ShaderGraph.NormalUnpackNode",
                 "UnityEditor.ShaderGraph.NormalBlendNode",
+                "UnityEditor.ShaderGraph.NormalReconstructZNode",
                 SubGraphOutputNodeTypeName
             );
             return false;
@@ -13251,6 +13254,28 @@ namespace ShaderGraphMcp.Editor.Adapters
                         ("A", new[] { "A" }),
                         ("B", new[] { "B" }));
 
+                case "UnityEditor.ShaderGraph.NormalReconstructZNode":
+                    if (isOutput)
+                    {
+                        supportMessage = "Supported output ports: Out on NormalReconstructZNode.";
+                        return TryResolveDynamicPortAlias(
+                            node,
+                            requestedPort,
+                            true,
+                            out slotId,
+                            out canonicalPort,
+                            ("Out", new[] { "Out" }));
+                    }
+
+                    supportMessage = "Supported input ports: In on NormalReconstructZNode.";
+                    return TryResolveDynamicPortAlias(
+                        node,
+                        requestedPort,
+                        false,
+                        out slotId,
+                        out canonicalPort,
+                        ("In", new[] { "In" }));
+
                 default:
                     supportMessage = null;
                     return false;
@@ -13777,6 +13802,14 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
+            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal) &&
+                string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.NormalReconstructZNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "In", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
             if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal) &&
                 string.Equals(canonicalOutputPort, "RGBA", StringComparison.Ordinal) &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
@@ -13824,7 +13857,7 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             failureReason =
                 $"Unsupported connection pair '{outputNodeTypeName}.{canonicalOutputPort}' -> '{inputNodeTypeName}.{canonicalInputPort}'. " +
-                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D/NormalStrength -> Split, scalar outputs including Split and SampleTexture2D channels -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1 -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out -> Branch Predicate, scalar outputs -> Branch True/False, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA -> Multiply A/B, Branch.True/False, Lerp A/B/T, or NormalBlend A/B, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA plus Vector1/Split/scalar arithmetic/SampleTexture2D channels -> Append A/B, Vector1/scalar arithmetic -> NormalStrength.Strength, SampleTexture2D.RGBA -> NormalStrength.In/NormalUnpack.In, UV -> TilingAndOffset/SampleTexture2D UV, TilingAndOffset.Out -> SampleTexture2D UV, and Texture2DAsset.Out -> SampleTexture2D Texture.";
+                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D/NormalStrength -> Split, Vector2.Out -> NormalReconstructZ.In, scalar outputs including Split and SampleTexture2D channels -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1 -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out -> Branch Predicate, scalar outputs -> Branch True/False, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA -> Multiply A/B, Branch.True/False, Lerp A/B/T, or NormalBlend A/B, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA plus Vector1/Split/scalar arithmetic/SampleTexture2D channels -> Append A/B, Vector1/scalar arithmetic -> NormalStrength.Strength, SampleTexture2D.RGBA -> NormalStrength.In/NormalUnpack.In, UV -> TilingAndOffset/SampleTexture2D UV, TilingAndOffset.Out -> SampleTexture2D UV, and Texture2DAsset.Out -> SampleTexture2D Texture.";
             return false;
         }
 
