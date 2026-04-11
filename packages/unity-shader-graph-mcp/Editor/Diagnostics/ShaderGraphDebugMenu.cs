@@ -1083,6 +1083,116 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             );
         }
 
+        [MenuItem("Tools/Shader Graph MCP/Debug/Add UV SampleTexture2D NormalUnpack Sample")]
+        public static void AddUvSampleTexture2DNormalUnpackSample()
+        {
+            string assetPath = ResolveTargetAssetPath();
+
+            IReadOnlyList<string> supportedNodeTypes = SelectPreferredSupportedNodeTypes(128);
+            if (!supportedNodeTypes.Contains("UV") ||
+                !supportedNodeTypes.Contains("TilingAndOffset") ||
+                !supportedNodeTypes.Contains("SampleTexture2D") ||
+                !supportedNodeTypes.Contains("Texture2DAsset") ||
+                !supportedNodeTypes.Contains("NormalUnpack"))
+            {
+                Debug.LogWarning(
+                    "[ShaderGraphMcp] UV, TilingAndOffset, SampleTexture2D, Texture2DAsset, and NormalUnpack must all be graph-addable before the UV SampleTexture2D normal unpack workflow sample can run."
+                );
+                return;
+            }
+
+            ShaderGraphResponse addUv = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", $"UV {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTilingAndOffset = ShaderGraphAssetTool.HandleAddNode(assetPath, "TilingAndOffset", $"TilingOffset {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTexture = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", $"Texture {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSample = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", $"Sample {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addNormalUnpack = ShaderGraphAssetTool.HandleAddNode(assetPath, "NormalUnpack", $"NormalUnpack {DateTime.Now:HHmmss}");
+
+            LogResponse("add_node", assetPath, addUv);
+            LogResponse("add_node", assetPath, addTilingAndOffset);
+            LogResponse("add_node", assetPath, addTexture);
+            LogResponse("add_node", assetPath, addSample);
+            LogResponse("add_node", assetPath, addNormalUnpack);
+
+            if (!TryExtractAddedNodeId(addUv, out string uvNodeId) ||
+                !TryExtractAddedNodeId(addTilingAndOffset, out string tilingAndOffsetNodeId) ||
+                !TryExtractAddedNodeId(addTexture, out string textureNodeId) ||
+                !TryExtractAddedNodeId(addSample, out string sampleNodeId) ||
+                !TryExtractAddedNodeId(addNormalUnpack, out string normalUnpackNodeId))
+            {
+                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the UV SampleTexture2D NormalUnpack workflow sample.");
+                return;
+            }
+
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", tilingAndOffsetNodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, tilingAndOffsetNodeId, "Out", sampleNodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleNodeId, "RGBA", normalUnpackNodeId, "In"));
+
+            LogResponse(
+                "read_graph_summary",
+                assetPath,
+                ShaderGraphAssetTool.HandleReadGraphSummary(assetPath)
+            );
+        }
+
+        [MenuItem("Tools/Shader Graph MCP/Debug/Add UV SampleTexture2D NormalBlend Sample")]
+        public static void AddUvSampleTexture2DNormalBlendSample()
+        {
+            string assetPath = ResolveTargetAssetPath();
+
+            IReadOnlyList<string> supportedNodeTypes = SelectPreferredSupportedNodeTypes(128);
+            if (!supportedNodeTypes.Contains("UV") ||
+                !supportedNodeTypes.Contains("TilingAndOffset") ||
+                !supportedNodeTypes.Contains("SampleTexture2D") ||
+                !supportedNodeTypes.Contains("Texture2DAsset") ||
+                !supportedNodeTypes.Contains("NormalBlend"))
+            {
+                Debug.LogWarning(
+                    "[ShaderGraphMcp] UV, TilingAndOffset, SampleTexture2D, Texture2DAsset, and NormalBlend must all be graph-addable before the UV SampleTexture2D normal blend workflow sample can run."
+                );
+                return;
+            }
+
+            ShaderGraphResponse addUv = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", $"UV {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTilingAndOffset = ShaderGraphAssetTool.HandleAddNode(assetPath, "TilingAndOffset", $"TilingOffset {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTexture = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", $"Texture {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSampleA = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", $"SampleA {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSampleB = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", $"SampleB {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addNormalBlend = ShaderGraphAssetTool.HandleAddNode(assetPath, "NormalBlend", $"NormalBlend {DateTime.Now:HHmmss}");
+
+            LogResponse("add_node", assetPath, addUv);
+            LogResponse("add_node", assetPath, addTilingAndOffset);
+            LogResponse("add_node", assetPath, addTexture);
+            LogResponse("add_node", assetPath, addSampleA);
+            LogResponse("add_node", assetPath, addSampleB);
+            LogResponse("add_node", assetPath, addNormalBlend);
+
+            if (!TryExtractAddedNodeId(addUv, out string uvNodeId) ||
+                !TryExtractAddedNodeId(addTilingAndOffset, out string tilingAndOffsetNodeId) ||
+                !TryExtractAddedNodeId(addTexture, out string textureNodeId) ||
+                !TryExtractAddedNodeId(addSampleA, out string sampleANodeId) ||
+                !TryExtractAddedNodeId(addSampleB, out string sampleBNodeId) ||
+                !TryExtractAddedNodeId(addNormalBlend, out string normalBlendNodeId))
+            {
+                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the UV SampleTexture2D NormalBlend workflow sample.");
+                return;
+            }
+
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", tilingAndOffsetNodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, tilingAndOffsetNodeId, "Out", sampleANodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, tilingAndOffsetNodeId, "Out", sampleBNodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleANodeId, "Texture"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleBNodeId, "Texture"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleANodeId, "RGBA", normalBlendNodeId, "A"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleBNodeId, "RGBA", normalBlendNodeId, "B"));
+
+            LogResponse(
+                "read_graph_summary",
+                assetPath,
+                ShaderGraphAssetTool.HandleReadGraphSummary(assetPath)
+            );
+        }
+
         [MenuItem("Tools/Shader Graph MCP/Debug/Add Color Branch Split Sample")]
         public static void AddColorBranchSplitSample()
         {

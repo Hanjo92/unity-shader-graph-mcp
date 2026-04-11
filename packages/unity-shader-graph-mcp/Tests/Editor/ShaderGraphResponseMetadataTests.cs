@@ -18,6 +18,8 @@ namespace ShaderGraphMcp.Editor.Tests
             "Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is SplitNode input slot 0 / In.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalStrengthNode input slot In.",
+            "SampleTexture2DNode output slot RGBA is supported when the input node is NormalUnpackNode input slot In.",
+            "SampleTexture2DNode output slot RGBA is supported when the input node is NormalBlendNode input slot 0 / A or 1 / B.",
             "SampleTexture2DNode output slots R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X, CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots, ComparisonNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or AppendVectorNode input slot 0 / A or 1 / B.",
             "Vector1Node output slot 0 / Out and scalar arithmetic output slot Out are supported when the input node is NormalStrengthNode input slot Strength.",
             "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",

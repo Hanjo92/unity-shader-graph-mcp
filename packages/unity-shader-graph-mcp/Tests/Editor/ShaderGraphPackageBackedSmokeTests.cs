@@ -924,6 +924,96 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_UvSampleTexture2DNormalUnpackWorkflow_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUvSampleTexture2DNormalUnpackWorkflow", out _);
+
+            ShaderGraphResponse addUvResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", "Sample UV");
+            ShaderGraphTestAssets.RequirePackageReady(addUvResponse);
+            string uvNodeId = ShaderGraphTestAssets.GetAddedNodeId(addUvResponse);
+
+            ShaderGraphResponse addTilingAndOffsetResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "TilingAndOffset", "Sample TilingOffset");
+            ShaderGraphTestAssets.RequirePackageReady(addTilingAndOffsetResponse);
+            string tilingAndOffsetNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTilingAndOffsetResponse);
+
+            ShaderGraphResponse addTextureResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", "Sample Texture");
+            ShaderGraphTestAssets.RequirePackageReady(addTextureResponse);
+            string textureNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTextureResponse);
+
+            ShaderGraphResponse addSampleResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", "Sample Texture2D");
+            ShaderGraphTestAssets.RequirePackageReady(addSampleResponse);
+            string sampleNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSampleResponse);
+
+            ShaderGraphResponse addNormalUnpackResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "NormalUnpack", "Sample NormalUnpack");
+            ShaderGraphTestAssets.RequirePackageReady(addNormalUnpackResponse);
+            string normalUnpackNodeId = ShaderGraphTestAssets.GetAddedNodeId(addNormalUnpackResponse);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", tilingAndOffsetNodeId, "UV"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, tilingAndOffsetNodeId, "Out", sampleNodeId, "UV"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleNodeId, "RGBA", normalUnpackNodeId, "In"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(5));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(4));
+        }
+
+        [Test]
+        public void BlankGraph_UvSampleTexture2DNormalBlendWorkflow_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUvSampleTexture2DNormalBlendWorkflow", out _);
+
+            ShaderGraphResponse addUvResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", "Sample UV");
+            ShaderGraphTestAssets.RequirePackageReady(addUvResponse);
+            string uvNodeId = ShaderGraphTestAssets.GetAddedNodeId(addUvResponse);
+
+            ShaderGraphResponse addTilingAndOffsetResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "TilingAndOffset", "Sample TilingOffset");
+            ShaderGraphTestAssets.RequirePackageReady(addTilingAndOffsetResponse);
+            string tilingAndOffsetNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTilingAndOffsetResponse);
+
+            ShaderGraphResponse addTextureResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", "Sample Texture");
+            ShaderGraphTestAssets.RequirePackageReady(addTextureResponse);
+            string textureNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTextureResponse);
+
+            ShaderGraphResponse addSampleAResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", "Sample Texture2D A");
+            ShaderGraphTestAssets.RequirePackageReady(addSampleAResponse);
+            string sampleANodeId = ShaderGraphTestAssets.GetAddedNodeId(addSampleAResponse);
+
+            ShaderGraphResponse addSampleBResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", "Sample Texture2D B");
+            ShaderGraphTestAssets.RequirePackageReady(addSampleBResponse);
+            string sampleBNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSampleBResponse);
+
+            ShaderGraphResponse addNormalBlendResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "NormalBlend", "Sample NormalBlend");
+            ShaderGraphTestAssets.RequirePackageReady(addNormalBlendResponse);
+            string normalBlendNodeId = ShaderGraphTestAssets.GetAddedNodeId(addNormalBlendResponse);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", tilingAndOffsetNodeId, "UV"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, tilingAndOffsetNodeId, "Out", sampleANodeId, "UV"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, tilingAndOffsetNodeId, "Out", sampleBNodeId, "UV"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleANodeId, "Texture"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleBNodeId, "Texture"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleANodeId, "RGBA", normalBlendNodeId, "A"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleBNodeId, "RGBA", normalBlendNodeId, "B"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(6));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(7));
+        }
+
+        [Test]
         public void BlankGraph_AddFloatAndColorProperty_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphAddProperties", out _);
