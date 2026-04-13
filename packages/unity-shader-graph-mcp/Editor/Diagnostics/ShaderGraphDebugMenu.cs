@@ -1307,6 +1307,80 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             );
         }
 
+        [MenuItem("Tools/Shader Graph MCP/Debug/Add Comparison Predicate FanOut Sample")]
+        public static void AddComparisonPredicateFanOutSample()
+        {
+            string assetPath = ResolveTargetAssetPath();
+
+            IReadOnlyList<string> supportedNodeTypes = SelectPreferredSupportedNodeTypes(128);
+            if (!supportedNodeTypes.Contains("Comparison") ||
+                !supportedNodeTypes.Contains("Branch") ||
+                !supportedNodeTypes.Contains("Vector1"))
+            {
+                Debug.LogWarning(
+                    "[ShaderGraphMcp] Comparison, Branch, and Vector1 must all be graph-addable before the comparison predicate fan-out sample can run."
+                );
+                return;
+            }
+
+            ShaderGraphResponse addComparison = ShaderGraphAssetTool.HandleAddNode(assetPath, "Comparison", $"Comparison {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addBranchA = ShaderGraphAssetTool.HandleAddNode(assetPath, "Branch", $"BranchA {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addBranchB = ShaderGraphAssetTool.HandleAddNode(assetPath, "Branch", $"BranchB {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSourceA = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"ComparisonA {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSourceB = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"ComparisonB {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTrueA = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"TrueA {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addFalseA = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"FalseA {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTrueB = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"TrueB {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addFalseB = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"FalseB {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSinkA = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"SinkA {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSinkB = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"SinkB {DateTime.Now:HHmmss}");
+
+            LogResponse("add_node", assetPath, addComparison);
+            LogResponse("add_node", assetPath, addBranchA);
+            LogResponse("add_node", assetPath, addBranchB);
+            LogResponse("add_node", assetPath, addSourceA);
+            LogResponse("add_node", assetPath, addSourceB);
+            LogResponse("add_node", assetPath, addTrueA);
+            LogResponse("add_node", assetPath, addFalseA);
+            LogResponse("add_node", assetPath, addTrueB);
+            LogResponse("add_node", assetPath, addFalseB);
+            LogResponse("add_node", assetPath, addSinkA);
+            LogResponse("add_node", assetPath, addSinkB);
+
+            if (!TryExtractAddedNodeId(addComparison, out string comparisonNodeId) ||
+                !TryExtractAddedNodeId(addBranchA, out string branchANodeId) ||
+                !TryExtractAddedNodeId(addBranchB, out string branchBNodeId) ||
+                !TryExtractAddedNodeId(addSourceA, out string sourceANodeId) ||
+                !TryExtractAddedNodeId(addSourceB, out string sourceBNodeId) ||
+                !TryExtractAddedNodeId(addTrueA, out string trueANodeId) ||
+                !TryExtractAddedNodeId(addFalseA, out string falseANodeId) ||
+                !TryExtractAddedNodeId(addTrueB, out string trueBNodeId) ||
+                !TryExtractAddedNodeId(addFalseB, out string falseBNodeId) ||
+                !TryExtractAddedNodeId(addSinkA, out string sinkANodeId) ||
+                !TryExtractAddedNodeId(addSinkB, out string sinkBNodeId))
+            {
+                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the comparison predicate fan-out sample.");
+                return;
+            }
+
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, sourceANodeId, "Out", comparisonNodeId, "A"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, sourceBNodeId, "Out", comparisonNodeId, "B"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, comparisonNodeId, "Out", branchANodeId, "Predicate"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, comparisonNodeId, "Out", branchBNodeId, "Predicate"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, trueANodeId, "Out", branchANodeId, "True"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, falseANodeId, "Out", branchANodeId, "False"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, trueBNodeId, "Out", branchBNodeId, "True"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, falseBNodeId, "Out", branchBNodeId, "False"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, branchANodeId, "Out", sinkANodeId, "X"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, branchBNodeId, "Out", sinkBNodeId, "X"));
+
+            LogResponse(
+                "read_graph_summary",
+                assetPath,
+                ShaderGraphAssetTool.HandleReadGraphSummary(assetPath)
+            );
+        }
+
         [MenuItem("Tools/Shader Graph MCP/Debug/Add Color Branch Split Sample")]
         public static void AddColorBranchSplitSample()
         {
