@@ -3025,6 +3025,115 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_UvSampleTexture2DChannelsToComparisonBranchChain_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUvSampleTexture2DComparisonBranchChain", out _);
+
+            ShaderGraphResponse addUvResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", "Sample UV");
+            ShaderGraphTestAssets.RequirePackageReady(addUvResponse);
+            string uvNodeId = ShaderGraphTestAssets.GetAddedNodeId(addUvResponse);
+
+            ShaderGraphResponse addTextureResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", "Sample Texture");
+            ShaderGraphTestAssets.RequirePackageReady(addTextureResponse);
+            string textureNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTextureResponse);
+
+            ShaderGraphResponse addSampleResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", "Sample Texture2D");
+            ShaderGraphTestAssets.RequirePackageReady(addSampleResponse);
+            string sampleNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSampleResponse);
+
+            ShaderGraphResponse comparisonResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Comparison", "Comparison Node");
+            ShaderGraphTestAssets.RequirePackageReady(comparisonResponse);
+            string comparisonNodeId = ShaderGraphTestAssets.GetAddedNodeId(comparisonResponse);
+
+            ShaderGraphResponse branchResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Branch", "Branch Node");
+            ShaderGraphTestAssets.RequirePackageReady(branchResponse);
+            string branchNodeId = ShaderGraphTestAssets.GetAddedNodeId(branchResponse);
+
+            ShaderGraphResponse trueResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Branch True");
+            ShaderGraphTestAssets.RequirePackageReady(trueResponse);
+            string trueNodeId = ShaderGraphTestAssets.GetAddedNodeId(trueResponse);
+
+            ShaderGraphResponse falseResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Branch False");
+            ShaderGraphTestAssets.RequirePackageReady(falseResponse);
+            string falseNodeId = ShaderGraphTestAssets.GetAddedNodeId(falseResponse);
+
+            ShaderGraphResponse sinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Branch Sink");
+            ShaderGraphTestAssets.RequirePackageReady(sinkResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(sinkResponse);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", sampleNodeId, "UV"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+
+            ShaderGraphResponse comparisonAConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sampleNodeId,
+                "R",
+                comparisonNodeId,
+                "A");
+            ShaderGraphTestAssets.RequirePackageReady(comparisonAConnection);
+
+            ShaderGraphResponse comparisonBConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sampleNodeId,
+                "G",
+                comparisonNodeId,
+                "B");
+            ShaderGraphTestAssets.RequirePackageReady(comparisonBConnection);
+
+            ShaderGraphResponse predicateConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                comparisonNodeId,
+                "Out",
+                branchNodeId,
+                "Predicate");
+            ShaderGraphTestAssets.RequirePackageReady(predicateConnection);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, trueNodeId, "Out", branchNodeId, "True"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, falseNodeId, "Out", branchNodeId, "False"));
+
+            ShaderGraphResponse sinkConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                branchNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(sinkConnection);
+
+            var comparisonAResolved = ShaderGraphTestAssets.RequireDictionary(comparisonAConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(comparisonAResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(comparisonAResolved, "outputSlotId"), Is.EqualTo(4));
+            Assert.That(ShaderGraphTestAssets.GetString(comparisonAResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.ComparisonNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(comparisonAResolved, "inputSlotId"), Is.EqualTo(0));
+
+            var comparisonBResolved = ShaderGraphTestAssets.RequireDictionary(comparisonBConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(comparisonBResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(comparisonBResolved, "outputSlotId"), Is.EqualTo(5));
+            Assert.That(ShaderGraphTestAssets.GetString(comparisonBResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.ComparisonNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(comparisonBResolved, "inputSlotId"), Is.EqualTo(1));
+
+            var predicateResolved = ShaderGraphTestAssets.RequireDictionary(predicateConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(predicateResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.ComparisonNode"));
+            Assert.That(ShaderGraphTestAssets.GetString(predicateResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(predicateResolved, "outputSlotId"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetInt(predicateResolved, "inputSlotId"), Is.EqualTo(0));
+
+            var sinkResolved = ShaderGraphTestAssets.RequireDictionary(sinkConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(sinkResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
+            Assert.That(ShaderGraphTestAssets.GetString(sinkResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.Vector1Node"));
+            Assert.That(ShaderGraphTestAssets.GetInt(sinkResolved, "outputSlotId"), Is.EqualTo(3));
+            Assert.That(ShaderGraphTestAssets.GetInt(sinkResolved, "inputSlotId"), Is.EqualTo(1));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(8));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(8));
+        }
+
+        [Test]
         public void BlankGraph_ComparisonToMultipleBranchPredicates_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphComparisonMultipleBranchPredicates", out _);
