@@ -136,6 +136,21 @@ SUBGRAPH_PATH_ACTIONS: frozenset[str] = frozenset(
     }
 )
 
+_PATH_ACTION_MISMATCH_HINTS: dict[str, str] = {
+    "create_graph": "create_subgraph",
+    "create_subgraph": "create_graph",
+    "rename_graph": "rename_subgraph",
+    "rename_subgraph": "rename_graph",
+    "duplicate_graph": "duplicate_subgraph",
+    "duplicate_subgraph": "duplicate_graph",
+    "delete_graph": "delete_subgraph",
+    "delete_subgraph": "delete_graph",
+    "move_graph": "move_subgraph",
+    "move_subgraph": "move_graph",
+    "read_graph_summary": "read_subgraph_summary",
+    "read_subgraph_summary": "read_graph_summary",
+}
+
 
 def normalize_shadergraph_asset_request(
     payload: Mapping[str, Any],
@@ -1253,15 +1268,26 @@ def _validate_shadergraph_asset_path_kind(request: ShaderGraphAssetRequest) -> N
 
     lowered_path = path.lower()
     action = request.action
+    suggested_action = _PATH_ACTION_MISMATCH_HINTS.get(action)
 
     if action in SUBGRAPH_PATH_ACTIONS:
         if lowered_path.endswith(".shadergraph"):
+            if suggested_action is not None:
+                raise ShaderGraphRequestError(
+                    f"{action} requires a .shadersubgraph asset path, got '{path}'. "
+                    f"Did you mean '{suggested_action}'?"
+                )
             raise ShaderGraphRequestError(
                 f"{action} requires a .shadersubgraph asset path, got '{path}'."
             )
         return
 
     if action in GRAPH_PATH_ACTIONS and lowered_path.endswith(".shadersubgraph"):
+        if suggested_action is not None:
+            raise ShaderGraphRequestError(
+                f"{action} requires a .shadergraph asset path, got '{path}'. "
+                f"Did you mean '{suggested_action}'?"
+            )
         raise ShaderGraphRequestError(
             f"{action} requires a .shadergraph asset path, got '{path}'."
         )

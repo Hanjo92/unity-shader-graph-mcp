@@ -359,6 +359,7 @@ class ShaderGraphServerContractTests(unittest.TestCase):
                 }
             )
         self.assertIn(".shadersubgraph", str(ctx.exception))
+        self.assertIn("Did you mean 'rename_graph'?", str(ctx.exception))
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "duplicate_subgraph", "path": "Assets/X.shadersubgraph"})
@@ -374,6 +375,7 @@ class ShaderGraphServerContractTests(unittest.TestCase):
                 {"action": "read_graph_summary", "path": "Assets/X.shadersubgraph"}
             )
         self.assertIn(".shadergraph", str(ctx.exception))
+        self.assertIn("Did you mean 'read_subgraph_summary'?", str(ctx.exception))
 
         with self.assertRaises(ShaderGraphRequestError):
             normalize_shadergraph_asset_request({"action": "delete_subgraph"})

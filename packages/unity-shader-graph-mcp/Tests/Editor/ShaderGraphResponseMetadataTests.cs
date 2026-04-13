@@ -35,6 +35,7 @@ namespace ShaderGraphMcp.Editor.Tests
             "Vector1Node, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are supported when the input node is BranchNode input slot 1 / True or 2 / False.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B.",
+            "AppendVectorNode output slot Out is also supported when the same source fans out into SplitNode input slot 0 / In and MultiplyNode input slot 0 / A or 1 / B within one graph.",
             "BranchNode output slot 3 / Out is supported when the input node is one or more Vector1Node input slot 1 / X or scalar arithmetic input ports.",
             "Self-connections are rejected.",
         };
@@ -3130,6 +3131,48 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(2));
             Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
             Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesAppendFanOutToSplitAndMultiplyConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "append-57",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "multiply-58",
+                        ["inputPort"] = "A",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "append-57",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.AppendVectorNode",
+                        ["outputSlotId"] = 2,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "multiply-58",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.MultiplyNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "A",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("AppendVectorNode output slot Out is also supported when the same source fans out into SplitNode input slot 0 / In and MultiplyNode input slot 0 / A or 1 / B within one graph."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(2));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.MultiplyNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
         }
 
         [Test]

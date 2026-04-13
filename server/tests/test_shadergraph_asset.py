@@ -573,6 +573,46 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.payload["categoryName"], "Surface Inputs")
         self.assertEqual(request.payload["index"], "1")
 
+    def test_request_normalization_suggests_graph_action_for_graph_summary_subgraph_path(self) -> None:
+        with self.assertRaises(ShaderGraphRequestError) as ctx:
+            normalize_shadergraph_asset_request(
+                {
+                    "action": "read_graph_summary",
+                    "path": "Assets/X.shadersubgraph",
+                }
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("read_graph_summary requires a .shadergraph asset path", message)
+        self.assertIn("Did you mean 'read_subgraph_summary'?", message)
+
+    def test_request_normalization_suggests_subgraph_action_for_graph_path_summary(self) -> None:
+        with self.assertRaises(ShaderGraphRequestError) as ctx:
+            normalize_shadergraph_asset_request(
+                {
+                    "action": "read_subgraph_summary",
+                    "path": "Assets/X.shadergraph",
+                }
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("read_subgraph_summary requires a .shadersubgraph asset path", message)
+        self.assertIn("Did you mean 'read_graph_summary'?", message)
+
+    def test_request_normalization_suggests_counterpart_action_for_path_type_mismatch(self) -> None:
+        with self.assertRaises(ShaderGraphRequestError) as ctx:
+            normalize_shadergraph_asset_request(
+                {
+                    "action": "rename_subgraph",
+                    "path": "Assets/X.shadergraph",
+                    "newDisplayName": "Renamed",
+                }
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("rename_subgraph requires a .shadersubgraph asset path", message)
+        self.assertIn("Did you mean 'rename_graph'?", message)
+
     def test_request_normalization_accepts_duplicate_node_with_optional_alias_display_name(self) -> None:
         request = normalize_shadergraph_asset_request(
             {
