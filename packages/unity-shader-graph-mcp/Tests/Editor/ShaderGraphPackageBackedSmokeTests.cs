@@ -3827,6 +3827,86 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_ColorOutToSplitAndMultiply_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphColorOutToSplitAndMultiply", out _);
+
+            ShaderGraphResponse colorResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", "Color Source");
+            ShaderGraphResponse directSplitResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", "Direct Split");
+            ShaderGraphResponse multiplyResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Multiply", "Multiply Consumer");
+            ShaderGraphResponse multipliedSplitResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", "Multiplied Split");
+            ShaderGraphResponse multiplyColorResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", "Multiply Color");
+            ShaderGraphResponse directSinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Direct Sink");
+            ShaderGraphResponse multipliedSinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Multiplied Sink");
+
+            ShaderGraphTestAssets.RequirePackageReady(colorResponse);
+            ShaderGraphTestAssets.RequirePackageReady(directSplitResponse);
+            ShaderGraphTestAssets.RequirePackageReady(multiplyResponse);
+            ShaderGraphTestAssets.RequirePackageReady(multipliedSplitResponse);
+            ShaderGraphTestAssets.RequirePackageReady(multiplyColorResponse);
+            ShaderGraphTestAssets.RequirePackageReady(directSinkResponse);
+            ShaderGraphTestAssets.RequirePackageReady(multipliedSinkResponse);
+
+            string colorNodeId = ShaderGraphTestAssets.GetAddedNodeId(colorResponse);
+            string directSplitNodeId = ShaderGraphTestAssets.GetAddedNodeId(directSplitResponse);
+            string multiplyNodeId = ShaderGraphTestAssets.GetAddedNodeId(multiplyResponse);
+            string multipliedSplitNodeId = ShaderGraphTestAssets.GetAddedNodeId(multipliedSplitResponse);
+            string multiplyColorNodeId = ShaderGraphTestAssets.GetAddedNodeId(multiplyColorResponse);
+            string directSinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(directSinkResponse);
+            string multipliedSinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(multipliedSinkResponse);
+
+            ShaderGraphResponse colorToSplitResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                colorNodeId,
+                "Out",
+                directSplitNodeId,
+                "In");
+            ShaderGraphTestAssets.RequirePackageReady(colorToSplitResponse);
+
+            ShaderGraphResponse colorToMultiplyResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                colorNodeId,
+                "Out",
+                multiplyNodeId,
+                "A");
+            ShaderGraphTestAssets.RequirePackageReady(colorToMultiplyResponse);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, multiplyColorNodeId, "Out", multiplyNodeId, "B"));
+
+            ShaderGraphResponse multiplyToSplitResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                multiplyNodeId,
+                "Out",
+                multipliedSplitNodeId,
+                "In");
+            ShaderGraphTestAssets.RequirePackageReady(multiplyToSplitResponse);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, directSplitNodeId, "R", directSinkNodeId, "X"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, multipliedSplitNodeId, "G", multipliedSinkNodeId, "X"));
+
+            var splitResolved = ShaderGraphTestAssets.RequireDictionary(colorToSplitResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(splitResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.ColorNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(splitResolved, "outputSlotId"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetString(splitResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SplitNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(splitResolved, "inputSlotId"), Is.EqualTo(0));
+
+            var multiplyResolved = ShaderGraphTestAssets.RequireDictionary(colorToMultiplyResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(multiplyResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.ColorNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(multiplyResolved, "outputSlotId"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetString(multiplyResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.MultiplyNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(multiplyResolved, "inputSlotId"), Is.EqualTo(0));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(7));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(6));
+        }
+
+        [Test]
         public void BlankGraph_ColorBranchToSplitChain_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphColorBranchSplitChain", out _);

@@ -901,6 +901,62 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             );
         }
 
+        [MenuItem("Tools/Shader Graph MCP/Debug/Add Color Output FanOut Sample")]
+        public static void AddColorOutputFanOutSample()
+        {
+            string assetPath = ResolveTargetAssetPath();
+
+            IReadOnlyList<string> supportedNodeTypes = SelectPreferredSupportedNodeTypes(128);
+            if (!supportedNodeTypes.Contains("Color") || !supportedNodeTypes.Contains("Multiply") || !supportedNodeTypes.Contains("Split"))
+            {
+                Debug.LogWarning(
+                    "[ShaderGraphMcp] Color, Multiply, and Split must all be graph-addable before the Color output fan-out sample can run."
+                );
+                return;
+            }
+
+            ShaderGraphResponse addColor = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", $"FanOut Color {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addDirectSplit = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", $"FanOut Split {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addMultiply = ShaderGraphAssetTool.HandleAddNode(assetPath, "Multiply", $"FanOut Multiply {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addMultipliedSplit = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", $"FanOut Result Split {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addMultiplyColor = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", $"FanOut Multiply Color {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addDirectSink = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"FanOut Direct Sink {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addMultipliedSink = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"FanOut Result Sink {DateTime.Now:HHmmss}");
+
+            LogResponse("add_node", assetPath, addColor);
+            LogResponse("add_node", assetPath, addDirectSplit);
+            LogResponse("add_node", assetPath, addMultiply);
+            LogResponse("add_node", assetPath, addMultipliedSplit);
+            LogResponse("add_node", assetPath, addMultiplyColor);
+            LogResponse("add_node", assetPath, addDirectSink);
+            LogResponse("add_node", assetPath, addMultipliedSink);
+
+            if (!TryExtractAddedNodeId(addColor, out string colorNodeId) ||
+                !TryExtractAddedNodeId(addDirectSplit, out string directSplitNodeId) ||
+                !TryExtractAddedNodeId(addMultiply, out string multiplyNodeId) ||
+                !TryExtractAddedNodeId(addMultipliedSplit, out string multipliedSplitNodeId) ||
+                !TryExtractAddedNodeId(addMultiplyColor, out string multiplyColorNodeId) ||
+                !TryExtractAddedNodeId(addDirectSink, out string directSinkNodeId) ||
+                !TryExtractAddedNodeId(addMultipliedSink, out string multipliedSinkNodeId))
+            {
+                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the Color output fan-out sample.");
+                return;
+            }
+
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, colorNodeId, "Out", directSplitNodeId, "In"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, colorNodeId, "Out", multiplyNodeId, "A"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, multiplyColorNodeId, "Out", multiplyNodeId, "B"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, directSplitNodeId, "R", directSinkNodeId, "X"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, multiplyNodeId, "Out", multipliedSplitNodeId, "In"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, multipliedSplitNodeId, "G", multipliedSinkNodeId, "X"));
+
+            LogResponse(
+                "read_graph_summary",
+                assetPath,
+                ShaderGraphAssetTool.HandleReadGraphSummary(assetPath)
+            );
+        }
+
         [MenuItem("Tools/Shader Graph MCP/Debug/Add UV SampleTexture2D Split Sample")]
         public static void AddUvSampleTexture2DSplitSample()
         {
