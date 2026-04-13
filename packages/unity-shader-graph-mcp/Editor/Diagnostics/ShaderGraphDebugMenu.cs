@@ -1004,43 +1004,38 @@ namespace ShaderGraphMcp.Editor.Diagnostics
 
             IReadOnlyList<string> supportedNodeTypes = SelectPreferredSupportedNodeTypes(128);
             if (!supportedNodeTypes.Contains("UV") ||
-                !supportedNodeTypes.Contains("TilingAndOffset") ||
                 !supportedNodeTypes.Contains("SampleTexture2D") ||
                 !supportedNodeTypes.Contains("Texture2DAsset"))
             {
                 Debug.LogWarning(
-                    "[ShaderGraphMcp] UV, TilingAndOffset, SampleTexture2D, and Texture2DAsset must all be graph-addable before the UV -> SampleTexture2D -> Split sample can run."
+                    "[ShaderGraphMcp] UV, SampleTexture2D, and Texture2DAsset must all be graph-addable before the direct UV -> SampleTexture2D -> Split sample can run."
                 );
                 return;
             }
 
             ShaderGraphResponse addUv = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", $"UV {DateTime.Now:HHmmss}");
-            ShaderGraphResponse addTilingAndOffset = ShaderGraphAssetTool.HandleAddNode(assetPath, "TilingAndOffset", $"TilingOffset {DateTime.Now:HHmmss}");
             ShaderGraphResponse addTexture = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", $"Texture {DateTime.Now:HHmmss}");
             ShaderGraphResponse addSample = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", $"Sample {DateTime.Now:HHmmss}");
             ShaderGraphResponse addSplit = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", $"Texture Split {DateTime.Now:HHmmss}");
             ShaderGraphResponse addSink = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"Texture Sink {DateTime.Now:HHmmss}");
 
             LogResponse("add_node", assetPath, addUv);
-            LogResponse("add_node", assetPath, addTilingAndOffset);
             LogResponse("add_node", assetPath, addTexture);
             LogResponse("add_node", assetPath, addSample);
             LogResponse("add_node", assetPath, addSplit);
             LogResponse("add_node", assetPath, addSink);
 
             if (!TryExtractAddedNodeId(addUv, out string uvNodeId) ||
-                !TryExtractAddedNodeId(addTilingAndOffset, out string tilingAndOffsetNodeId) ||
                 !TryExtractAddedNodeId(addTexture, out string textureNodeId) ||
                 !TryExtractAddedNodeId(addSample, out string sampleNodeId) ||
                 !TryExtractAddedNodeId(addSplit, out string splitNodeId) ||
                 !TryExtractAddedNodeId(addSink, out string sinkNodeId))
             {
-                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the UV -> SampleTexture2D -> Split sample.");
+                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the direct UV -> SampleTexture2D -> Split sample.");
                 return;
             }
 
-            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", tilingAndOffsetNodeId, "UV"));
-            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, tilingAndOffsetNodeId, "Out", sampleNodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", sampleNodeId, "UV"));
             LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
             LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleNodeId, "RGBA", splitNodeId, "In"));
             LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, splitNodeId, "R", sinkNodeId, "X"));

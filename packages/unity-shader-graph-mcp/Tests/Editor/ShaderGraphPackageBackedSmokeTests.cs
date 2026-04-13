@@ -730,10 +730,6 @@ namespace ShaderGraphMcp.Editor.Tests
             ShaderGraphTestAssets.RequirePackageReady(addUvResponse);
             string uvNodeId = ShaderGraphTestAssets.GetAddedNodeId(addUvResponse);
 
-            ShaderGraphResponse addTilingAndOffsetResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "TilingAndOffset", "Sample TilingOffset");
-            ShaderGraphTestAssets.RequirePackageReady(addTilingAndOffsetResponse);
-            string tilingAndOffsetNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTilingAndOffsetResponse);
-
             ShaderGraphResponse addTextureResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", "Sample Texture");
             ShaderGraphTestAssets.RequirePackageReady(addTextureResponse);
             string textureNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTextureResponse);
@@ -750,21 +746,41 @@ namespace ShaderGraphMcp.Editor.Tests
             ShaderGraphTestAssets.RequirePackageReady(addSinkResponse);
             string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSinkResponse);
 
-            ShaderGraphTestAssets.RequirePackageReady(
-                ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", tilingAndOffsetNodeId, "UV"));
-            ShaderGraphTestAssets.RequirePackageReady(
-                ShaderGraphAssetTool.HandleConnectPorts(assetPath, tilingAndOffsetNodeId, "Out", sampleNodeId, "UV"));
-            ShaderGraphTestAssets.RequirePackageReady(
-                ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+            ShaderGraphResponse uvToSampleResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                uvNodeId,
+                "Out",
+                sampleNodeId,
+                "UV");
+            ShaderGraphTestAssets.RequirePackageReady(uvToSampleResponse);
+
+            ShaderGraphResponse textureToSampleResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                textureNodeId,
+                "Out",
+                sampleNodeId,
+                "Texture");
+            ShaderGraphTestAssets.RequirePackageReady(textureToSampleResponse);
+
             ShaderGraphTestAssets.RequirePackageReady(
                 ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleNodeId, "RGBA", splitNodeId, "In"));
             ShaderGraphTestAssets.RequirePackageReady(
                 ShaderGraphAssetTool.HandleConnectPorts(assetPath, splitNodeId, "R", sinkNodeId, "X"));
 
+            var uvResolved = ShaderGraphTestAssets.RequireDictionary(uvToSampleResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(uvResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.UVNode"));
+            Assert.That(ShaderGraphTestAssets.GetString(uvResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(uvResolved, "inputSlotId"), Is.EqualTo(2));
+
+            var textureResolved = ShaderGraphTestAssets.RequireDictionary(textureToSampleResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(textureResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.Texture2DAssetNode"));
+            Assert.That(ShaderGraphTestAssets.GetString(textureResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(textureResolved, "inputSlotId"), Is.EqualTo(1));
+
             ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
-            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(6));
-            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(5));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(5));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(4));
         }
 
         [Test]

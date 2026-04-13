@@ -2883,6 +2883,48 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesUvToSampleTexture2DUvConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "uv-20",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "sample-21",
+                        ["inputPort"] = "UV",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "uv-20",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.UVNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "sample-21",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                        ["inputSlotId"] = 2,
+                        ["inputPort"] = "UV",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("UVNode output slot Out / UV is supported when the input node is TilingAndOffsetNode input slot UV, SampleTexture2DNode input slot UV, or NormalFromTextureNode input slot UV."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.UVNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(2));
+        }
+
+        [Test]
         public void Ok_PreservesComparisonToBranchConnectionEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
