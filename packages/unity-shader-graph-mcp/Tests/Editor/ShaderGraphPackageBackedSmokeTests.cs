@@ -1014,6 +1014,57 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_ColorNormalBlendWorkflow_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphColorNormalBlendWorkflow", out _);
+
+            ShaderGraphResponse addColorAResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", "Normal Blend A");
+            ShaderGraphTestAssets.RequirePackageReady(addColorAResponse);
+            string colorANodeId = ShaderGraphTestAssets.GetAddedNodeId(addColorAResponse);
+
+            ShaderGraphResponse addColorBResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", "Normal Blend B");
+            ShaderGraphTestAssets.RequirePackageReady(addColorBResponse);
+            string colorBNodeId = ShaderGraphTestAssets.GetAddedNodeId(addColorBResponse);
+
+            ShaderGraphResponse addNormalBlendResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "NormalBlend", "Color Normal Blend");
+            ShaderGraphTestAssets.RequirePackageReady(addNormalBlendResponse);
+            string normalBlendNodeId = ShaderGraphTestAssets.GetAddedNodeId(addNormalBlendResponse);
+
+            ShaderGraphResponse colorAToNormalBlendResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                colorANodeId,
+                "Out",
+                normalBlendNodeId,
+                "A");
+            ShaderGraphTestAssets.RequirePackageReady(colorAToNormalBlendResponse);
+
+            ShaderGraphResponse colorBToNormalBlendResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                colorBNodeId,
+                "Out",
+                normalBlendNodeId,
+                "B");
+            ShaderGraphTestAssets.RequirePackageReady(colorBToNormalBlendResponse);
+
+            var resolvedA = ShaderGraphTestAssets.RequireDictionary(colorAToNormalBlendResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedA, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.ColorNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(resolvedA, "outputSlotId"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedA, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.NormalBlendNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(resolvedA, "inputSlotId"), Is.EqualTo(0));
+
+            var resolvedB = ShaderGraphTestAssets.RequireDictionary(colorBToNormalBlendResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedB, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.ColorNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(resolvedB, "outputSlotId"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedB, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.NormalBlendNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(resolvedB, "inputSlotId"), Is.EqualTo(1));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(3));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(2));
+        }
+
+        [Test]
         public void BlankGraph_UvSampleTexture2DNormalReconstructZWorkflow_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphUvSampleTexture2DNormalReconstructZWorkflow", out _);

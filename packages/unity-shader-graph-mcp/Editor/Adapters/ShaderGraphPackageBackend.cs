@@ -10402,7 +10402,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             "SampleTexture2DNode output slot RGBA is supported when the input node is SplitNode input slot 0 / In.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalStrengthNode input slot In.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalUnpackNode input slot In.",
-            "SampleTexture2DNode output slot RGBA is supported when the input node is NormalBlendNode input slot 0 / A or 1 / B.",
+            "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is NormalBlendNode input slot 0 / A or 1 / B.",
             "Vector2Node output slot Out is supported when the input node is NormalReconstructZNode input slot In.",
             "SampleTexture2DNode output slots R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X, CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots, ComparisonNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or AppendVectorNode input slot 0 / A or 1 / B.",
             "Vector1Node output slot 0 / Out and scalar arithmetic output slot Out are supported when the input node is NormalStrengthNode input slot Strength or NormalFromTextureNode input slot Offset or Strength.",
@@ -13849,8 +13849,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal) &&
-                string.Equals(canonicalOutputPort, "RGBA", StringComparison.Ordinal) &&
+            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.NormalBlendNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "B", StringComparison.Ordinal)))

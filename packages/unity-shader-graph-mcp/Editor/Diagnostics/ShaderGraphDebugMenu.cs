@@ -957,6 +957,46 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             );
         }
 
+        [MenuItem("Tools/Shader Graph MCP/Debug/Add Color NormalBlend Sample")]
+        public static void AddColorNormalBlendSample()
+        {
+            string assetPath = ResolveTargetAssetPath();
+
+            IReadOnlyList<string> supportedNodeTypes = SelectPreferredSupportedNodeTypes(128);
+            if (!supportedNodeTypes.Contains("Color") || !supportedNodeTypes.Contains("NormalBlend"))
+            {
+                Debug.LogWarning(
+                    "[ShaderGraphMcp] Color and NormalBlend must both be graph-addable before the Color normal blend sample can run."
+                );
+                return;
+            }
+
+            ShaderGraphResponse addColorA = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", $"NormalBlend A {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addColorB = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", $"NormalBlend B {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addNormalBlend = ShaderGraphAssetTool.HandleAddNode(assetPath, "NormalBlend", $"NormalBlend {DateTime.Now:HHmmss}");
+
+            LogResponse("add_node", assetPath, addColorA);
+            LogResponse("add_node", assetPath, addColorB);
+            LogResponse("add_node", assetPath, addNormalBlend);
+
+            if (!TryExtractAddedNodeId(addColorA, out string colorANodeId) ||
+                !TryExtractAddedNodeId(addColorB, out string colorBNodeId) ||
+                !TryExtractAddedNodeId(addNormalBlend, out string normalBlendNodeId))
+            {
+                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the Color normal blend sample.");
+                return;
+            }
+
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, colorANodeId, "Out", normalBlendNodeId, "A"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, colorBNodeId, "Out", normalBlendNodeId, "B"));
+
+            LogResponse(
+                "read_graph_summary",
+                assetPath,
+                ShaderGraphAssetTool.HandleReadGraphSummary(assetPath)
+            );
+        }
+
         [MenuItem("Tools/Shader Graph MCP/Debug/Add UV SampleTexture2D Split Sample")]
         public static void AddUvSampleTexture2DSplitSample()
         {
