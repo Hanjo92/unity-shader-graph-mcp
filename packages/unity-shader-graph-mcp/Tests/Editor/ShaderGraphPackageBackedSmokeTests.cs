@@ -882,6 +882,96 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_UvSampleTexture2DChannelAppendWorkflow_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUvSampleTexture2DChannelAppendWorkflow", out _);
+
+            ShaderGraphResponse addUvResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", "Sample UV");
+            ShaderGraphTestAssets.RequirePackageReady(addUvResponse);
+            string uvNodeId = ShaderGraphTestAssets.GetAddedNodeId(addUvResponse);
+
+            ShaderGraphResponse addTextureResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", "Sample Texture");
+            ShaderGraphTestAssets.RequirePackageReady(addTextureResponse);
+            string textureNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTextureResponse);
+
+            ShaderGraphResponse addSampleResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", "Sample Texture2D");
+            ShaderGraphTestAssets.RequirePackageReady(addSampleResponse);
+            string sampleNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSampleResponse);
+
+            ShaderGraphResponse addAppendResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Append", "Sample Append");
+            ShaderGraphTestAssets.RequirePackageReady(addAppendResponse);
+            string appendNodeId = ShaderGraphTestAssets.GetAddedNodeId(addAppendResponse);
+
+            ShaderGraphResponse addSplitResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", "Sample Split");
+            ShaderGraphTestAssets.RequirePackageReady(addSplitResponse);
+            string splitNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSplitResponse);
+
+            ShaderGraphResponse addSinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Sample Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addSinkResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSinkResponse);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", sampleNodeId, "UV"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+
+            ShaderGraphResponse appendAConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sampleNodeId,
+                "R",
+                appendNodeId,
+                "A");
+            ShaderGraphTestAssets.RequirePackageReady(appendAConnection);
+
+            ShaderGraphResponse appendBConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sampleNodeId,
+                "G",
+                appendNodeId,
+                "B");
+            ShaderGraphTestAssets.RequirePackageReady(appendBConnection);
+
+            ShaderGraphResponse appendToSplitConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                appendNodeId,
+                "Out",
+                splitNodeId,
+                "In");
+            ShaderGraphTestAssets.RequirePackageReady(appendToSplitConnection);
+
+            ShaderGraphResponse splitToSinkConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                splitNodeId,
+                "G",
+                sinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(splitToSinkConnection);
+
+            var appendAResolved = ShaderGraphTestAssets.RequireDictionary(appendAConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(appendAResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(appendAResolved, "outputSlotId"), Is.EqualTo(4));
+            Assert.That(ShaderGraphTestAssets.GetString(appendAResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(appendAResolved, "inputSlotId"), Is.EqualTo(0));
+
+            var appendBResolved = ShaderGraphTestAssets.RequireDictionary(appendBConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(appendBResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(appendBResolved, "outputSlotId"), Is.EqualTo(5));
+            Assert.That(ShaderGraphTestAssets.GetString(appendBResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(appendBResolved, "inputSlotId"), Is.EqualTo(1));
+
+            var appendResolved = ShaderGraphTestAssets.RequireDictionary(appendToSplitConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(appendResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(appendResolved, "outputSlotId"), Is.EqualTo(2));
+            Assert.That(ShaderGraphTestAssets.GetString(appendResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SplitNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(appendResolved, "inputSlotId"), Is.EqualTo(0));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(6));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(6));
+        }
+
+        [Test]
         public void BlankGraph_UvSampleTexture2DNormalStrengthWorkflow_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphUvSampleTexture2DNormalStrengthWorkflow", out _);
@@ -3125,6 +3215,102 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(ShaderGraphTestAssets.GetString(sinkResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
             Assert.That(ShaderGraphTestAssets.GetString(sinkResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.Vector1Node"));
             Assert.That(ShaderGraphTestAssets.GetInt(sinkResolved, "outputSlotId"), Is.EqualTo(3));
+            Assert.That(ShaderGraphTestAssets.GetInt(sinkResolved, "inputSlotId"), Is.EqualTo(1));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(8));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(8));
+        }
+
+        [Test]
+        public void BlankGraph_UvSampleTexture2DChannelsToBranchChain_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUvSampleTexture2DBranchChain", out _);
+
+            ShaderGraphResponse addUvResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", "Sample UV");
+            ShaderGraphTestAssets.RequirePackageReady(addUvResponse);
+            string uvNodeId = ShaderGraphTestAssets.GetAddedNodeId(addUvResponse);
+
+            ShaderGraphResponse addTextureResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", "Sample Texture");
+            ShaderGraphTestAssets.RequirePackageReady(addTextureResponse);
+            string textureNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTextureResponse);
+
+            ShaderGraphResponse addSampleResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", "Sample Texture2D");
+            ShaderGraphTestAssets.RequirePackageReady(addSampleResponse);
+            string sampleNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSampleResponse);
+
+            ShaderGraphResponse comparisonResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Comparison", "Branch Comparison");
+            ShaderGraphTestAssets.RequirePackageReady(comparisonResponse);
+            string comparisonNodeId = ShaderGraphTestAssets.GetAddedNodeId(comparisonResponse);
+
+            ShaderGraphResponse compareAResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Comparison A");
+            ShaderGraphTestAssets.RequirePackageReady(compareAResponse);
+            string compareANodeId = ShaderGraphTestAssets.GetAddedNodeId(compareAResponse);
+
+            ShaderGraphResponse compareBResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Comparison B");
+            ShaderGraphTestAssets.RequirePackageReady(compareBResponse);
+            string compareBNodeId = ShaderGraphTestAssets.GetAddedNodeId(compareBResponse);
+
+            ShaderGraphResponse branchResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Branch", "Branch Node");
+            ShaderGraphTestAssets.RequirePackageReady(branchResponse);
+            string branchNodeId = ShaderGraphTestAssets.GetAddedNodeId(branchResponse);
+
+            ShaderGraphResponse sinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Branch Sink");
+            ShaderGraphTestAssets.RequirePackageReady(sinkResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(sinkResponse);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", sampleNodeId, "UV"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, compareANodeId, "Out", comparisonNodeId, "A"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, compareBNodeId, "Out", comparisonNodeId, "B"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, comparisonNodeId, "Out", branchNodeId, "Predicate"));
+
+            ShaderGraphResponse trueConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sampleNodeId,
+                "R",
+                branchNodeId,
+                "True");
+            ShaderGraphTestAssets.RequirePackageReady(trueConnection);
+
+            ShaderGraphResponse falseConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sampleNodeId,
+                "G",
+                branchNodeId,
+                "False");
+            ShaderGraphTestAssets.RequirePackageReady(falseConnection);
+
+            ShaderGraphResponse sinkConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                branchNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(sinkConnection);
+
+            var trueResolved = ShaderGraphTestAssets.RequireDictionary(trueConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(trueResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(trueResolved, "outputSlotId"), Is.EqualTo(4));
+            Assert.That(ShaderGraphTestAssets.GetString(trueResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(trueResolved, "inputSlotId"), Is.EqualTo(1));
+
+            var falseResolved = ShaderGraphTestAssets.RequireDictionary(falseConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(falseResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(falseResolved, "outputSlotId"), Is.EqualTo(5));
+            Assert.That(ShaderGraphTestAssets.GetString(falseResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(falseResolved, "inputSlotId"), Is.EqualTo(2));
+
+            var sinkResolved = ShaderGraphTestAssets.RequireDictionary(sinkConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(sinkResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(sinkResolved, "outputSlotId"), Is.EqualTo(3));
+            Assert.That(ShaderGraphTestAssets.GetString(sinkResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.Vector1Node"));
             Assert.That(ShaderGraphTestAssets.GetInt(sinkResolved, "inputSlotId"), Is.EqualTo(1));
 
             ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
