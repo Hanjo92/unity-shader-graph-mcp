@@ -3431,6 +3431,92 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesSplitToVector3ConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "split-24",
+                        ["outputPort"] = "R",
+                        ["inputNodeId"] = "vector3-25",
+                        ["inputPort"] = "X",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "split-24",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.SplitNode",
+                        ["outputSlotId"] = 1,
+                        ["outputPort"] = "R",
+                        ["inputNodeId"] = "vector3-25",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.Vector3Node",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "X",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SplitNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(1));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Vector3Node"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+            Assert.That(resolvedConnection["connectedEdgeType"], Is.EqualTo("UnityEditor.ShaderGraph.Edge"));
+        }
+
+        [Test]
+        public void Ok_PreservesSplitToVector4ConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "split-26",
+                        ["outputPort"] = "R",
+                        ["inputNodeId"] = "vector4-27",
+                        ["inputPort"] = "X",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "split-26",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.SplitNode",
+                        ["outputSlotId"] = 1,
+                        ["outputPort"] = "R",
+                        ["inputNodeId"] = "vector4-27",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.Vector4Node",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "X",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SplitNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(1));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Vector4Node"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+            Assert.That(resolvedConnection["connectedEdgeType"], Is.EqualTo("UnityEditor.ShaderGraph.Edge"));
+        }
+
+        [Test]
         public void Ok_PreservesUvToSampleTexture2DUvConnectionEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
