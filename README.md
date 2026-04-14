@@ -2,7 +2,9 @@
 
 Shader Graph focused MCP for Unity.
 
-Current release target: `1.0.0`
+Current stable release: `1.0.0`
+
+Next milestone target: `1.1.0`
 
 `1.0.0` locks the first real package-backed editing loop:
 
@@ -15,6 +17,7 @@ Current release target: `1.0.0`
 
 The Unity-side package-backed engine and Unity batchmode MCP bridge are now stable enough for the first `1.0.0` cut.
 The server now supports a live stdio MCP transport and an optional Unity batchmode bridge for real external tool calls.
+The `1.0.0` line is now closed; remaining engine expansion and authoring-surface work is tracked as `1.1.0` follow-up scope.
 
 This repository is intentionally split into independent work areas so multiple sub-agents can work in parallel with minimal merge risk.
 
