@@ -3387,6 +3387,132 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesTilingAndOffsetToSampleTexture2DUvConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "tiling-22",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "sample-23",
+                        ["inputPort"] = "UV",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "tiling-22",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.TilingAndOffsetNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "sample-23",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                        ["inputSlotId"] = 2,
+                        ["inputPort"] = "UV",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("TilingAndOffsetNode output slot Out is supported when the input node is SampleTexture2DNode input slot UV or NormalFromTextureNode input slot UV."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.TilingAndOffsetNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Ok_PreservesTextureToSampleTexture2DTextureConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "texture-24",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "sample-25",
+                        ["inputPort"] = "Texture",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "texture-24",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.Texture2DAssetNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "sample-25",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "Texture",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Texture2DAssetNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesSampleTexture2DColorToSplitConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-26",
+                        ["outputPort"] = "RGBA",
+                        ["inputNodeId"] = "split-27",
+                        ["inputPort"] = "In",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-26",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "RGBA",
+                        ["inputNodeId"] = "split-27",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.SplitNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "In",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("SampleTexture2DNode output slot RGBA is supported when the input node is SplitNode input slot 0 / In."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SplitNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
         public void Ok_PreservesSampleTexture2DChannelToComparisonConnectionEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
