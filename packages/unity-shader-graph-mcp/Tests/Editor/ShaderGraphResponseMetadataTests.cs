@@ -2920,6 +2920,174 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesUvToNormalFromTextureUvConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "uv-42",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-43",
+                        ["inputPort"] = "UV",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "uv-42",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.UVNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-43",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalFromTextureNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "UV",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("UVNode output slot Out / UV is supported when the input node is TilingAndOffsetNode input slot UV, SampleTexture2DNode input slot UV, or NormalFromTextureNode input slot UV."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.UVNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalFromTextureNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesTilingAndOffsetToNormalFromTextureUvConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "tiling-44",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-45",
+                        ["inputPort"] = "UV",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "tiling-44",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.TilingAndOffsetNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-45",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalFromTextureNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "UV",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("TilingAndOffsetNode output slot Out is supported when the input node is SampleTexture2DNode input slot UV or NormalFromTextureNode input slot UV."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.TilingAndOffsetNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalFromTextureNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesTextureToNormalFromTextureTextureConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "texture-46",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-47",
+                        ["inputPort"] = "Texture",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "texture-46",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.Texture2DAssetNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-47",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalFromTextureNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "Texture",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Texture2DAssetNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalFromTextureNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesVector1ToNormalFromTextureOffsetConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "vector1-48",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-49",
+                        ["inputPort"] = "Offset",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "vector1-48",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-49",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalFromTextureNode",
+                        ["inputSlotId"] = 2,
+                        ["inputPort"] = "Offset",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Vector1Node output slot 0 / Out and scalar arithmetic output slot Out are supported when the input node is NormalStrengthNode input slot Strength or NormalFromTextureNode input slot Offset or Strength."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Vector1Node"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalFromTextureNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(2));
+        }
+
+        [Test]
         public void Ok_PreservesCombineToAppendConnectionEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
