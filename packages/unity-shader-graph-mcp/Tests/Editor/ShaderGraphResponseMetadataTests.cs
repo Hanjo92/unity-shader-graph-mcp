@@ -2752,6 +2752,48 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesSampleTexture2DColorToNormalBlendConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-33",
+                        ["outputPort"] = "RGBA",
+                        ["inputNodeId"] = "normal-blend-34",
+                        ["inputPort"] = "A",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-33",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "RGBA",
+                        ["inputNodeId"] = "normal-blend-34",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalBlendNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "A",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is NormalBlendNode input slot 0 / A or 1 / B."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalBlendNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
         public void Ok_PreservesSampleTexture2DColorToNormalStrengthConnectionEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
@@ -3085,6 +3127,90 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
             Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalFromTextureNode"));
             Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Ok_PreservesVector1ToNormalFromTextureStrengthConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "vector1-50",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-51",
+                        ["inputPort"] = "Strength",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "vector1-50",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-51",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalFromTextureNode",
+                        ["inputSlotId"] = 3,
+                        ["inputPort"] = "Strength",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Vector1Node output slot 0 / Out and scalar arithmetic output slot Out are supported when the input node is NormalStrengthNode input slot Strength or NormalFromTextureNode input slot Offset or Strength."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Vector1Node"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalFromTextureNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(3));
+        }
+
+        [Test]
+        public void Ok_PreservesVector2ToNormalReconstructZConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "vector2-52",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-reconstruct-z-53",
+                        ["inputPort"] = "In",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "vector2-52",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.Vector2Node",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-reconstruct-z-53",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalReconstructZNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "In",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Vector2Node output slot Out is supported when the input node is NormalReconstructZNode input slot In."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Vector2Node"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalReconstructZNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
         }
 
         [Test]
