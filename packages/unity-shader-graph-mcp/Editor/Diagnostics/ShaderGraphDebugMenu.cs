@@ -1361,6 +1361,79 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             );
         }
 
+        [MenuItem("Tools/Shader Graph MCP/Debug/Add UV SampleTexture2D Color Branch Split Sample")]
+        public static void AddUvSampleTexture2DColorBranchSplitSample()
+        {
+            string assetPath = ResolveTargetAssetPath();
+
+            IReadOnlyList<string> supportedNodeTypes = SelectPreferredSupportedNodeTypes(128);
+            if (!supportedNodeTypes.Contains("UV") ||
+                !supportedNodeTypes.Contains("SampleTexture2D") ||
+                !supportedNodeTypes.Contains("Texture2DAsset") ||
+                !supportedNodeTypes.Contains("Comparison") ||
+                !supportedNodeTypes.Contains("Branch") ||
+                !supportedNodeTypes.Contains("Split"))
+            {
+                Debug.LogWarning(
+                    "[ShaderGraphMcp] UV, SampleTexture2D, Texture2DAsset, Comparison, Branch, and Split must all be graph-addable before the UV SampleTexture2D color branch workflow sample can run."
+                );
+                return;
+            }
+
+            ShaderGraphResponse addUv = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", $"UV {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTexture = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", $"Texture {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSample = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", $"Sample {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addComparison = ShaderGraphAssetTool.HandleAddNode(assetPath, "Comparison", $"Comparison {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addCompareA = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"CompareA {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addCompareB = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"CompareB {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addBranch = ShaderGraphAssetTool.HandleAddNode(assetPath, "Branch", $"Branch {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addColor = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", $"False Color {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSplit = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", $"Split {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSink = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"Sink {DateTime.Now:HHmmss}");
+
+            LogResponse("add_node", assetPath, addUv);
+            LogResponse("add_node", assetPath, addTexture);
+            LogResponse("add_node", assetPath, addSample);
+            LogResponse("add_node", assetPath, addComparison);
+            LogResponse("add_node", assetPath, addCompareA);
+            LogResponse("add_node", assetPath, addCompareB);
+            LogResponse("add_node", assetPath, addBranch);
+            LogResponse("add_node", assetPath, addColor);
+            LogResponse("add_node", assetPath, addSplit);
+            LogResponse("add_node", assetPath, addSink);
+
+            if (!TryExtractAddedNodeId(addUv, out string uvNodeId) ||
+                !TryExtractAddedNodeId(addTexture, out string textureNodeId) ||
+                !TryExtractAddedNodeId(addSample, out string sampleNodeId) ||
+                !TryExtractAddedNodeId(addComparison, out string comparisonNodeId) ||
+                !TryExtractAddedNodeId(addCompareA, out string compareANodeId) ||
+                !TryExtractAddedNodeId(addCompareB, out string compareBNodeId) ||
+                !TryExtractAddedNodeId(addBranch, out string branchNodeId) ||
+                !TryExtractAddedNodeId(addColor, out string colorNodeId) ||
+                !TryExtractAddedNodeId(addSplit, out string splitNodeId) ||
+                !TryExtractAddedNodeId(addSink, out string sinkNodeId))
+            {
+                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the UV SampleTexture2D color branch workflow sample.");
+                return;
+            }
+
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", sampleNodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, compareANodeId, "Out", comparisonNodeId, "A"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, compareBNodeId, "Out", comparisonNodeId, "B"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, comparisonNodeId, "Out", branchNodeId, "Predicate"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleNodeId, "RGBA", branchNodeId, "True"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, colorNodeId, "Out", branchNodeId, "False"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, branchNodeId, "Out", splitNodeId, "In"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, splitNodeId, "R", sinkNodeId, "X"));
+
+            LogResponse(
+                "read_graph_summary",
+                assetPath,
+                ShaderGraphAssetTool.HandleReadGraphSummary(assetPath)
+            );
+        }
+
         [MenuItem("Tools/Shader Graph MCP/Debug/Add UV SampleTexture2D NormalStrength Split Sample")]
         public static void AddUvSampleTexture2DNormalStrengthSplitSample()
         {
