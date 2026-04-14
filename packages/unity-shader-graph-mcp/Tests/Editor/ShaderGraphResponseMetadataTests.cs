@@ -3471,6 +3471,90 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesSampleTexture2DChannelToVector1ConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-26",
+                        ["outputPort"] = "R",
+                        ["inputNodeId"] = "vector1-27",
+                        ["inputPort"] = "X",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-26",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                        ["outputSlotId"] = 4,
+                        ["outputPort"] = "R",
+                        ["inputNodeId"] = "vector1-27",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.Vector1Node",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "X",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("SampleTexture2DNode output slots R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X, CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots, ComparisonNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or AppendVectorNode input slot 0 / A or 1 / B."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(4));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Vector1Node"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesSampleTexture2DColorToMultiplyConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-28",
+                        ["outputPort"] = "RGBA",
+                        ["inputNodeId"] = "multiply-29",
+                        ["inputPort"] = "A",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-28",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "RGBA",
+                        ["inputNodeId"] = "multiply-29",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.MultiplyNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "A",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.MultiplyNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
         public void Ok_PreservesSampleTexture2DColorToSplitConnectionEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
