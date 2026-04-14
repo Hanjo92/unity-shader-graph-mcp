@@ -972,6 +972,90 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_UvSampleTexture2DColorLerpWorkflow_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUvSampleTexture2DColorLerpWorkflow", out _);
+
+            ShaderGraphResponse addUvResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", "Sample UV");
+            ShaderGraphTestAssets.RequirePackageReady(addUvResponse);
+            string uvNodeId = ShaderGraphTestAssets.GetAddedNodeId(addUvResponse);
+
+            ShaderGraphResponse addTextureResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", "Sample Texture");
+            ShaderGraphTestAssets.RequirePackageReady(addTextureResponse);
+            string textureNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTextureResponse);
+
+            ShaderGraphResponse addSampleResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", "Sample Texture2D");
+            ShaderGraphTestAssets.RequirePackageReady(addSampleResponse);
+            string sampleNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSampleResponse);
+
+            ShaderGraphResponse addLerpResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Lerp", "Sample Lerp");
+            ShaderGraphTestAssets.RequirePackageReady(addLerpResponse);
+            string lerpNodeId = ShaderGraphTestAssets.GetAddedNodeId(addLerpResponse);
+
+            ShaderGraphResponse addColorResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", "Sample Lerp Color");
+            ShaderGraphTestAssets.RequirePackageReady(addColorResponse);
+            string colorNodeId = ShaderGraphTestAssets.GetAddedNodeId(addColorResponse);
+
+            ShaderGraphResponse addTResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Sample Lerp T");
+            ShaderGraphTestAssets.RequirePackageReady(addTResponse);
+            string tNodeId = ShaderGraphTestAssets.GetAddedNodeId(addTResponse);
+
+            ShaderGraphResponse addSplitResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", "Sample Split");
+            ShaderGraphTestAssets.RequirePackageReady(addSplitResponse);
+            string splitNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSplitResponse);
+
+            ShaderGraphResponse addSinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Sample Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addSinkResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSinkResponse);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", sampleNodeId, "UV"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+
+            ShaderGraphResponse lerpAConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                sampleNodeId,
+                "RGBA",
+                lerpNodeId,
+                "A");
+            ShaderGraphTestAssets.RequirePackageReady(lerpAConnection);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, colorNodeId, "Out", lerpNodeId, "B"));
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, tNodeId, "Out", lerpNodeId, "T"));
+
+            ShaderGraphResponse lerpToSplitConnection = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                lerpNodeId,
+                "Out",
+                splitNodeId,
+                "In");
+            ShaderGraphTestAssets.RequirePackageReady(lerpToSplitConnection);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleConnectPorts(assetPath, splitNodeId, "R", sinkNodeId, "X"));
+
+            var lerpAResolved = ShaderGraphTestAssets.RequireDictionary(lerpAConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(lerpAResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(lerpAResolved, "outputSlotId"), Is.EqualTo(0));
+            Assert.That(ShaderGraphTestAssets.GetString(lerpAResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.LerpNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(lerpAResolved, "inputSlotId"), Is.EqualTo(0));
+
+            var lerpResolved = ShaderGraphTestAssets.RequireDictionary(lerpToSplitConnection.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(lerpResolved, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.LerpNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(lerpResolved, "outputSlotId"), Is.EqualTo(3));
+            Assert.That(ShaderGraphTestAssets.GetString(lerpResolved, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.SplitNode"));
+            Assert.That(ShaderGraphTestAssets.GetInt(lerpResolved, "inputSlotId"), Is.EqualTo(0));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(8));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(7));
+        }
+
+        [Test]
         public void BlankGraph_UvSampleTexture2DNormalStrengthWorkflow_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphUvSampleTexture2DNormalStrengthWorkflow", out _);

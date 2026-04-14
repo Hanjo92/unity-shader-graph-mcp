@@ -3051,6 +3051,48 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesSampleTexture2DColorToLerpConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-28",
+                        ["outputPort"] = "RGBA",
+                        ["inputNodeId"] = "lerp-29",
+                        ["inputPort"] = "A",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "sample-28",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "RGBA",
+                        ["inputNodeId"] = "lerp-29",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.LerpNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "A",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.LerpNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
         public void Ok_PreservesComparisonToBranchConnectionEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

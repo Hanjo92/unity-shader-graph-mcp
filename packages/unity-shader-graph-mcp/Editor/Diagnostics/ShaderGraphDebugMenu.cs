@@ -1297,6 +1297,70 @@ namespace ShaderGraphMcp.Editor.Diagnostics
             );
         }
 
+        [MenuItem("Tools/Shader Graph MCP/Debug/Add UV SampleTexture2D Lerp Split Sample")]
+        public static void AddUvSampleTexture2DLerpSplitSample()
+        {
+            string assetPath = ResolveTargetAssetPath();
+
+            IReadOnlyList<string> supportedNodeTypes = SelectPreferredSupportedNodeTypes(128);
+            if (!supportedNodeTypes.Contains("UV") ||
+                !supportedNodeTypes.Contains("SampleTexture2D") ||
+                !supportedNodeTypes.Contains("Texture2DAsset") ||
+                !supportedNodeTypes.Contains("Lerp") ||
+                !supportedNodeTypes.Contains("Split"))
+            {
+                Debug.LogWarning(
+                    "[ShaderGraphMcp] UV, SampleTexture2D, Texture2DAsset, Lerp, and Split must all be graph-addable before the UV SampleTexture2D lerp workflow sample can run."
+                );
+                return;
+            }
+
+            ShaderGraphResponse addUv = ShaderGraphAssetTool.HandleAddNode(assetPath, "UV", $"UV {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addTexture = ShaderGraphAssetTool.HandleAddNode(assetPath, "Texture2DAsset", $"Texture {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSample = ShaderGraphAssetTool.HandleAddNode(assetPath, "SampleTexture2D", $"Sample {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addLerp = ShaderGraphAssetTool.HandleAddNode(assetPath, "Lerp", $"Lerp {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addColor = ShaderGraphAssetTool.HandleAddNode(assetPath, "Color", $"Lerp Color {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addT = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"Lerp T {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSplit = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", $"Split {DateTime.Now:HHmmss}");
+            ShaderGraphResponse addSink = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", $"Sink {DateTime.Now:HHmmss}");
+
+            LogResponse("add_node", assetPath, addUv);
+            LogResponse("add_node", assetPath, addTexture);
+            LogResponse("add_node", assetPath, addSample);
+            LogResponse("add_node", assetPath, addLerp);
+            LogResponse("add_node", assetPath, addColor);
+            LogResponse("add_node", assetPath, addT);
+            LogResponse("add_node", assetPath, addSplit);
+            LogResponse("add_node", assetPath, addSink);
+
+            if (!TryExtractAddedNodeId(addUv, out string uvNodeId) ||
+                !TryExtractAddedNodeId(addTexture, out string textureNodeId) ||
+                !TryExtractAddedNodeId(addSample, out string sampleNodeId) ||
+                !TryExtractAddedNodeId(addLerp, out string lerpNodeId) ||
+                !TryExtractAddedNodeId(addColor, out string colorNodeId) ||
+                !TryExtractAddedNodeId(addT, out string tNodeId) ||
+                !TryExtractAddedNodeId(addSplit, out string splitNodeId) ||
+                !TryExtractAddedNodeId(addSink, out string sinkNodeId))
+            {
+                Debug.LogError("[ShaderGraphMcp] Could not extract node ids for the UV SampleTexture2D lerp workflow sample.");
+                return;
+            }
+
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, uvNodeId, "Out", sampleNodeId, "UV"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, textureNodeId, "Out", sampleNodeId, "Texture"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, sampleNodeId, "RGBA", lerpNodeId, "A"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, colorNodeId, "Out", lerpNodeId, "B"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, tNodeId, "Out", lerpNodeId, "T"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, lerpNodeId, "Out", splitNodeId, "In"));
+            LogResponse("connect_ports", assetPath, ShaderGraphAssetTool.HandleConnectPorts(assetPath, splitNodeId, "R", sinkNodeId, "X"));
+
+            LogResponse(
+                "read_graph_summary",
+                assetPath,
+                ShaderGraphAssetTool.HandleReadGraphSummary(assetPath)
+            );
+        }
+
         [MenuItem("Tools/Shader Graph MCP/Debug/Add UV SampleTexture2D NormalStrength Split Sample")]
         public static void AddUvSampleTexture2DNormalStrengthSplitSample()
         {

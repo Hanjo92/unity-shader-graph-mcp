@@ -29,6 +29,7 @@ The goal is to keep the contract, CLI, and Unity-side file flow real enough to e
 - The current EditMode smoke coverage now also locks `SampleTexture2DNode` channel routing into `ComparisonNode.A/B`, followed by the existing `Comparison -> Branch -> Vector1` path.
 - The current EditMode smoke coverage now also locks `SampleTexture2DNode` channel routing into `BranchNode.True/False`, followed by the existing `Branch -> Vector1` path.
 - The current EditMode smoke coverage now also locks `SampleTexture2DNode` channel routing into `AppendVectorNode.A/B`, followed by the existing `Append -> Split -> Vector1` path.
+- The current EditMode smoke coverage now also locks `SampleTexture2DNode.RGBA -> LerpNode.A`, followed by the existing `Lerp -> Split -> Vector1` path.
 - The current EditMode smoke coverage also locks mixed Append chains into downstream vector consumers: `AppendVectorNode.Out -> MultiplyNode.A/B`, `AppendVectorNode.Out -> LerpNode.A/B/T`, and `AppendVectorNode.Out -> BranchNode.True/False`, followed by the existing `Multiply` / `Lerp` / `Branch -> SplitNode.In` paths.
 - The current EditMode smoke coverage also locks the reverse mixed chains `MultiplyNode.Out -> AppendVectorNode.A/B`, `LerpNode.Out -> AppendVectorNode.A/B`, and `BranchNode.Out -> AppendVectorNode.A/B`, followed by `AppendVectorNode.Out -> SplitNode.In`.
 - The current EditMode smoke coverage also locks vector fan-in into `Append`: `CombineNode.RGBA -> AppendVectorNode.A`, `Vector4Node.Out -> AppendVectorNode.A`, then `AppendVectorNode.Out -> SplitNode.In`.
