@@ -654,6 +654,26 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
         self.assertEqual(request.payload["propertyName"], "Tint")
 
+    def test_request_normalization_accepts_add_node_property_binding_aliases(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "add_node",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "nodeType": "Property",
+                "propertyName": "Tint",
+                "propertyDisplayName": "Base Tint",
+                "propertyReferenceName": "_BaseTint",
+                "propertyType": "Color",
+            }
+        )
+
+        self.assertEqual(request.action, "add_node")
+        self.assertEqual(request.path, "Assets/ShaderGraphs/ExampleLitGraph.shadergraph")
+        self.assertEqual(request.payload["propertyName"], "Tint")
+        self.assertEqual(request.payload["propertyDisplayName"], "Base Tint")
+        self.assertEqual(request.payload["referenceName"], "_BaseTint")
+        self.assertEqual(request.payload["propertyType"], "Color")
+
     def test_request_normalization_accepts_remove_connection_with_alias_fields(self) -> None:
         request = normalize_shadergraph_asset_request(
             {

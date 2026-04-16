@@ -1486,6 +1486,539 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void BlankGraph_AddVector2Property_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddVector2Property", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Uv Scale",
+                "Vector2",
+                "1, 2");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Uv Scale"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Vector2"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Vector2"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Uv Scale",
+                null,
+                null,
+                "Vector2");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Uv Scale"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Vector2"));
+        }
+
+        [Test]
+        public void BlankGraph_AddVector3Property_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddVector3Property", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Wind Direction",
+                "Vector3",
+                "1, 2, 3");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Wind Direction"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Vector3"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Vector3"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Wind Direction",
+                null,
+                null,
+                "Vector3");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Wind Direction"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Vector3"));
+        }
+
+        [Test]
+        public void BlankGraph_AddPropertyNodeBoundToExistingProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddPropertyNodeBound", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Tint",
+                "Color",
+                "#FFFFFFFF");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Property",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Tint",
+                    null,
+                    null,
+                    "Color"));
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo("Property"));
+
+            var supportedNodeTypes = ShaderGraphTestAssets.GetStringList(addNodeResponse.Data, "supportedNodeTypes");
+            Assert.That(
+                supportedNodeTypes.Any(label =>
+                    string.Equals(label, "Property", StringComparison.Ordinal) ||
+                    label.StartsWith("Property (", StringComparison.Ordinal)),
+                Is.True);
+
+            var propertyBinding = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "propertyBinding");
+            var boundProperty = ShaderGraphTestAssets.RequireDictionary(propertyBinding, "boundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(boundProperty, "displayName"), Is.EqualTo("Tint"));
+            Assert.That(ShaderGraphTestAssets.GetString(boundProperty, "resolvedPropertyType"), Is.EqualTo("Color"));
+        }
+
+        [Test]
+        public void BlankGraph_AddBooleanProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddBooleanProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Use Fog",
+                "Boolean",
+                "true");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Use Fog"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Boolean"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.Internal.BooleanShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Boolean"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Use Fog",
+                null,
+                null,
+                "Boolean");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Use Fog"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Boolean"));
+        }
+
+        [Test]
+        public void BlankGraph_AddVector4Property_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddVector4Property", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Tint Offset",
+                "Vector4",
+                "1, 2, 3, 4");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Tint Offset"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Vector4"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Vector4"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Tint Offset",
+                null,
+                null,
+                "Vector4");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Tint Offset"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Vector4"));
+        }
+
+        [Test]
+        public void BlankGraph_AddIntegerProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddIntegerProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Stencil Ref",
+                "Integer",
+                "3");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Stencil Ref"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Integer"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Integer"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Stencil Ref",
+                null,
+                null,
+                "Integer");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Stencil Ref"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Integer"));
+        }
+
+        [Test]
+        public void BlankGraph_AddTexture2DProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddTexture2DProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Base Map",
+                "Texture2D",
+                "White");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Base Map"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Texture2D"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Texture2D"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Base Map",
+                null,
+                null,
+                "Texture2D");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Base Map"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Texture2D"));
+        }
+
+        [Test]
+        public void BlankGraph_AddCubemapProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddCubemapProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Sky Cubemap",
+                "Cubemap",
+                string.Empty);
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Sky Cubemap"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Cubemap"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.Internal.CubemapShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Cubemap"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Sky Cubemap",
+                null,
+                null,
+                "Cubemap");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Sky Cubemap"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Cubemap"));
+        }
+
+        [Test]
+        public void BlankGraph_AddTexture3DProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddTexture3DProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Volume Map",
+                "Texture3D",
+                string.Empty);
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Volume Map"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Texture3D"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.Internal.Texture3DShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Texture3D"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Volume Map",
+                null,
+                null,
+                "Texture3D");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Volume Map"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Texture3D"));
+        }
+
+        [Test]
+        public void BlankGraph_AddTexture2DArrayProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddTexture2DArrayProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Layered Map",
+                "Texture2DArray",
+                string.Empty);
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Layered Map"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Texture2DArray"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.Internal.Texture2DArrayShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Texture2DArray"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Layered Map",
+                null,
+                null,
+                "Texture2DArray");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Layered Map"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Texture2DArray"));
+        }
+
+        [Test]
+        public void BlankGraph_AddGradientProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddGradientProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Ramp",
+                "Gradient",
+                string.Empty);
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Ramp"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("Gradient"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.GradientShaderProperty"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Gradient"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Ramp",
+                null,
+                null,
+                "Gradient");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Ramp"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("Gradient"));
+        }
+
+        [Test]
+        public void BlankGraph_AddSamplerStateProperty_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddSamplerStateProperty", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Surface Sampler",
+                "SamplerState",
+                string.Empty);
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Surface Sampler"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("SamplerState"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.SamplerStateShaderProperty"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "referenceName"), Is.EqualTo("SamplerState_Linear_Repeat"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "defaultValue"), Is.EqualTo("Linear, Repeat, None"));
+
+            var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(addPropertyResponse.Data, "supportedPropertyTypes");
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("SamplerState"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Surface Sampler",
+                null,
+                null,
+                "SamplerState");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Surface Sampler"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("SamplerState"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "referenceName"), Is.EqualTo("SamplerState_Linear_Repeat"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "defaultValue"), Is.EqualTo("Linear, Repeat, None"));
+        }
+
+        [Test]
+        public void BlankGraph_AddSamplerStatePropertyWithExplicitDefault_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphAddSamplerStatePropertyWithExplicitDefault", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Surface Sampler",
+                "SamplerState",
+                "Point, Clamp, x4");
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            var addedProperty = ShaderGraphTestAssets.RequireDictionary(addPropertyResponse.Data, "addedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "displayName"), Is.EqualTo("Surface Sampler"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedPropertyType"), Is.EqualTo("SamplerState"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.SamplerStateShaderProperty"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "referenceName"), Is.EqualTo("SamplerState_Point_Clamp_Aniso4"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedProperty, "defaultValue"), Is.EqualTo("Point, Clamp, x4"));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Surface Sampler",
+                null,
+                null,
+                "SamplerState");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "referenceName"), Is.EqualTo("SamplerState_Point_Clamp_Aniso4"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "defaultValue"), Is.EqualTo("Point, Clamp, x4"));
+        }
+
+        [Test]
+        public void BlankGraph_UpdateSamplerStatePropertyDefault_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphUpdateSamplerStatePropertyDefault", out _);
+
+            ShaderGraphResponse addPropertyResponse = ShaderGraphAssetTool.HandleAddProperty(
+                assetPath,
+                "Surface Sampler",
+                "SamplerState",
+                string.Empty);
+            ShaderGraphTestAssets.RequirePackageReady(addPropertyResponse);
+
+            ShaderGraphResponse updatePropertyResponse = ShaderGraphAssetTool.HandleUpdateProperty(
+                assetPath,
+                "Surface Sampler",
+                "SamplerState",
+                "Point, Clamp, x4");
+            ShaderGraphTestAssets.RequirePackageReady(updatePropertyResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetString(updatePropertyResponse.Data, "operation"), Is.EqualTo("update_property"));
+
+            var updatedProperty = ShaderGraphTestAssets.RequireDictionary(updatePropertyResponse.Data, "updatedProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(updatedProperty, "displayName"), Is.EqualTo("Surface Sampler"));
+            Assert.That(ShaderGraphTestAssets.GetString(updatedProperty, "resolvedPropertyType"), Is.EqualTo("SamplerState"));
+            Assert.That(ShaderGraphTestAssets.GetString(updatedProperty, "resolvedShaderInputType"), Is.EqualTo("UnityEditor.ShaderGraph.SamplerStateShaderProperty"));
+            Assert.That(ShaderGraphTestAssets.GetString(updatedProperty, "referenceName"), Is.EqualTo("SamplerState_Point_Clamp_Aniso4"));
+            Assert.That(ShaderGraphTestAssets.GetString(updatedProperty, "defaultValue"), Is.EqualTo("Point, Clamp, x4"));
+
+            ShaderGraphResponse findPropertyResponse = ShaderGraphAssetTool.HandleFindProperty(
+                assetPath,
+                "Surface Sampler",
+                null,
+                null,
+                "SamplerState");
+            ShaderGraphTestAssets.RequirePackageReady(findPropertyResponse);
+
+            var foundProperty = ShaderGraphTestAssets.RequireDictionary(findPropertyResponse.Data, "foundProperty");
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "displayName"), Is.EqualTo("Surface Sampler"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "resolvedPropertyType"), Is.EqualTo("SamplerState"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "referenceName"), Is.EqualTo("SamplerState_Point_Clamp_Aniso4"));
+            Assert.That(ShaderGraphTestAssets.GetString(foundProperty, "defaultValue"), Is.EqualTo("Point, Clamp, x4"));
+        }
+
+        [Test]
         public void BlankGraph_UpdateExistingProperty_StaysPackageBacked()
         {
             string assetPath = CreateBlankGraph("BlankGraphUpdateProperty", out _);
@@ -2737,6 +3270,17 @@ namespace ShaderGraphMcp.Editor.Tests
             var supportedPropertyTypes = ShaderGraphTestAssets.GetStringList(response.Data, "supportedPropertyTypes");
             Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Float/Vector1"));
             Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Color"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Vector2"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Vector3"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Boolean"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Vector4"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Integer"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Texture2D"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Cubemap"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Texture3D"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Texture2DArray"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("Gradient"));
+            Assert.That(supportedPropertyTypes, Has.Some.EqualTo("SamplerState"));
         }
 
         [Test]

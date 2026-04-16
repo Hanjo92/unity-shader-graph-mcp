@@ -5185,6 +5185,7 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             if (!TryCreateShaderInput(
                     shaderInputType,
+                    canonicalPropertyType,
                     request.PropertyName.Trim(),
                     request.DefaultValue,
                     out object shaderInput,
@@ -5287,11 +5288,11 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["addedProperty"] = new Dictionary<string, object>
                 {
                     ["displayName"] = GetStringProperty(shaderInput, "displayName"),
-                    ["referenceName"] = GetStringProperty(shaderInput, "referenceName"),
+                    ["referenceName"] = GetPropertyReferenceName(shaderInput),
                     ["requestedPropertyType"] = propertyTypeInput,
                     ["resolvedPropertyType"] = canonicalPropertyType,
                     ["resolvedShaderInputType"] = shaderInputType.FullName ?? shaderInputType.Name,
-                    ["defaultValue"] = parsedDefaultValue?.ToString() ?? string.Empty,
+                    ["defaultValue"] = FormatContractValue(parsedDefaultValue),
                 },
             };
 
@@ -5510,10 +5511,10 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["updatedProperty"] = new Dictionary<string, object>
                 {
                     ["displayName"] = GetStringProperty(shaderInput, "displayName", "name"),
-                    ["referenceName"] = GetStringProperty(shaderInput, "referenceName"),
+                    ["referenceName"] = GetPropertyReferenceName(shaderInput),
                     ["resolvedPropertyType"] = canonicalPropertyType,
                     ["resolvedShaderInputType"] = shaderInputType.FullName ?? shaderInputType.Name,
-                    ["defaultValue"] = parsedDefaultValue?.ToString() ?? string.Empty,
+                    ["defaultValue"] = FormatContractValue(parsedDefaultValue),
                 },
             };
 
@@ -5631,7 +5632,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             string previousDisplayName = GetStringProperty(shaderInput, "displayName", "name");
-            string previousReferenceName = GetStringProperty(shaderInput, "referenceName");
+            string previousReferenceName = GetPropertyReferenceName(shaderInput);
 
             if (TryInvokeInstanceMethod(
                     shaderInput,
@@ -5716,7 +5717,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             };
 
             return ShaderGraphResponse.Ok(
-                $"Renamed Shader Graph property '{propertyName}' to '{GetStringProperty(shaderInput, "displayName", "name", "referenceName")}' in '{assetPath}'.",
+                $"Renamed Shader Graph property '{propertyName}' to '{GetStringProperty(shaderInput, "displayName", "name")}' in '{assetPath}'.",
                 data
             );
         }
@@ -5936,7 +5937,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             };
 
             return ShaderGraphResponse.Ok(
-                $"Duplicated Shader Graph property '{sourceDisplayName}' as '{GetStringProperty(duplicatedProperty, "displayName", "name", "referenceName")}' in '{assetPath}'.",
+                $"Duplicated Shader Graph property '{sourceDisplayName}' as '{GetStringProperty(duplicatedProperty, "displayName", "name")}' in '{assetPath}'.",
                 data
             );
         }
@@ -6195,7 +6196,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             };
 
             return ShaderGraphResponse.Ok(
-                $"Reordered Shader Graph property '{GetStringProperty(shaderInput, "displayName", "name", "referenceName")}' to category index {resolvedCategoryIndex} in '{assetPath}'.",
+                $"Reordered Shader Graph property '{GetStringProperty(shaderInput, "displayName", "name")}' to category index {resolvedCategoryIndex} in '{assetPath}'.",
                 data
             );
         }
@@ -6487,7 +6488,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             };
 
             return ShaderGraphResponse.Ok(
-                $"Moved Shader Graph property '{GetStringProperty(shaderInput, "displayName", "name", "referenceName")}' to category '{GetCategoryDisplayName(resolvedCategory)}' in '{assetPath}'.",
+                $"Moved Shader Graph property '{GetStringProperty(shaderInput, "displayName", "name")}' to category '{GetCategoryDisplayName(resolvedCategory)}' in '{assetPath}'.",
                 data
             );
         }
@@ -7398,7 +7399,100 @@ namespace ShaderGraphMcp.Editor.Adapters
                 );
             }
 
+            string queryPropertyName = string.IsNullOrWhiteSpace(request.PropertyName) ? string.Empty : request.PropertyName.Trim();
+            string queryPropertyDisplayName = string.IsNullOrWhiteSpace(request.PropertyDisplayName) ? string.Empty : request.PropertyDisplayName.Trim();
+            string queryReferenceName = string.IsNullOrWhiteSpace(request.ReferenceName) ? string.Empty : request.ReferenceName.Trim();
+            string queryPropertyType = string.IsNullOrWhiteSpace(request.PropertyType) ? string.Empty : request.PropertyType.Trim();
+            Dictionary<string, object> propertyBindingData = null;
+            object boundProperty = null;
+
+            if (IsPropertyNodeType(nodeType))
+            {
+                object[] propertyMatches = FindMatchingProperties(
+                    graphData,
+                    queryPropertyName,
+                    queryPropertyDisplayName,
+                    queryReferenceName,
+                    queryPropertyType);
+
+                propertyBindingData = BuildPropertyBindingData(
+                    queryPropertyName,
+                    queryPropertyDisplayName,
+                    queryReferenceName,
+                    queryPropertyType,
+                    propertyMatches);
+
+                if (propertyMatches.Length == 0)
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Could not resolve a Shader Graph property for Property node binding in '{assetPath}'.",
+                        AttachPropertyBindingData(
+                            BuildUnsupportedNodeData(
+                                assetPath,
+                                compatibility,
+                                executionKind,
+                                loadNotes,
+                                nodeTypeInput,
+                                request.DisplayName
+                            ),
+                            propertyBindingData
+                        )
+                    );
+                }
+
+                if (propertyMatches.Length > 1)
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Property node binding query matched multiple Shader Graph properties in '{assetPath}'. Narrow the query with propertyName, propertyDisplayName, referenceName, or propertyType.",
+                        AttachPropertyBindingData(
+                            BuildUnsupportedNodeData(
+                                assetPath,
+                                compatibility,
+                                executionKind,
+                                loadNotes,
+                                nodeTypeInput,
+                                request.DisplayName
+                            ),
+                            propertyBindingData
+                        )
+                    );
+                }
+
+                boundProperty = propertyMatches[0];
+                if (!TryBindPropertyNode(shaderNode, boundProperty, out string bindFailure))
+                {
+                    return ShaderGraphResponse.Fail(
+                        $"Unable to bind Property node '{nodeTypeInput}' in '{assetPath}': {bindFailure}",
+                        AttachPropertyBindingData(
+                            BuildUnsupportedNodeData(
+                                assetPath,
+                                compatibility,
+                                executionKind,
+                                loadNotes,
+                                nodeTypeInput,
+                                request.DisplayName
+                            ),
+                            propertyBindingData
+                        )
+                    );
+                }
+
+                propertyBindingData = BuildPropertyBindingData(
+                    queryPropertyName,
+                    queryPropertyDisplayName,
+                    queryReferenceName,
+                    queryPropertyType,
+                    propertyMatches,
+                    boundProperty);
+                loadNotes.Add($"Bound Property node to Shader Graph property '{GetStringProperty(boundProperty, "displayName", "name")}'.");
+            }
+
             string displayName = request.DisplayName?.Trim();
+            if (string.IsNullOrWhiteSpace(displayName) && boundProperty != null)
+            {
+                displayName = GetStringProperty(boundProperty, "displayName", "name");
+            }
+
             if (!string.IsNullOrWhiteSpace(displayName))
             {
                 SetMemberValue(shaderNode, "name", displayName);
@@ -7433,13 +7527,16 @@ namespace ShaderGraphMcp.Editor.Adapters
                 {
                     return ShaderGraphResponse.Fail(
                         $"Unable to place Shader Graph node '{nodeTypeInput}' in '{assetPath}': {layoutFailure}",
-                        BuildUnsupportedNodeData(
-                            assetPath,
-                            compatibility,
-                            executionKind,
-                            loadNotes,
-                            nodeTypeInput,
-                            request.DisplayName
+                        AttachPropertyBindingData(
+                            BuildUnsupportedNodeData(
+                                assetPath,
+                                compatibility,
+                                executionKind,
+                                loadNotes,
+                                nodeTypeInput,
+                                request.DisplayName
+                            ),
+                            propertyBindingData
                         )
                     );
                 }
@@ -7451,13 +7548,16 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Unable to add Shader Graph node '{nodeTypeInput}' to '{assetPath}': {addNodeFailure}",
-                    BuildUnsupportedNodeData(
-                        assetPath,
-                        compatibility,
-                        executionKind,
-                        loadNotes,
-                        nodeTypeInput,
-                        request.DisplayName
+                    AttachPropertyBindingData(
+                        BuildUnsupportedNodeData(
+                            assetPath,
+                            compatibility,
+                            executionKind,
+                            loadNotes,
+                            nodeTypeInput,
+                            request.DisplayName
+                        ),
+                        propertyBindingData
                     )
                 );
             }
@@ -7470,13 +7570,16 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Graph validation failed after adding node '{nodeTypeInput}': {validateFailure}",
-                    BuildUnsupportedNodeData(
-                        assetPath,
-                        compatibility,
-                        executionKind,
-                        loadNotes,
-                        nodeTypeInput,
-                        request.DisplayName
+                    AttachPropertyBindingData(
+                        BuildUnsupportedNodeData(
+                            assetPath,
+                            compatibility,
+                            executionKind,
+                            loadNotes,
+                            nodeTypeInput,
+                            request.DisplayName
+                        ),
+                        propertyBindingData
                     )
                 );
             }
@@ -7485,13 +7588,16 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Unable to save Shader Graph after adding node '{nodeTypeInput}': {writeFailure}",
-                    BuildUnsupportedNodeData(
-                        assetPath,
-                        compatibility,
-                        executionKind,
-                        loadNotes,
-                        nodeTypeInput,
-                        request.DisplayName
+                    AttachPropertyBindingData(
+                        BuildUnsupportedNodeData(
+                            assetPath,
+                            compatibility,
+                            executionKind,
+                            loadNotes,
+                            nodeTypeInput,
+                            request.DisplayName
+                        ),
+                        propertyBindingData
                     )
                 );
             }
@@ -7538,6 +7644,11 @@ namespace ShaderGraphMcp.Editor.Adapters
                     },
                 },
             };
+
+            if (propertyBindingData != null)
+            {
+                data["propertyBinding"] = propertyBindingData;
+            }
 
             return ShaderGraphResponse.Ok(
                 $"Added {canonicalNodeType} node '{addedNodeDisplayName}' to '{assetPath}'.",
@@ -9793,6 +9904,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             };
         }
 
+        private static string GetPropertyReferenceName(object property)
+        {
+            return GetStringProperty(property, "referenceNameForEditing", "referenceName");
+        }
+
         private static bool PropertyMatchesName(object property, string propertyName)
         {
             if (property == null || string.IsNullOrWhiteSpace(propertyName))
@@ -9801,7 +9917,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             return string.Equals(GetStringProperty(property, "displayName"), propertyName, StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(GetStringProperty(property, "referenceName"), propertyName, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(GetPropertyReferenceName(property), propertyName, StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(GetStringProperty(property, "name"), propertyName, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -9830,7 +9946,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             if (!string.IsNullOrWhiteSpace(queryReferenceName) &&
-                !string.Equals(GetStringProperty(property, "referenceName"), queryReferenceName, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(GetPropertyReferenceName(property), queryReferenceName, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -9859,7 +9975,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         private static Dictionary<string, object> BuildPropertyLookupData(object property)
         {
             string displayName = GetStringProperty(property, "displayName", "name");
-            string referenceName = GetStringProperty(property, "referenceName");
+            string referenceName = GetPropertyReferenceName(property);
             string fullTypeName = property?.GetType().FullName ?? property?.GetType().Name ?? string.Empty;
 
             var data = new Dictionary<string, object>
@@ -9875,6 +9991,11 @@ namespace ShaderGraphMcp.Editor.Adapters
                 data["resolvedPropertyType"] = canonicalPropertyType;
             }
 
+            if (TryGetPropertyDefaultValueText(property, out string defaultValue))
+            {
+                data["defaultValue"] = defaultValue;
+            }
+
             return data;
         }
 
@@ -9884,6 +10005,52 @@ namespace ShaderGraphMcp.Editor.Adapters
             if (property == null)
             {
                 return false;
+            }
+
+            if (TryResolvePropertyTypeFromInstance(property, out string canonicalPropertyType, out _, out _) &&
+                string.Equals(canonicalPropertyType, "Texture2D", StringComparison.Ordinal))
+            {
+                object defaultTypeValue = GetMemberValue(property, "defaultType");
+                defaultValue = defaultTypeValue?.ToString() ?? string.Empty;
+                return !string.IsNullOrWhiteSpace(defaultValue);
+            }
+
+            if (TryResolvePropertyTypeFromInstance(property, out canonicalPropertyType, out _, out _) &&
+                string.Equals(canonicalPropertyType, "Cubemap", StringComparison.Ordinal))
+            {
+                object cubemapValue = GetMemberValue(property, "value");
+                defaultValue = GetStringProperty(cubemapValue, "guid");
+                return true;
+            }
+
+            if (TryResolvePropertyTypeFromInstance(property, out canonicalPropertyType, out _, out _) &&
+                string.Equals(canonicalPropertyType, "Texture3D", StringComparison.Ordinal))
+            {
+                object texture3DValue = GetMemberValue(property, "value");
+                defaultValue = GetStringProperty(texture3DValue, "guid");
+                return true;
+            }
+
+            if (TryResolvePropertyTypeFromInstance(property, out canonicalPropertyType, out _, out _) &&
+                string.Equals(canonicalPropertyType, "Texture2DArray", StringComparison.Ordinal))
+            {
+                object texture2DArrayValue = GetMemberValue(property, "value");
+                defaultValue = GetStringProperty(texture2DArrayValue, "guid");
+                return true;
+            }
+
+            if (TryResolvePropertyTypeFromInstance(property, out canonicalPropertyType, out _, out _) &&
+                string.Equals(canonicalPropertyType, "Gradient", StringComparison.Ordinal))
+            {
+                defaultValue = string.Empty;
+                return true;
+            }
+
+            if (TryResolvePropertyTypeFromInstance(property, out canonicalPropertyType, out _, out _) &&
+                string.Equals(canonicalPropertyType, "SamplerState", StringComparison.Ordinal))
+            {
+                defaultValue = GetSamplerStateDefaultValueText(property);
+                return true;
             }
 
             object value = GetMemberValue(property, "value")
@@ -9899,8 +10066,103 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
+            if (TryResolvePropertyTypeFromInstance(property, out canonicalPropertyType, out _, out _))
+            {
+                if (string.Equals(canonicalPropertyType, "Integer", StringComparison.Ordinal))
+                {
+                    if (value is float integerAsFloatValue)
+                    {
+                        value = Mathf.RoundToInt(integerAsFloatValue);
+                    }
+                    else if (value is double integerAsDoubleValue)
+                    {
+                        value = Convert.ToInt32(integerAsDoubleValue);
+                    }
+                }
+                else if (string.Equals(canonicalPropertyType, "Vector2", StringComparison.Ordinal) &&
+                    value is Vector4 vector2AsVector4Value)
+                {
+                    value = new Vector2(vector2AsVector4Value.x, vector2AsVector4Value.y);
+                }
+                else if (string.Equals(canonicalPropertyType, "Vector3", StringComparison.Ordinal) &&
+                         value is Vector4 vector3AsVector4Value)
+                {
+                    value = new Vector3(vector3AsVector4Value.x, vector3AsVector4Value.y, vector3AsVector4Value.z);
+                }
+            }
+
             defaultValue = FormatContractValue(value);
             return true;
+        }
+
+        private static bool TryConfigureShaderInputForCanonicalPropertyType(
+            object shaderInput,
+            Type shaderInputType,
+            string canonicalPropertyType,
+            out string failureReason)
+        {
+            failureReason = null;
+
+            if (shaderInput == null || shaderInputType == null)
+            {
+                failureReason = "Shader input instance and type are required.";
+                return false;
+            }
+
+            if (!string.Equals(canonicalPropertyType, "Integer", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (!string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty", StringComparison.Ordinal))
+            {
+                failureReason =
+                    $"Integer properties require UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty, but resolved '{shaderInputType.FullName ?? shaderInputType.Name}'.";
+                return false;
+            }
+
+            object floatTypeValue = GetMemberValue(shaderInput, "floatType");
+            Type floatTypeEnumType = floatTypeValue?.GetType();
+            if (floatTypeEnumType == null || !floatTypeEnumType.IsEnum)
+            {
+                failureReason = $"Unable to resolve the floatType enum on {shaderInputType.FullName}.";
+                return false;
+            }
+
+            object integerModeValue;
+            try
+            {
+                integerModeValue = Enum.Parse(floatTypeEnumType, "Integer", false);
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to resolve Integer floatType on {shaderInputType.FullName}: {GetRootMessage(ex)}";
+                return false;
+            }
+
+            if (!TrySetMemberValue(shaderInput, "floatType", integerModeValue, out string setFloatTypeFailure))
+            {
+                failureReason = $"Unable to configure Integer floatType on {shaderInputType.FullName}: {setFloatTypeFailure}";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool IsIntegerVector1ShaderProperty(object shaderInput, Type shaderInputType)
+        {
+            if (shaderInput == null || shaderInputType == null)
+            {
+                return false;
+            }
+
+            if (!string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            object floatTypeValue = GetMemberValue(shaderInput, "floatType");
+            return string.Equals(floatTypeValue?.ToString(), "Integer", StringComparison.Ordinal);
         }
 
         private static string FormatContractValue(object value)
@@ -10281,6 +10543,46 @@ namespace ShaderGraphMcp.Editor.Adapters
             return strategy.ToArray();
         }
 
+        private static object[] FindMatchingProperties(
+            object graphData,
+            string queryPropertyName,
+            string queryDisplayName,
+            string queryReferenceName,
+            string queryPropertyType)
+        {
+            return EnumerateMember(graphData, "properties")
+                .Where(property => PropertyMatchesQuery(property, queryPropertyName, queryDisplayName, queryReferenceName, queryPropertyType))
+                .ToArray();
+        }
+
+        private static Dictionary<string, object> BuildPropertyBindingData(
+            string queryPropertyName,
+            string queryDisplayName,
+            string queryReferenceName,
+            string queryPropertyType,
+            IReadOnlyList<object> matches,
+            object boundProperty = null)
+        {
+            IReadOnlyList<object> safeMatches = matches ?? Array.Empty<object>();
+            var data = new Dictionary<string, object>
+            {
+                ["query"] = BuildPropertyQuery(queryPropertyName, queryDisplayName, queryReferenceName, queryPropertyType),
+                ["matchCount"] = safeMatches.Count,
+                ["matchStrategy"] = BuildFindPropertyMatchStrategy(queryPropertyName, queryDisplayName, queryReferenceName, queryPropertyType),
+            };
+
+            if (boundProperty != null)
+            {
+                data["boundProperty"] = BuildPropertyLookupData(boundProperty);
+            }
+            else if (safeMatches.Count > 0)
+            {
+                data["candidateProperties"] = safeMatches.Select(BuildPropertyLookupData).Cast<object>().ToArray();
+            }
+
+            return data;
+        }
+
         private static string[] BuildFindConnectionMatchStrategy(
             string queryOutputNodeId,
             string queryOutputPort,
@@ -10335,7 +10637,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         {
             var data = BuildPropertyLookupData(duplicatedProperty);
             data["sourceDisplayName"] = GetStringProperty(sourceProperty, "displayName", "name");
-            data["sourceReferenceName"] = GetStringProperty(sourceProperty, "referenceName");
+            data["sourceReferenceName"] = GetPropertyReferenceName(sourceProperty);
             data["resolvedPropertyType"] = canonicalPropertyType ?? string.Empty;
             data["resolvedShaderInputType"] = shaderInputType?.FullName ?? shaderInputType?.Name ?? string.Empty;
             return data;
@@ -10383,6 +10685,17 @@ namespace ShaderGraphMcp.Editor.Adapters
         {
             "Color",
             "Float/Vector1",
+            "Integer",
+            "Vector2",
+            "Vector3",
+            "Vector4",
+            "Boolean",
+            "Texture2D",
+            "Cubemap",
+            "Texture3D",
+            "Texture2DArray",
+            "Gradient",
+            "SamplerState",
         };
 
         private static readonly string[] SupportedCreateTemplates =
@@ -10502,6 +10815,18 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["nodeCatalogSemantics"] = "supported=graph-addable",
                 ["notes"] = loadNotes == null ? Array.Empty<string>() : loadNotes.ToArray(),
             };
+
+            return data;
+        }
+
+        private static Dictionary<string, object> AttachPropertyBindingData(
+            Dictionary<string, object> data,
+            Dictionary<string, object> propertyBindingData)
+        {
+            if (data != null && propertyBindingData != null)
+            {
+                data["propertyBinding"] = propertyBindingData;
+            }
 
             return data;
         }
@@ -11684,6 +12009,13 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
+            if (IsPropertyNodeType(nodeClassType) &&
+                !TryConfigurePropertyNodeProbe(graphData, shaderNode, out string propertyProbeFailure))
+            {
+                probeNote = $"Property probe setup failed: {propertyProbeFailure}";
+                return false;
+            }
+
             if (!TryAssignVisibleNodeLayout(
                     graphData,
                     shaderNode,
@@ -11708,6 +12040,60 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             probeNote = "Activator -> AddNode -> ValidateGraph succeeded.";
+            return true;
+        }
+
+        private static bool IsPropertyNodeType(Type nodeClassType)
+        {
+            string fullTypeName = nodeClassType?.FullName ?? nodeClassType?.Name ?? string.Empty;
+            return string.Equals(fullTypeName, "UnityEditor.ShaderGraph.PropertyNode", StringComparison.Ordinal);
+        }
+
+        private static bool TryConfigurePropertyNodeProbe(
+            object graphData,
+            object shaderNode,
+            out string failureReason)
+        {
+            failureReason = null;
+
+            if (!TryResolveSupportedPropertyType("Float/Vector1", out string canonicalPropertyType, out Type shaderInputType, out string propertyTypeFailure))
+            {
+                failureReason = propertyTypeFailure;
+                return false;
+            }
+
+            if (!TryCreateShaderInput(
+                    shaderInputType,
+                    canonicalPropertyType,
+                    "Property Probe",
+                    "0",
+                    out object shaderInput,
+                    out _,
+                    out _,
+                    out string createFailure))
+            {
+                failureReason = createFailure;
+                return false;
+            }
+
+            if (!TryInvokeGraphAddInput(graphData, shaderInput, out string addInputFailure))
+            {
+                failureReason = addInputFailure;
+                return false;
+            }
+
+            if (!TryEnsureShaderInputInDefaultCategory(graphData, shaderInput, null, out string ensureCategoryFailure))
+            {
+                failureReason = ensureCategoryFailure;
+                return false;
+            }
+
+            if (!TryBindPropertyNode(shaderNode, shaderInput, out string bindFailure))
+            {
+                failureReason = bindFailure;
+                return false;
+            }
+
             return true;
         }
 
@@ -15172,7 +15558,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             if (string.IsNullOrWhiteSpace(normalized))
             {
                 failureReason =
-                    "Property type is required. Supported types: Color, Float/Vector1.";
+                    "Property type is required. Supported types: Color, Float/Vector1, Integer, Vector2, Vector3, Vector4, Boolean, Texture2D, Cubemap, Texture3D, Texture2DArray, Gradient, SamplerState.";
                 return false;
             }
 
@@ -15206,13 +15592,172 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
+            if (string.Equals(normalized, "Integer", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "Int", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Integer";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Vector2", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Vector2";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Vector3", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Vector3";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Vector4", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Vector4";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Boolean", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "Bool", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Boolean";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.BooleanShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.BooleanShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Texture2D", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "Texture", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Texture2D";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Cubemap", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "Cube", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Cubemap";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.CubemapShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.CubemapShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Texture3D", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Texture3D";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.Texture3DShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.Texture3DShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Texture2DArray", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Texture2DArray";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.Internal.Texture2DArrayShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.Internal.Texture2DArrayShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "Gradient", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "Gradient";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.GradientShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.GradientShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (string.Equals(normalized, "SamplerState", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPropertyType = "SamplerState";
+                shaderInputType = ResolveType("UnityEditor.ShaderGraph.SamplerStateShaderProperty");
+                if (shaderInputType == null)
+                {
+                    failureReason =
+                        "Could not resolve UnityEditor.ShaderGraph.SamplerStateShaderProperty.";
+                    return false;
+                }
+
+                return true;
+            }
+
             failureReason =
-                $"Unsupported Shader Graph property type '{propertyType}'. Supported types: Color, Float/Vector1.";
+                $"Unsupported Shader Graph property type '{propertyType}'. Supported types: Color, Float/Vector1, Integer, Vector2, Vector3, Vector4, Boolean, Texture2D, Cubemap, Texture3D, Texture2DArray, Gradient, SamplerState.";
             return false;
         }
 
         private static bool TryCreateShaderInput(
             Type shaderInputType,
+            string canonicalPropertyType,
             string displayName,
             string defaultValue,
             out object shaderInput,
@@ -15242,6 +15787,12 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             SetMemberValue(shaderInput, "displayName", displayName);
+
+            if (!TryConfigureShaderInputForCanonicalPropertyType(shaderInput, shaderInputType, canonicalPropertyType, out string configureFailure))
+            {
+                failureReason = configureFailure;
+                return false;
+            }
 
             return TryAssignShaderInputDefaultValue(
                 shaderInput,
@@ -15277,7 +15828,80 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty", StringComparison.Ordinal))
             {
-                canonicalPropertyType = "Float/Vector1";
+                canonicalPropertyType = IsIntegerVector1ShaderProperty(shaderInput, shaderInputType)
+                    ? "Integer"
+                    : "Float/Vector1";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.IntShaderProperty", StringComparison.Ordinal) ||
+                string.Equals(fullTypeName, "UnityEditor.ShaderGraph.IntShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Integer";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Vector2";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Vector3";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Vector4";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.BooleanShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Boolean";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal) ||
+                string.Equals(fullTypeName, "UnityEditor.ShaderGraph.TextureShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Texture2D";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.CubemapShaderProperty", StringComparison.Ordinal) ||
+                string.Equals(fullTypeName, "UnityEditor.ShaderGraph.CubemapShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Cubemap";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.Texture3DShaderProperty", StringComparison.Ordinal) ||
+                string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Texture3DShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Texture3D";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Internal.Texture2DArrayShaderProperty", StringComparison.Ordinal) ||
+                string.Equals(fullTypeName, "UnityEditor.ShaderGraph.Texture2DArrayShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Texture2DArray";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.GradientShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "Gradient";
+                return true;
+            }
+
+            if (string.Equals(fullTypeName, "UnityEditor.ShaderGraph.SamplerStateShaderProperty", StringComparison.Ordinal))
+            {
+                canonicalPropertyType = "SamplerState";
                 return true;
             }
 
@@ -15302,6 +15926,65 @@ namespace ShaderGraphMcp.Editor.Adapters
                 string.Equals(propertyType.Trim(), "Float/Vector1", StringComparison.OrdinalIgnoreCase))
             {
                 return "Float/Vector1";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Integer", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(propertyType.Trim(), "Int", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Integer";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Vector2", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Vector2";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Vector3", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Vector3";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Vector4", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Vector4";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Boolean", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(propertyType.Trim(), "Bool", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Boolean";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Texture2D", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(propertyType.Trim(), "Texture", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Texture2D";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Cubemap", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(propertyType.Trim(), "Cube", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Cubemap";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Texture3D", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Texture3D";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Texture2DArray", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Texture2DArray";
+            }
+
+            if (string.Equals(propertyType.Trim(), "Gradient", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Gradient";
+            }
+
+            if (string.Equals(propertyType.Trim(), "SamplerState", StringComparison.OrdinalIgnoreCase))
+            {
+                return "SamplerState";
             }
 
             return propertyType.Trim();
@@ -15411,6 +16094,20 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty", StringComparison.Ordinal))
             {
+                if (IsIntegerVector1ShaderProperty(shaderInput, shaderInputType))
+                {
+                    if (!TryParseIntegerDefault(defaultValue, out int parsedInteger, out string integerNote, out string integerFailure))
+                    {
+                        failureReason = integerFailure;
+                        return false;
+                    }
+
+                    SetMemberValue(shaderInput, "value", (float)parsedInteger);
+                    parsedDefaultValue = parsedInteger;
+                    parseNote = integerNote;
+                    return true;
+                }
+
                 if (!TryParseFloatDefault(defaultValue, out float parsedFloat, out string floatNote, out string floatFailure))
                 {
                     failureReason = floatFailure;
@@ -15423,8 +16120,757 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseVector2Default(defaultValue, out Vector2 parsedVector2, out string vector2Note, out string vector2Failure))
+                {
+                    failureReason = vector2Failure;
+                    return false;
+                }
+
+                if (!TrySetMemberValue(shaderInput, "value", parsedVector2, out string setValueFailure) &&
+                    !TrySetMemberValue(shaderInput, "vector2", parsedVector2, out string setVector2Failure) &&
+                    !TrySetMemberValue(shaderInput, "vector4", parsedVector2, out string setVector4Failure))
+                {
+                    failureReason =
+                        $"Unable to assign Vector2 default value to {shaderInputType.FullName}: value='{setValueFailure}', vector2='{setVector2Failure}', vector4='{setVector4Failure}'.";
+                    return false;
+                }
+
+                parsedDefaultValue = parsedVector2;
+                parseNote = vector2Note;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseVector3Default(defaultValue, out Vector3 parsedVector3, out string vector3Note, out string vector3Failure))
+                {
+                    failureReason = vector3Failure;
+                    return false;
+                }
+
+                if (!TrySetMemberValue(shaderInput, "value", parsedVector3, out string setValueFailure) &&
+                    !TrySetMemberValue(shaderInput, "vector3", parsedVector3, out string setVector3Failure) &&
+                    !TrySetMemberValue(shaderInput, "vector4", parsedVector3, out string setVector4Failure))
+                {
+                    failureReason =
+                        $"Unable to assign Vector3 default value to {shaderInputType.FullName}: value='{setValueFailure}', vector3='{setVector3Failure}', vector4='{setVector4Failure}'.";
+                    return false;
+                }
+
+                parsedDefaultValue = parsedVector3;
+                parseNote = vector3Note;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseVector4Default(defaultValue, out Vector4 parsedVector4, out string vector4Note, out string vector4Failure))
+                {
+                    failureReason = vector4Failure;
+                    return false;
+                }
+
+                if (!TrySetMemberValue(shaderInput, "value", parsedVector4, out string setValueFailure) &&
+                    !TrySetMemberValue(shaderInput, "vector4", parsedVector4, out string setVector4Failure))
+                {
+                    failureReason =
+                        $"Unable to assign Vector4 default value to {shaderInputType.FullName}: value='{setValueFailure}', vector4='{setVector4Failure}'.";
+                    return false;
+                }
+
+                parsedDefaultValue = parsedVector4;
+                parseNote = vector4Note;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.BooleanShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseBooleanDefault(defaultValue, out bool parsedBoolean, out string booleanNote, out string booleanFailure))
+                {
+                    failureReason = booleanFailure;
+                    return false;
+                }
+
+                if (!TrySetMemberValue(shaderInput, "value", parsedBoolean, out string setValueFailure))
+                {
+                    failureReason =
+                        $"Unable to assign Boolean default value to {shaderInputType.FullName}: value='{setValueFailure}'.";
+                    return false;
+                }
+
+                parsedDefaultValue = parsedBoolean;
+                parseNote = booleanNote;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty", StringComparison.Ordinal))
+            {
+                object defaultTypeValue = GetMemberValue(shaderInput, "defaultType");
+                Type defaultTypeEnumType = defaultTypeValue?.GetType();
+                if (!TryParseTexture2DDefault(defaultValue, defaultTypeEnumType, out object parsedDefaultType, out string canonicalDefaultType, out string textureNote, out string textureFailure))
+                {
+                    failureReason = textureFailure;
+                    return false;
+                }
+
+                if (!TrySetMemberValue(shaderInput, "defaultType", parsedDefaultType, out string setDefaultTypeFailure))
+                {
+                    failureReason =
+                        $"Unable to assign Texture2D default value to {shaderInputType.FullName}: defaultType='{setDefaultTypeFailure}'.";
+                    return false;
+                }
+
+                parsedDefaultValue = canonicalDefaultType;
+                parseNote = textureNote;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.CubemapShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseCubemapDefault(defaultValue, shaderInput, out string canonicalDefaultValue, out string cubemapNote, out string cubemapFailure))
+                {
+                    failureReason = cubemapFailure;
+                    return false;
+                }
+
+                parsedDefaultValue = canonicalDefaultValue;
+                parseNote = cubemapNote;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Texture3DShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseTexture3DDefault(defaultValue, shaderInput, out string canonicalDefaultValue, out string texture3DNote, out string texture3DFailure))
+                {
+                    failureReason = texture3DFailure;
+                    return false;
+                }
+
+                parsedDefaultValue = canonicalDefaultValue;
+                parseNote = texture3DNote;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.Internal.Texture2DArrayShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseTexture2DArrayDefault(defaultValue, shaderInput, out string canonicalDefaultValue, out string texture2DArrayNote, out string texture2DArrayFailure))
+                {
+                    failureReason = texture2DArrayFailure;
+                    return false;
+                }
+
+                parsedDefaultValue = canonicalDefaultValue;
+                parseNote = texture2DArrayNote;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.GradientShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseGradientDefault(defaultValue, shaderInput, out string canonicalDefaultValue, out string gradientNote, out string gradientFailure))
+                {
+                    failureReason = gradientFailure;
+                    return false;
+                }
+
+                parsedDefaultValue = canonicalDefaultValue;
+                parseNote = gradientNote;
+                return true;
+            }
+
+            if (string.Equals(shaderInputType.FullName, "UnityEditor.ShaderGraph.SamplerStateShaderProperty", StringComparison.Ordinal))
+            {
+                if (!TryParseSamplerStateDefault(defaultValue, shaderInput, out string canonicalDefaultValue, out string samplerStateNote, out string samplerStateFailure))
+                {
+                    failureReason = samplerStateFailure;
+                    return false;
+                }
+
+                parsedDefaultValue = canonicalDefaultValue;
+                parseNote = samplerStateNote;
+                return true;
+            }
+
             failureReason = $"Unsupported shader input type '{shaderInputType.FullName ?? shaderInputType.Name}'.";
             return false;
+        }
+
+        private static bool TryBindPropertyNode(
+            object shaderNode,
+            object shaderInput,
+            out string failureReason)
+        {
+            failureReason = null;
+
+            if (shaderNode == null)
+            {
+                failureReason = "Shader node instance is null.";
+                return false;
+            }
+
+            if (shaderInput == null)
+            {
+                failureReason = "Shader input instance is null.";
+                return false;
+            }
+
+            try
+            {
+                SetMemberValue(shaderNode, "property", shaderInput);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = GetRootMessage(ex);
+                return false;
+            }
+        }
+
+        private static bool TryParseIntegerDefault(
+            string defaultValue,
+            out int parsedInteger,
+            out string note,
+            out string failureReason)
+        {
+            parsedInteger = 0;
+            note = null;
+            failureReason = null;
+
+            if (string.IsNullOrWhiteSpace(defaultValue))
+            {
+                note = "No default value was provided; used 0.";
+                return true;
+            }
+
+            if (int.TryParse(defaultValue.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedInteger))
+            {
+                return true;
+            }
+
+            failureReason =
+                $"Unable to parse Integer default value '{defaultValue}'. Expected an invariant-culture integer such as '0' or '-3'.";
+            return false;
+        }
+
+        private static bool TryParseTexture2DDefault(
+            string defaultValue,
+            Type defaultTypeEnumType,
+            out object parsedDefaultType,
+            out string canonicalDefaultType,
+            out string note,
+            out string failureReason)
+        {
+            parsedDefaultType = null;
+            canonicalDefaultType = string.Empty;
+            note = null;
+            failureReason = null;
+
+            if (defaultTypeEnumType == null || !defaultTypeEnumType.IsEnum)
+            {
+                failureReason = "Unable to resolve the Texture2D defaultType enum.";
+                return false;
+            }
+
+            string normalized = defaultValue?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                canonicalDefaultType = "White";
+                note = "No default value was provided; used White.";
+            }
+            else if (string.Equals(normalized, "White", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalDefaultType = "White";
+            }
+            else if (string.Equals(normalized, "Black", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalDefaultType = "Black";
+            }
+            else if (string.Equals(normalized, "Grey", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "Gray", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalDefaultType = "Grey";
+            }
+            else if (string.Equals(normalized, "NormalMap", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "Normal", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "Bump", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalDefaultType = "NormalMap";
+            }
+            else if (string.Equals(normalized, "LinearGrey", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "LinearGray", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalDefaultType = "LinearGrey";
+            }
+            else if (string.Equals(normalized, "Red", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalDefaultType = "Red";
+            }
+            else
+            {
+                failureReason =
+                    $"Unable to parse Texture2D default value '{defaultValue}'. Expected White, Black, Grey, NormalMap, LinearGrey, or Red.";
+                return false;
+            }
+
+            try
+            {
+                parsedDefaultType = Enum.Parse(defaultTypeEnumType, canonicalDefaultType, false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to resolve Texture2D defaultType '{canonicalDefaultType}': {GetRootMessage(ex)}";
+                return false;
+            }
+        }
+
+        private static bool TryParseCubemapDefault(
+            string defaultValue,
+            object shaderInput,
+            out string canonicalDefaultValue,
+            out string note,
+            out string failureReason)
+        {
+            canonicalDefaultValue = string.Empty;
+            note = null;
+            failureReason = null;
+
+            if (!string.IsNullOrWhiteSpace(defaultValue))
+            {
+                failureReason =
+                    $"Unable to parse Cubemap default value '{defaultValue}'. This slice currently supports only an empty default cubemap reference.";
+                return false;
+            }
+
+            object serializableCubemap = GetMemberValue(shaderInput, "value");
+            if (serializableCubemap != null &&
+                !TrySetMemberValue(serializableCubemap, "cubemap", null, out string setCubemapFailure))
+            {
+                failureReason =
+                    $"Unable to clear the Cubemap default reference on {shaderInput.GetType().FullName ?? shaderInput.GetType().Name}: {setCubemapFailure}";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryParseTexture3DDefault(
+            string defaultValue,
+            object shaderInput,
+            out string canonicalDefaultValue,
+            out string note,
+            out string failureReason)
+        {
+            canonicalDefaultValue = string.Empty;
+            note = null;
+            failureReason = null;
+
+            if (!string.IsNullOrWhiteSpace(defaultValue))
+            {
+                failureReason =
+                    $"Unable to parse Texture3D default value '{defaultValue}'. This slice currently supports only an empty default texture reference.";
+                return false;
+            }
+
+            object serializableTexture = GetMemberValue(shaderInput, "value");
+            if (serializableTexture != null &&
+                !TrySetMemberValue(serializableTexture, "texture", null, out string setTextureFailure))
+            {
+                failureReason =
+                    $"Unable to clear the Texture3D default reference on {shaderInput.GetType().FullName ?? shaderInput.GetType().Name}: {setTextureFailure}";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryParseTexture2DArrayDefault(
+            string defaultValue,
+            object shaderInput,
+            out string canonicalDefaultValue,
+            out string note,
+            out string failureReason)
+        {
+            canonicalDefaultValue = string.Empty;
+            note = null;
+            failureReason = null;
+
+            if (!string.IsNullOrWhiteSpace(defaultValue))
+            {
+                failureReason =
+                    $"Unable to parse Texture2DArray default value '{defaultValue}'. This slice currently supports only an empty default texture-array reference.";
+                return false;
+            }
+
+            object serializableTextureArray = GetMemberValue(shaderInput, "value");
+            if (serializableTextureArray != null &&
+                !TrySetMemberValue(serializableTextureArray, "textureArray", null, out string setTextureArrayFailure))
+            {
+                failureReason =
+                    $"Unable to clear the Texture2DArray default reference on {shaderInput.GetType().FullName ?? shaderInput.GetType().Name}: {setTextureArrayFailure}";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryParseGradientDefault(
+            string defaultValue,
+            object shaderInput,
+            out string canonicalDefaultValue,
+            out string note,
+            out string failureReason)
+        {
+            canonicalDefaultValue = string.Empty;
+            note = null;
+            failureReason = null;
+
+            if (!string.IsNullOrWhiteSpace(defaultValue))
+            {
+                failureReason =
+                    $"Unable to parse Gradient default value '{defaultValue}'. This slice currently supports only an empty default gradient.";
+                return false;
+            }
+
+            if (!TrySetMemberValue(shaderInput, "value", new Gradient(), out string setGradientFailure))
+            {
+                failureReason =
+                    $"Unable to assign the default Gradient value on {shaderInput.GetType().FullName ?? shaderInput.GetType().Name}: {setGradientFailure}";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryParseSamplerStateDefault(
+            string defaultValue,
+            object shaderInput,
+            out string canonicalDefaultValue,
+            out string note,
+            out string failureReason)
+        {
+            canonicalDefaultValue = string.Empty;
+            note = null;
+            failureReason = null;
+
+            string normalized = defaultValue?.Trim() ?? string.Empty;
+            string filterToken = "Linear";
+            string wrapToken = "Repeat";
+            string anisotropicToken = "None";
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                note = "No default value was provided; used Linear, Repeat, None.";
+            }
+            else
+            {
+                string[] tokens = normalized
+                    .Split(new[] { ',', '/', '|' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(token => token.Trim())
+                    .Where(token => !string.IsNullOrWhiteSpace(token))
+                    .ToArray();
+
+                if (tokens.Length < 2 || tokens.Length > 3)
+                {
+                    failureReason =
+                        $"Unable to parse SamplerState default value '{defaultValue}'. Expected 'Filter, Wrap' or 'Filter, Wrap, Anisotropic' using Filter={SamplerStateFilterValuesText}, Wrap={SamplerStateWrapValuesText}, and Anisotropic={SamplerStateAnisotropicValuesText}.";
+                    return false;
+                }
+
+                filterToken = tokens[0];
+                wrapToken = tokens[1];
+                if (tokens.Length == 3)
+                {
+                    anisotropicToken = tokens[2];
+                }
+            }
+
+            object samplerStateValue = GetMemberValue(shaderInput, "value");
+            if (samplerStateValue == null)
+            {
+                Type samplerStateType = ResolveType("UnityEditor.ShaderGraph.TextureSamplerState");
+                if (samplerStateType == null)
+                {
+                    failureReason = "Could not resolve UnityEditor.ShaderGraph.TextureSamplerState.";
+                    return false;
+                }
+
+                try
+                {
+                    samplerStateValue = Activator.CreateInstance(samplerStateType, true);
+                }
+                catch (Exception ex)
+                {
+                    failureReason = $"Unable to create a TextureSamplerState instance: {GetRootMessage(ex)}";
+                    return false;
+                }
+
+                if (!TrySetMemberValue(shaderInput, "value", samplerStateValue, out string setSamplerStateFailure))
+                {
+                    failureReason =
+                        $"Unable to assign the default SamplerState value on {shaderInput.GetType().FullName ?? shaderInput.GetType().Name}: {setSamplerStateFailure}";
+                    return false;
+                }
+            }
+
+            Type samplerStateValueType = samplerStateValue.GetType();
+            Type filterEnumType = samplerStateValueType.GetNestedType("FilterMode", BindingFlags.Public | BindingFlags.NonPublic);
+            Type wrapEnumType = samplerStateValueType.GetNestedType("WrapMode", BindingFlags.Public | BindingFlags.NonPublic);
+            Type anisotropicEnumType = samplerStateValueType.GetNestedType("Anisotropic", BindingFlags.Public | BindingFlags.NonPublic);
+            if (filterEnumType == null || wrapEnumType == null || anisotropicEnumType == null)
+            {
+                failureReason =
+                    $"Unable to resolve SamplerState enum types on {samplerStateValueType.FullName ?? samplerStateValueType.Name}.";
+                return false;
+            }
+
+            if (!TryParseSamplerStateFilter(filterToken, filterEnumType, out object parsedFilter, out string canonicalFilter, out failureReason))
+            {
+                return false;
+            }
+
+            if (!TryParseSamplerStateWrap(wrapToken, wrapEnumType, out object parsedWrap, out string canonicalWrap, out failureReason))
+            {
+                return false;
+            }
+
+            if (!TryParseSamplerStateAnisotropic(anisotropicToken, anisotropicEnumType, out object parsedAnisotropic, out string canonicalAnisotropic, out failureReason))
+            {
+                return false;
+            }
+
+            if (!TrySetMemberValue(samplerStateValue, "filter", parsedFilter, out string setFilterFailure))
+            {
+                failureReason =
+                    $"Unable to assign SamplerState filter on {samplerStateValueType.FullName ?? samplerStateValueType.Name}: {setFilterFailure}";
+                return false;
+            }
+
+            if (!TrySetMemberValue(samplerStateValue, "wrap", parsedWrap, out string setWrapFailure))
+            {
+                failureReason =
+                    $"Unable to assign SamplerState wrap on {samplerStateValueType.FullName ?? samplerStateValueType.Name}: {setWrapFailure}";
+                return false;
+            }
+
+            if (!TrySetMemberValue(samplerStateValue, "anisotropic", parsedAnisotropic, out string setAnisotropicFailure))
+            {
+                failureReason =
+                    $"Unable to assign SamplerState anisotropic mode on {samplerStateValueType.FullName ?? samplerStateValueType.Name}: {setAnisotropicFailure}";
+                return false;
+            }
+
+            canonicalDefaultValue = FormatSamplerStateContractValue(canonicalFilter, canonicalWrap, canonicalAnisotropic);
+            return true;
+        }
+
+        private const string SamplerStateFilterValuesText = "Linear, Point, Trilinear";
+        private const string SamplerStateWrapValuesText = "Repeat, Clamp, Mirror, MirrorOnce";
+        private const string SamplerStateAnisotropicValuesText = "None, x2, x4, x8, x16";
+
+        private static string GetSamplerStateDefaultValueText(object property)
+        {
+            object samplerStateValue = GetMemberValue(property, "value");
+            if (samplerStateValue == null)
+            {
+                return FormatSamplerStateContractValue("Linear", "Repeat", "None");
+            }
+
+            string filter = GetStringProperty(samplerStateValue, "filter");
+            string wrap = GetStringProperty(samplerStateValue, "wrap");
+            string anisotropic = GetStringProperty(samplerStateValue, "anisotropic");
+
+            if (string.IsNullOrWhiteSpace(filter))
+            {
+                filter = "Linear";
+            }
+
+            if (string.IsNullOrWhiteSpace(wrap))
+            {
+                wrap = "Repeat";
+            }
+
+            if (string.IsNullOrWhiteSpace(anisotropic))
+            {
+                anisotropic = "None";
+            }
+
+            return FormatSamplerStateContractValue(filter, wrap, anisotropic);
+        }
+
+        private static string FormatSamplerStateContractValue(
+            string filter,
+            string wrap,
+            string anisotropic)
+        {
+            string canonicalFilter = string.IsNullOrWhiteSpace(filter) ? "Linear" : filter.Trim();
+            string canonicalWrap = string.IsNullOrWhiteSpace(wrap) ? "Repeat" : wrap.Trim();
+            string canonicalAnisotropic = string.IsNullOrWhiteSpace(anisotropic) ? "None" : anisotropic.Trim();
+            return $"{canonicalFilter}, {canonicalWrap}, {canonicalAnisotropic}";
+        }
+
+        private static bool TryParseSamplerStateFilter(
+            string token,
+            Type enumType,
+            out object parsedValue,
+            out string canonicalValue,
+            out string failureReason)
+        {
+            parsedValue = null;
+            canonicalValue = string.Empty;
+            failureReason = null;
+
+            string normalized = NormalizeSamplerStateToken(token);
+            if (string.Equals(normalized, "Linear", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "Linear";
+            }
+            else if (string.Equals(normalized, "Point", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "Point";
+            }
+            else if (string.Equals(normalized, "Trilinear", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "Trilinear";
+            }
+            else
+            {
+                failureReason =
+                    $"Unable to parse SamplerState filter '{token}'. Supported filters: {SamplerStateFilterValuesText}.";
+                return false;
+            }
+
+            try
+            {
+                parsedValue = Enum.Parse(enumType, canonicalValue, false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to resolve SamplerState filter '{canonicalValue}': {GetRootMessage(ex)}";
+                return false;
+            }
+        }
+
+        private static bool TryParseSamplerStateWrap(
+            string token,
+            Type enumType,
+            out object parsedValue,
+            out string canonicalValue,
+            out string failureReason)
+        {
+            parsedValue = null;
+            canonicalValue = string.Empty;
+            failureReason = null;
+
+            string normalized = NormalizeSamplerStateToken(token);
+            if (string.Equals(normalized, "Repeat", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "Repeat";
+            }
+            else if (string.Equals(normalized, "Clamp", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "Clamp";
+            }
+            else if (string.Equals(normalized, "Mirror", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "Mirror";
+            }
+            else if (string.Equals(normalized, "MirrorOnce", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "MirrorOnce";
+            }
+            else
+            {
+                failureReason =
+                    $"Unable to parse SamplerState wrap mode '{token}'. Supported wrap modes: {SamplerStateWrapValuesText}.";
+                return false;
+            }
+
+            try
+            {
+                parsedValue = Enum.Parse(enumType, canonicalValue, false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to resolve SamplerState wrap mode '{canonicalValue}': {GetRootMessage(ex)}";
+                return false;
+            }
+        }
+
+        private static bool TryParseSamplerStateAnisotropic(
+            string token,
+            Type enumType,
+            out object parsedValue,
+            out string canonicalValue,
+            out string failureReason)
+        {
+            parsedValue = null;
+            canonicalValue = string.Empty;
+            failureReason = null;
+
+            string normalized = NormalizeSamplerStateToken(token);
+            if (string.Equals(normalized, "None", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "None";
+            }
+            else if (string.Equals(normalized, "x2", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "Aniso2", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "x2";
+            }
+            else if (string.Equals(normalized, "x4", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "Aniso4", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "x4";
+            }
+            else if (string.Equals(normalized, "x8", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "Aniso8", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "x8";
+            }
+            else if (string.Equals(normalized, "x16", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(normalized, "Aniso16", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalValue = "x16";
+            }
+            else
+            {
+                failureReason =
+                    $"Unable to parse SamplerState anisotropic mode '{token}'. Supported anisotropic modes: {SamplerStateAnisotropicValuesText}.";
+                return false;
+            }
+
+            try
+            {
+                parsedValue = Enum.Parse(enumType, canonicalValue, false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = $"Unable to resolve SamplerState anisotropic mode '{canonicalValue}': {GetRootMessage(ex)}";
+                return false;
+            }
+        }
+
+        private static string NormalizeSamplerStateToken(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return string.Empty;
+            }
+
+            var builder = new StringBuilder();
+            foreach (char character in token.Trim())
+            {
+                if (char.IsLetterOrDigit(character))
+                {
+                    builder.Append(character);
+                }
+            }
+
+            return builder.ToString();
         }
 
         private static bool TryParseFloatDefault(
@@ -15482,6 +16928,162 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             failureReason =
                 $"Unable to parse color default value '{defaultValue}'. Expected an HTML color string like '#RRGGBB' or comma-separated floats like '1, 0, 0, 1'.";
+            return false;
+        }
+
+        private static bool TryParseVector2Default(
+            string defaultValue,
+            out Vector2 parsedVector2,
+            out string note,
+            out string failureReason)
+        {
+            parsedVector2 = Vector2.zero;
+            note = null;
+            failureReason = null;
+
+            if (string.IsNullOrWhiteSpace(defaultValue))
+            {
+                note = "No default value was provided; used (0, 0).";
+                return true;
+            }
+
+            string trimmed = defaultValue.Trim();
+            if (trimmed.StartsWith("(", StringComparison.Ordinal) &&
+                trimmed.EndsWith(")", StringComparison.Ordinal) &&
+                trimmed.Length > 2)
+            {
+                trimmed = trimmed.Substring(1, trimmed.Length - 2).Trim();
+            }
+
+            string[] parts = trimmed.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 2 &&
+                TryParseFloatInvariant(parts[0], out float x) &&
+                TryParseFloatInvariant(parts[1], out float y))
+            {
+                parsedVector2 = new Vector2(x, y);
+                return true;
+            }
+
+            failureReason =
+                $"Unable to parse Vector2 default value '{defaultValue}'. Expected two invariant-culture floats such as '0, 0' or '0 0'.";
+            return false;
+        }
+
+        private static bool TryParseVector3Default(
+            string defaultValue,
+            out Vector3 parsedVector3,
+            out string note,
+            out string failureReason)
+        {
+            parsedVector3 = Vector3.zero;
+            note = null;
+            failureReason = null;
+
+            if (string.IsNullOrWhiteSpace(defaultValue))
+            {
+                note = "No default value was provided; used (0, 0, 0).";
+                return true;
+            }
+
+            string trimmed = defaultValue.Trim();
+            if (trimmed.StartsWith("(", StringComparison.Ordinal) &&
+                trimmed.EndsWith(")", StringComparison.Ordinal) &&
+                trimmed.Length > 2)
+            {
+                trimmed = trimmed.Substring(1, trimmed.Length - 2).Trim();
+            }
+
+            string[] parts = trimmed.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 3 &&
+                TryParseFloatInvariant(parts[0], out float x) &&
+                TryParseFloatInvariant(parts[1], out float y) &&
+                TryParseFloatInvariant(parts[2], out float z))
+            {
+                parsedVector3 = new Vector3(x, y, z);
+                return true;
+            }
+
+            failureReason =
+                $"Unable to parse Vector3 default value '{defaultValue}'. Expected three invariant-culture floats such as '0, 0, 0' or '0 0 0'.";
+            return false;
+        }
+
+        private static bool TryParseVector4Default(
+            string defaultValue,
+            out Vector4 parsedVector4,
+            out string note,
+            out string failureReason)
+        {
+            parsedVector4 = Vector4.zero;
+            note = null;
+            failureReason = null;
+
+            if (string.IsNullOrWhiteSpace(defaultValue))
+            {
+                note = "No default value was provided; used (0, 0, 0, 0).";
+                return true;
+            }
+
+            string trimmed = defaultValue.Trim();
+            if (trimmed.StartsWith("(", StringComparison.Ordinal) &&
+                trimmed.EndsWith(")", StringComparison.Ordinal) &&
+                trimmed.Length > 2)
+            {
+                trimmed = trimmed.Substring(1, trimmed.Length - 2).Trim();
+            }
+
+            string[] parts = trimmed.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 4 &&
+                TryParseFloatInvariant(parts[0], out float x) &&
+                TryParseFloatInvariant(parts[1], out float y) &&
+                TryParseFloatInvariant(parts[2], out float z) &&
+                TryParseFloatInvariant(parts[3], out float w))
+            {
+                parsedVector4 = new Vector4(x, y, z, w);
+                return true;
+            }
+
+            failureReason =
+                $"Unable to parse Vector4 default value '{defaultValue}'. Expected four invariant-culture floats such as '0, 0, 0, 0' or '0 0 0 0'.";
+            return false;
+        }
+
+        private static bool TryParseBooleanDefault(
+            string defaultValue,
+            out bool parsedBoolean,
+            out string note,
+            out string failureReason)
+        {
+            parsedBoolean = false;
+            note = null;
+            failureReason = null;
+
+            if (string.IsNullOrWhiteSpace(defaultValue))
+            {
+                note = "No default value was provided; used false.";
+                return true;
+            }
+
+            string normalized = defaultValue.Trim();
+            if (bool.TryParse(normalized, out parsedBoolean))
+            {
+                return true;
+            }
+
+            if (string.Equals(normalized, "1", StringComparison.Ordinal))
+            {
+                parsedBoolean = true;
+                return true;
+            }
+
+            if (string.Equals(normalized, "0", StringComparison.Ordinal))
+            {
+                parsedBoolean = false;
+                return true;
+            }
+
+            failureReason =
+                $"Unable to parse Boolean default value '{defaultValue}'. Expected true, false, 1, or 0.";
             return false;
         }
 
@@ -15758,7 +17360,7 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             string propertyObjectId = GetStringProperty(shaderInput, "objectId");
             string propertyDisplayName = GetStringProperty(shaderInput, "displayName", "name");
-            string propertyReferenceName = GetStringProperty(shaderInput, "referenceName");
+            string propertyReferenceName = GetPropertyReferenceName(shaderInput);
             foreach (object category in EnumerateMember(graphData, "categories"))
             {
                 IReadOnlyList<object> children = GetCategoryChildren(category);
@@ -15830,7 +17432,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             if (!string.IsNullOrWhiteSpace(referenceName) &&
-                string.Equals(GetStringProperty(property, "referenceName"), referenceName, StringComparison.OrdinalIgnoreCase))
+                string.Equals(GetPropertyReferenceName(property), referenceName, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -16070,8 +17672,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return string.Empty;
             }
 
-            string displayName = GetStringProperty(property, "displayName", "name", "referenceName");
-            string referenceName = GetStringProperty(property, "referenceName");
+            string displayName = GetStringProperty(property, "displayName", "name");
+            string referenceName = GetPropertyReferenceName(property);
             string typeName = property.GetType().Name;
 
             string label = string.IsNullOrWhiteSpace(displayName) ? typeName : displayName;
@@ -16549,6 +18151,125 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 field.SetValue(target, value);
             }
+        }
+
+        private static bool TrySetMemberValue(object target, string memberName, object value, out string failureReason)
+        {
+            failureReason = null;
+
+            if (target == null)
+            {
+                failureReason = "Target is null.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(memberName))
+            {
+                failureReason = "Member name is required.";
+                return false;
+            }
+
+            Type type = target.GetType();
+            PropertyInfo property = type.GetProperty(memberName, InstanceFlags);
+            if (property != null && property.CanWrite)
+            {
+                if (!TryCoerceMemberValue(property.PropertyType, value, out object coercedValue, out failureReason))
+                {
+                    return false;
+                }
+
+                try
+                {
+                    property.SetValue(target, coercedValue, null);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    failureReason = GetRootMessage(ex);
+                    return false;
+                }
+            }
+
+            FieldInfo field = type.GetField(memberName, InstanceFlags);
+            if (field != null)
+            {
+                if (!TryCoerceMemberValue(field.FieldType, value, out object coercedValue, out failureReason))
+                {
+                    return false;
+                }
+
+                try
+                {
+                    field.SetValue(target, coercedValue);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    failureReason = GetRootMessage(ex);
+                    return false;
+                }
+            }
+
+            failureReason = $"Member '{memberName}' was not found on {type.FullName}.";
+            return false;
+        }
+
+        private static bool TryCoerceMemberValue(Type targetType, object value, out object coercedValue, out string failureReason)
+        {
+            coercedValue = value;
+            failureReason = null;
+
+            if (targetType == null)
+            {
+                failureReason = "Target member type is null.";
+                return false;
+            }
+
+            Type effectiveTargetType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            if (value == null)
+            {
+                if (effectiveTargetType.IsValueType && Nullable.GetUnderlyingType(targetType) == null)
+                {
+                    failureReason = $"Cannot assign null to non-nullable member type '{effectiveTargetType.FullName ?? effectiveTargetType.Name}'.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            Type valueType = value.GetType();
+            if (effectiveTargetType.IsAssignableFrom(valueType))
+            {
+                return true;
+            }
+
+            if (effectiveTargetType == typeof(Vector4) && value is Vector2 vector2Value)
+            {
+                coercedValue = new Vector4(vector2Value.x, vector2Value.y, 0f, 0f);
+                return true;
+            }
+
+            if (effectiveTargetType == typeof(Vector4) && value is Vector3 vector3Value)
+            {
+                coercedValue = new Vector4(vector3Value.x, vector3Value.y, vector3Value.z, 0f);
+                return true;
+            }
+
+            if (effectiveTargetType == typeof(Vector2) && value is Vector4 vector4Value)
+            {
+                coercedValue = new Vector2(vector4Value.x, vector4Value.y);
+                return true;
+            }
+
+            if (effectiveTargetType == typeof(Vector3) && value is Vector4 vector4ToVector3Value)
+            {
+                coercedValue = new Vector3(vector4ToVector3Value.x, vector4ToVector3Value.y, vector4ToVector3Value.z);
+                return true;
+            }
+
+            failureReason =
+                $"Object of type '{valueType.FullName ?? valueType.Name}' cannot be converted to type '{effectiveTargetType.FullName ?? effectiveTargetType.Name}'.";
+            return false;
         }
 
         private static object CreateMessageManagerInstance()

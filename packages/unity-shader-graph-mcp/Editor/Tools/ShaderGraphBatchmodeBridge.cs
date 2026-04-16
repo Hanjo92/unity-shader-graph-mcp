@@ -1459,7 +1459,11 @@ namespace ShaderGraphMcp.Editor.Tools
                 anchorNodeType,
                 direction,
                 spacing,
-                layoutPreset);
+                layoutPreset,
+                FirstNonBlank(payload.propertyName),
+                FirstNonBlank(payload.propertyDisplayName),
+                FirstNonBlank(payload.referenceName, payload.propertyReferenceName),
+                FirstNonBlank(payload.propertyType));
             errorMessage = null;
             return true;
         }
@@ -2296,6 +2300,7 @@ namespace ShaderGraphMcp.Editor.Tools
             public string targetName;
             public string template;
             public string propertyName;
+            public string propertyDisplayName;
             public string[] propertyNames;
             public string[] properties;
             public string propertyType;
@@ -2311,6 +2316,7 @@ namespace ShaderGraphMcp.Editor.Tools
             public string sourceCategoryGuid;
             public string targetCategoryGuid;
             public string referenceName;
+            public string propertyReferenceName;
             public string newReferenceName;
             public string index;
             public string newIndex;

@@ -877,6 +877,30 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if request.path is None:
             raise ShaderGraphRequestError("Missing required field 'path' or 'assetPath'.")
 
+        property_name = optional_text(_pick_value(request.payload, "propertyName", "property_name"))
+        property_display_name = optional_text(
+            _pick_value(request.payload, "propertyDisplayName", "property_display_name")
+        )
+        reference_name = optional_text(
+            _pick_value(
+                request.payload,
+                "referenceName",
+                "reference_name",
+                "propertyReferenceName",
+                "property_reference_name",
+            )
+        )
+        property_type = optional_text(_pick_value(request.payload, "propertyType", "property_type"))
+
+        if property_name is not None:
+            request.payload["propertyName"] = property_name
+        if property_display_name is not None:
+            request.payload["propertyDisplayName"] = property_display_name
+        if reference_name is not None:
+            request.payload["referenceName"] = reference_name
+        if property_type is not None:
+            request.payload["propertyType"] = property_type
+
         raw_x = _pick_value(request.payload, "x")
         raw_y = _pick_value(request.payload, "y")
         has_x = optional_text(raw_x) is not None
@@ -935,6 +959,13 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if not has_x and has_relative_hints and direction is None and layout_preset is None:
             raise ShaderGraphRequestError(
                 "add_node relative placement requires direction/relativeDirection or layoutPreset/preset."
+            )
+
+        if _is_property_node_type(_pick_value(request.payload, "nodeType", "node_type")) and all(
+            value is None for value in (property_name, property_display_name, reference_name, property_type)
+        ):
+            raise ShaderGraphRequestError(
+                "add_node with nodeType=Property requires propertyName/propertyDisplayName/referenceName/propertyType."
             )
 
     if request.action == "connect_ports":
@@ -1116,6 +1147,7 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
         ("graphPathLabel", "graph_path_label", "pathLabel", "path_label"),
         ("graphDefaultPrecision", "graph_default_precision", "defaultPrecision", "default_precision", "precision"),
         ("propertyName", "property_name"),
+        ("propertyDisplayName", "property_display_name"),
         ("propertyType", "property_type"),
         ("referenceName", "reference_name", "newReferenceName", "new_reference_name"),
         ("index", "newIndex", "new_index", "targetIndex", "target_index"),
@@ -1191,6 +1223,16 @@ def _effective_path(request: ShaderGraphAssetRequest) -> str | None:
     """Return the normalized path from the request or embedded defaults."""
 
     return request.path or optional_text(request.payload.get("path"))
+
+
+def _normalize_node_token(value: Any) -> str:
+    text = optional_text(value) or ""
+    return "".join(character.upper() for character in text if character.isalnum())
+
+
+def _is_property_node_type(value: Any) -> bool:
+    token = _normalize_node_token(value)
+    return token in {"PROPERTY", "PROPERTYNODE", "UNITYEDITORSHADERGRAPHPROPERTYNODE"}
 
 
 def _normalize_move_graph_target_asset_path(source_asset_path: str | None, raw_target_path: Any) -> str | None:

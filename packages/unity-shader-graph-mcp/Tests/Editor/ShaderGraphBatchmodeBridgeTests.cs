@@ -997,6 +997,35 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsAddNodeRequest_WithPropertyBindingFields()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""add_node"",
+                ""assetPath"": ""Assets/ShaderGraphs/ExampleLitGraph.shadergraph"",
+                ""nodeType"": ""Property"",
+                ""propertyName"": ""Tint"",
+                ""propertyDisplayName"": ""Base Tint"",
+                ""referenceName"": ""_BaseTint"",
+                ""propertyType"": ""Color""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var addNodeRequest = request as AddNodeRequest;
+            Assert.That(addNodeRequest, Is.Not.Null);
+            Assert.That(addNodeRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(addNodeRequest.NodeType, Is.EqualTo("Property"));
+            Assert.That(addNodeRequest.PropertyName, Is.EqualTo("Tint"));
+            Assert.That(addNodeRequest.PropertyDisplayName, Is.EqualTo("Base Tint"));
+            Assert.That(addNodeRequest.ReferenceName, Is.EqualTo("_BaseTint"));
+            Assert.That(addNodeRequest.PropertyType, Is.EqualTo("Color"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsConnectPortsRequest_FromAliasFields()
         {
             string json = @"{

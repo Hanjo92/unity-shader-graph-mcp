@@ -971,9 +971,13 @@ namespace ShaderGraphMcp.Editor.Models
         public string Direction { get; }
         public float? Spacing { get; }
         public string LayoutPreset { get; }
+        public string PropertyName { get; }
+        public string PropertyDisplayName { get; }
+        public string ReferenceName { get; }
+        public string PropertyType { get; }
 
         public AddNodeRequest(string assetPath, string nodeType, string displayName)
-            : this(assetPath, nodeType, displayName, null, null, null, null, null, null, null, null)
+            : this(assetPath, nodeType, displayName, null, null, null, null, null, null, null, null, null, null, null, null)
         {
         }
 
@@ -988,7 +992,11 @@ namespace ShaderGraphMcp.Editor.Models
             string anchorNodeType,
             string direction,
             float? spacing,
-            string layoutPreset)
+            string layoutPreset,
+            string propertyName = null,
+            string propertyDisplayName = null,
+            string referenceName = null,
+            string propertyType = null)
             : base(ShaderGraphAction.AddNode, assetPath)
         {
             NodeType = string.IsNullOrWhiteSpace(nodeType) ? string.Empty : nodeType.Trim();
@@ -1002,6 +1010,10 @@ namespace ShaderGraphMcp.Editor.Models
             Direction = string.IsNullOrWhiteSpace(direction) ? string.Empty : direction.Trim();
             Spacing = spacing;
             LayoutPreset = string.IsNullOrWhiteSpace(layoutPreset) ? string.Empty : layoutPreset.Trim();
+            PropertyName = string.IsNullOrWhiteSpace(propertyName) ? string.Empty : propertyName.Trim();
+            PropertyDisplayName = string.IsNullOrWhiteSpace(propertyDisplayName) ? string.Empty : propertyDisplayName.Trim();
+            ReferenceName = string.IsNullOrWhiteSpace(referenceName) ? string.Empty : referenceName.Trim();
+            PropertyType = string.IsNullOrWhiteSpace(propertyType) ? string.Empty : propertyType.Trim();
         }
     }
 
