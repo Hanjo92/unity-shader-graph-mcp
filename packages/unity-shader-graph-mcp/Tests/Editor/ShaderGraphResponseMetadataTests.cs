@@ -12,22 +12,25 @@ namespace ShaderGraphMcp.Editor.Tests
             "Node ids must be exact GraphData objectId values reported by add_node or read_graph_summary.",
             "This first path only supports Vector1Node output slot 0 / Out into a different Vector1Node input slot 1 / X.",
             "ColorNode output slot 0 / Out is supported only when the input node is SplitNode input slot 0 / In.",
-            "Vector4Node output slot 0 / Out is supported when the input node is SubGraphOutputNode input slot 0 / Out.",
+            "PropertyNode output slot Out is supported when the bound property resolves to Color or Vector4 and the input node is SplitNode input slot 0 / In.",
+            "Vector4Node output slot 0 / Out and PropertyNode output slot Out when the bound property resolves to Vector4 are supported when the input node is SubGraphOutputNode input slot 0 / Out.",
             "UVNode output slot Out / UV is supported when the input node is TilingAndOffsetNode input slot UV, SampleTexture2DNode input slot UV, or NormalFromTextureNode input slot UV.",
             "TilingAndOffsetNode output slot Out is supported when the input node is SampleTexture2DNode input slot UV or NormalFromTextureNode input slot UV.",
-            "Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture.",
+            "Texture2DAssetNode output slot Out / Texture and PropertyNode output slot Out when the bound property resolves to Texture2D are supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is SplitNode input slot 0 / In.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalStrengthNode input slot In.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalUnpackNode input slot In.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is NormalBlendNode input slot 0 / A or 1 / B.",
-            "Vector2Node output slot Out is supported when the input node is NormalReconstructZNode input slot In.",
+            "Vector2Node output slot Out and PropertyNode output slot Out when the bound property resolves to Vector2 are supported when the input node is NormalReconstructZNode input slot In.",
             "SampleTexture2DNode output slots R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X, CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots, ComparisonNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or AppendVectorNode input slot 0 / A or 1 / B.",
             "Vector1Node output slot 0 / Out and scalar arithmetic output slot Out are supported when the input node is NormalStrengthNode input slot Strength or NormalFromTextureNode input slot Offset or Strength.",
             "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",
             "NormalStrengthNode output slot Out is supported when the input node is SplitNode input slot 0 / In.",
             "Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots.",
+            "PropertyNode output slot Out is supported when the bound property resolves to Boolean and the input node is BranchNode input slot 0 / Predicate.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is SplitNode input slot 0 / In.",
             "Vector1Node output slot 0 / Out is also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
+            "PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are supported when the input node is a different Vector1Node input slot 1 / X.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
             "Vector1Node, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are supported when the input node is ComparisonNode input slot 0 / A or 1 / B.",
@@ -51,7 +54,7 @@ namespace ShaderGraphMcp.Editor.Tests
                     ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
                     ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
                     ["packageDetected"] = true,
-                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1" },
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
                     ["supportedNodeTypes"] = new[] { "Color", "Split", "Float/Vector1" },
                 });
 
@@ -704,15 +707,15 @@ namespace ShaderGraphMcp.Editor.Tests
                 {
                     ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
                     ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
-                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1" },
-                    ["supportedPropertyCount"] = 2,
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["supportedPropertyCount"] = 13,
                 });
 
             Assert.That(response.Success, Is.True);
             Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
             Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
-            Assert.That(response.Data["supportedPropertyCount"], Is.EqualTo(2));
-            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1" }));
+            Assert.That(response.Data["supportedPropertyCount"], Is.EqualTo(13));
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
         }
 
         [Test]
@@ -724,7 +727,7 @@ namespace ShaderGraphMcp.Editor.Tests
                 {
                     ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
                     ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
-                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1" },
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
                     ["updatedProperty"] = new Dictionary<string, object>
                     {
                         ["displayName"] = "Tint",
@@ -1109,7 +1112,7 @@ namespace ShaderGraphMcp.Editor.Tests
                 {
                     ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
                     ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
-                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1" },
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
                     ["matchCount"] = 1,
                     ["query"] = new Dictionary<string, object>
                     {
@@ -2116,6 +2119,43 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPropertyNodeBindingInExportGraphContractEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Exported package-backed Shader Graph contract from 'Assets/ShaderGraphs/Blank.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "export_graph_contract",
+                    ["exportedGraphContract"] = new Dictionary<string, object>
+                    {
+                        ["nodes"] = new object[]
+                        {
+                            new Dictionary<string, object>
+                            {
+                                ["objectId"] = "node-1",
+                                ["nodeType"] = "Property",
+                                ["displayName"] = "Tint",
+                                ["propertyName"] = "Tint",
+                                ["propertyDisplayName"] = "Tint",
+                                ["referenceName"] = "_Tint",
+                                ["propertyType"] = "Color",
+                            },
+                        },
+                    },
+                });
+
+            var exportedGraphContract = (IReadOnlyDictionary<string, object>)response.Data["exportedGraphContract"];
+            var nodes = (object[])exportedGraphContract["nodes"];
+            var propertyNode = (IReadOnlyDictionary<string, object>)nodes[0];
+
+            Assert.That(propertyNode["nodeType"], Is.EqualTo("Property"));
+            Assert.That(propertyNode["propertyName"], Is.EqualTo("Tint"));
+            Assert.That(propertyNode["propertyDisplayName"], Is.EqualTo("Tint"));
+            Assert.That(propertyNode["referenceName"], Is.EqualTo("_Tint"));
+            Assert.That(propertyNode["propertyType"], Is.EqualTo("Color"));
+        }
+
+        [Test]
         public void Ok_PreservesPackageBackedImportGraphContractEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
@@ -2285,7 +2325,7 @@ namespace ShaderGraphMcp.Editor.Tests
                         ["packageDetected"] = true,
                         ["notes"] = new[] { "package present" },
                     },
-                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1" },
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
                     ["addedProperty"] = new Dictionary<string, object>
                     {
                         ["displayName"] = "Exposure",
@@ -2304,7 +2344,7 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
             Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
             Assert.That(response.Data["packageDetected"], Is.True);
-            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1" }));
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
 
             var compatibility = (IReadOnlyDictionary<string, object>)response.Data["compatibility"];
             Assert.That(compatibility["backendKind"], Is.EqualTo("PackageReady"));
@@ -2316,6 +2356,396 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Float/Vector1"));
             Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"));
             Assert.That(addedProperty["defaultValue"], Is.EqualTo("0"));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddVector2PropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Vector2 property 'Uv Scale' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Uv Scale",
+                        ["referenceName"] = "_UvScale",
+                        ["requestedPropertyType"] = "Vector2",
+                        ["resolvedPropertyType"] = "Vector2",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty",
+                        ["defaultValue"] = "(1.00, 2.00)",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Uv Scale"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Vector2"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Vector2"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.Vector2ShaderProperty"));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddVector3PropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Vector3 property 'Wind Direction' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Wind Direction",
+                        ["referenceName"] = "_WindDirection",
+                        ["requestedPropertyType"] = "Vector3",
+                        ["resolvedPropertyType"] = "Vector3",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty",
+                        ["defaultValue"] = "(1.00, 2.00, 3.00)",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Wind Direction"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Vector3"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Vector3"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.Vector3ShaderProperty"));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddBooleanPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Boolean property 'Use Fog' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Use Fog",
+                        ["referenceName"] = "_UseFog",
+                        ["requestedPropertyType"] = "Boolean",
+                        ["resolvedPropertyType"] = "Boolean",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.BooleanShaderProperty",
+                        ["defaultValue"] = "true",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Use Fog"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Boolean"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Boolean"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.BooleanShaderProperty"));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddVector4PropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Vector4 property 'Tint Offset' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Tint Offset",
+                        ["referenceName"] = "_TintOffset",
+                        ["requestedPropertyType"] = "Vector4",
+                        ["resolvedPropertyType"] = "Vector4",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty",
+                        ["defaultValue"] = "1, 2, 3, 4",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Tint Offset"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Vector4"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Vector4"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.Vector4ShaderProperty"));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddIntegerPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Integer property 'Stencil Ref' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Stencil Ref",
+                        ["referenceName"] = "_StencilRef",
+                        ["requestedPropertyType"] = "Integer",
+                        ["resolvedPropertyType"] = "Integer",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty",
+                        ["defaultValue"] = "3",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Stencil Ref"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Integer"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Integer"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddTexture2DPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Texture2D property 'Base Map' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Base Map",
+                        ["referenceName"] = "_BaseMap",
+                        ["requestedPropertyType"] = "Texture2D",
+                        ["resolvedPropertyType"] = "Texture2D",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty",
+                        ["defaultValue"] = "White",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Base Map"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Texture2D"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Texture2D"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty"));
+            Assert.That(addedProperty["defaultValue"], Is.EqualTo("White"));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddCubemapPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Cubemap property 'Sky Cubemap' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Sky Cubemap",
+                        ["referenceName"] = "_SkyCubemap",
+                        ["requestedPropertyType"] = "Cubemap",
+                        ["resolvedPropertyType"] = "Cubemap",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.CubemapShaderProperty",
+                        ["defaultValue"] = string.Empty,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Sky Cubemap"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Cubemap"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Cubemap"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.CubemapShaderProperty"));
+            Assert.That(addedProperty["defaultValue"], Is.EqualTo(string.Empty));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddTexture3DPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Texture3D property 'Volume Map' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Volume Map",
+                        ["referenceName"] = "_VolumeMap",
+                        ["requestedPropertyType"] = "Texture3D",
+                        ["resolvedPropertyType"] = "Texture3D",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.Texture3DShaderProperty",
+                        ["defaultValue"] = string.Empty,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Volume Map"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Texture3D"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Texture3D"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.Texture3DShaderProperty"));
+            Assert.That(addedProperty["defaultValue"], Is.EqualTo(string.Empty));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddTexture2DArrayPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Texture2DArray property 'Layered Map' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Layered Map",
+                        ["referenceName"] = "_LayeredMap",
+                        ["requestedPropertyType"] = "Texture2DArray",
+                        ["resolvedPropertyType"] = "Texture2DArray",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.Internal.Texture2DArrayShaderProperty",
+                        ["defaultValue"] = string.Empty,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Layered Map"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Texture2DArray"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Texture2DArray"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.Internal.Texture2DArrayShaderProperty"));
+            Assert.That(addedProperty["defaultValue"], Is.EqualTo(string.Empty));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddGradientPropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added Gradient property 'Ramp' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Ramp",
+                        ["referenceName"] = "_Ramp",
+                        ["requestedPropertyType"] = "Gradient",
+                        ["resolvedPropertyType"] = "Gradient",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.GradientShaderProperty",
+                        ["defaultValue"] = string.Empty,
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Ramp"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("Gradient"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("Gradient"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.GradientShaderProperty"));
+            Assert.That(addedProperty["defaultValue"], Is.EqualTo(string.Empty));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedAddSamplerStatePropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Added SamplerState property 'Surface Sampler' to 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "add_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["addedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Surface Sampler",
+                        ["referenceName"] = "SamplerState_Linear_Repeat",
+                        ["requestedPropertyType"] = "SamplerState",
+                        ["resolvedPropertyType"] = "SamplerState",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.SamplerStateShaderProperty",
+                        ["defaultValue"] = "Linear, Repeat, None",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var addedProperty = (IReadOnlyDictionary<string, object>)response.Data["addedProperty"];
+            Assert.That(addedProperty["displayName"], Is.EqualTo("Surface Sampler"));
+            Assert.That(addedProperty["requestedPropertyType"], Is.EqualTo("SamplerState"));
+            Assert.That(addedProperty["resolvedPropertyType"], Is.EqualTo("SamplerState"));
+            Assert.That(addedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.SamplerStateShaderProperty"));
+            Assert.That(addedProperty["defaultValue"], Is.EqualTo("Linear, Repeat, None"));
+        }
+
+        [Test]
+        public void Ok_PreservesPackageBackedUpdateSamplerStatePropertyEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "Updated SamplerState property 'Surface Sampler' in 'Assets/ShaderGraphs/Test.shadergraph'.",
+                new Dictionary<string, object>
+                {
+                    ["operation"] = "update_property",
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedPropertyTypes"] = new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" },
+                    ["updatedProperty"] = new Dictionary<string, object>
+                    {
+                        ["displayName"] = "Surface Sampler",
+                        ["referenceName"] = "SamplerState_Point_Clamp_Aniso4",
+                        ["resolvedPropertyType"] = "SamplerState",
+                        ["resolvedShaderInputType"] = "UnityEditor.ShaderGraph.SamplerStateShaderProperty",
+                        ["defaultValue"] = "Point, Clamp, x4",
+                    },
+                });
+
+            Assert.That(response.Success, Is.True);
+            Assert.That((string[])response.Data["supportedPropertyTypes"], Is.EquivalentTo(new[] { "Color", "Float/Vector1", "Integer", "Vector2", "Vector3", "Vector4", "Boolean", "Texture2D", "Cubemap", "Texture3D", "Texture2DArray", "Gradient", "SamplerState" }));
+
+            var updatedProperty = (IReadOnlyDictionary<string, object>)response.Data["updatedProperty"];
+            Assert.That(updatedProperty["displayName"], Is.EqualTo("Surface Sampler"));
+            Assert.That(updatedProperty["referenceName"], Is.EqualTo("SamplerState_Point_Clamp_Aniso4"));
+            Assert.That(updatedProperty["resolvedPropertyType"], Is.EqualTo("SamplerState"));
+            Assert.That(updatedProperty["resolvedShaderInputType"], Is.EqualTo("UnityEditor.ShaderGraph.SamplerStateShaderProperty"));
+            Assert.That(updatedProperty["defaultValue"], Is.EqualTo("Point, Clamp, x4"));
         }
 
         [Test]
@@ -2714,6 +3144,48 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Ok_PreservesPropertyNodeVector4ToSplitConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-20",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "split-21",
+                        ["inputPort"] = "In",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-20",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "split-21",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.SplitNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "In",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Color or Vector4 and the input node is SplitNode input slot 0 / In."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SplitNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
         public void Ok_PreservesColorToMultiplyConnectionEnvelope()
         {
             var response = ShaderGraphResponse.Ok(
@@ -2960,6 +3432,48 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalBlendNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeColorToNormalBlendConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-35",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-blend-36",
+                        ["inputPort"] = "A",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-35",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-blend-36",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalBlendNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "A",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is NormalBlendNode input slot 0 / A or 1 / B."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
             Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
             Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalBlendNode"));
             Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
@@ -3250,10 +3764,52 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture."));
+            Assert.That(supportedConnectionRules, Does.Contain("Texture2DAssetNode output slot Out / Texture and PropertyNode output slot Out when the bound property resolves to Texture2D are supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Texture2DAssetNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalFromTextureNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeTexture2DToNormalFromTextureTextureConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-47",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-48",
+                        ["inputPort"] = "Texture",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-47",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-from-texture-48",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalFromTextureNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "Texture",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Texture2DAssetNode output slot Out / Texture and PropertyNode output slot Out when the bound property resolves to Texture2D are supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
             Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
             Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalFromTextureNode"));
             Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
@@ -3376,10 +3932,94 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("Vector2Node output slot Out is supported when the input node is NormalReconstructZNode input slot In."));
+            Assert.That(supportedConnectionRules, Does.Contain("Vector2Node output slot Out and PropertyNode output slot Out when the bound property resolves to Vector2 are supported when the input node is NormalReconstructZNode input slot In."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Vector2Node"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalReconstructZNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToSubGraphOutputConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-54",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "subgraph-output-55",
+                        ["inputPort"] = "Out",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-54",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "subgraph-output-55",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.SubGraphOutputNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "Out",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Vector4Node output slot 0 / Out and PropertyNode output slot Out when the bound property resolves to Vector4 are supported when the input node is SubGraphOutputNode input slot 0 / Out."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SubGraphOutputNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector2ToNormalReconstructZConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-36",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-reconstruct-z-37",
+                        ["inputPort"] = "In",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-36",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "normal-reconstruct-z-37",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.NormalReconstructZNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "In",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Vector2Node output slot Out and PropertyNode output slot Out when the bound property resolves to Vector2 are supported when the input node is NormalReconstructZNode input slot In."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
             Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
             Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.NormalReconstructZNode"));
             Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
@@ -3805,10 +4445,52 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
             Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
-            Assert.That(supportedConnectionRules, Does.Contain("Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture."));
+            Assert.That(supportedConnectionRules, Does.Contain("Texture2DAssetNode output slot Out / Texture and PropertyNode output slot Out when the bound property resolves to Texture2D are supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture."));
 
             var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.Texture2DAssetNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeTexture2DToSampleTexture2DTextureConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-26",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "sample-27",
+                        ["inputPort"] = "Texture",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-26",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "sample-27",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.SampleTexture2DNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "Texture",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("Texture2DAssetNode output slot Out / Texture and PropertyNode output slot Out when the bound property resolves to Texture2D are supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
             Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
             Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
             Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
@@ -4147,6 +4829,216 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.SampleTexture2DNode"));
             Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(4));
             Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.ComparisonNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeScalarToComparisonConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-24",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "comparison-25",
+                        ["inputPort"] = "A",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-24",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "comparison-25",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.ComparisonNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "A",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.ComparisonNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeScalarToComparisonBConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-25",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "comparison-26",
+                        ["inputPort"] = "B",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-25",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "comparison-26",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.ComparisonNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "B",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.ComparisonNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeScalarToBranchTrueConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-26",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-27",
+                        ["inputPort"] = "True",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-26",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-27",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.BranchNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "True",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeScalarToBranchFalseConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-26",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-27",
+                        ["inputPort"] = "False",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-26",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-27",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.BranchNode",
+                        ["inputSlotId"] = 2,
+                        ["inputPort"] = "False",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeBooleanToBranchPredicateConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-28",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-29",
+                        ["inputPort"] = "Predicate",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-28",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-29",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.BranchNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "Predicate",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Boolean and the input node is BranchNode input slot 0 / Predicate."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
             Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
         }
 
@@ -4568,6 +5460,384 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(2));
             Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.MultiplyNode"));
             Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToMultiplyConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-52",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "multiply-53",
+                        ["inputPort"] = "A",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-52",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "multiply-53",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.MultiplyNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "A",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.MultiplyNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToMultiplyBConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-53",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "multiply-54",
+                        ["inputPort"] = "B",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-53",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "multiply-54",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.MultiplyNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "B",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.MultiplyNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToLerpConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-54",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "lerp-55",
+                        ["inputPort"] = "A",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-54",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "lerp-55",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.LerpNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "A",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.LerpNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToLerpBConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-56",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "lerp-57",
+                        ["inputPort"] = "B",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-56",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "lerp-57",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.LerpNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "B",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.LerpNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToLerpTConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-58",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "lerp-59",
+                        ["inputPort"] = "T",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-58",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "lerp-59",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.LerpNode",
+                        ["inputSlotId"] = 2,
+                        ["inputPort"] = "T",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.LerpNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToBranchConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-56",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-57",
+                        ["inputPort"] = "True",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-56",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-57",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.BranchNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "True",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToBranchFalseConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-58",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-59",
+                        ["inputPort"] = "False",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-58",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "branch-59",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.BranchNode",
+                        ["inputSlotId"] = 2,
+                        ["inputPort"] = "False",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.BranchNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToAppendConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-58",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "append-59",
+                        ["inputPort"] = "A",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-58",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "append-59",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.AppendVectorNode",
+                        ["inputSlotId"] = 0,
+                        ["inputPort"] = "A",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Ok_PreservesPropertyNodeVector4ToAppendBConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Ok(
+                "connect ports ready",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-60",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "append-61",
+                        ["inputPort"] = "B",
+                    },
+                    ["resolvedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-60",
+                        ["outputNodeType"] = "UnityEditor.ShaderGraph.PropertyNode",
+                        ["outputSlotId"] = 0,
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "append-61",
+                        ["inputNodeType"] = "UnityEditor.ShaderGraph.AppendVectorNode",
+                        ["inputSlotId"] = 1,
+                        ["inputPort"] = "B",
+                        ["connectedEdgeType"] = "UnityEditor.ShaderGraph.Edge",
+                    },
+                });
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix."));
+
+            var resolvedConnection = (IReadOnlyDictionary<string, object>)response.Data["resolvedConnection"];
+            Assert.That(resolvedConnection["outputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.PropertyNode"));
+            Assert.That(resolvedConnection["outputSlotId"], Is.EqualTo(0));
+            Assert.That(resolvedConnection["inputNodeType"], Is.EqualTo("UnityEditor.ShaderGraph.AppendVectorNode"));
+            Assert.That(resolvedConnection["inputSlotId"], Is.EqualTo(1));
         }
 
         [Test]

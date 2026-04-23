@@ -4687,8 +4687,35 @@ namespace ShaderGraphMcp.Editor.Adapters
                     continue;
                 }
 
+                string importedPropertyName = importedNode.propertyName;
+                string importedPropertyDisplayName = importedNode.propertyDisplayName;
+                string importedReferenceName = importedNode.referenceName;
+                string importedPropertyType = importedNode.propertyType;
+                if (IsPropertyNodeType(importedNode.nodeType) &&
+                    string.IsNullOrWhiteSpace(importedPropertyName) &&
+                    string.IsNullOrWhiteSpace(importedPropertyDisplayName) &&
+                    string.IsNullOrWhiteSpace(importedReferenceName))
+                {
+                    importedPropertyName = importedNode.displayName;
+                }
+
                 ShaderGraphResponse addNodeResponse = AddNode(
-                    new AddNodeRequest(assetPath, importedNode.nodeType, importedNode.displayName),
+                    new AddNodeRequest(
+                        assetPath,
+                        importedNode.nodeType,
+                        importedNode.displayName,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        importedPropertyName,
+                        importedPropertyDisplayName,
+                        importedReferenceName,
+                        importedPropertyType),
                     compatibility,
                     executionKind);
                 if (!addNodeResponse.Success)
@@ -10300,7 +10327,51 @@ namespace ShaderGraphMcp.Editor.Adapters
                 data["position"] = BuildPositionData(position);
             }
 
+            if (TryGetPropertyNodeBindingContractData(node, out Dictionary<string, object> bindingData))
+            {
+                foreach (KeyValuePair<string, object> pair in bindingData)
+                {
+                    data[pair.Key] = pair.Value;
+                }
+            }
+
             return data;
+        }
+
+        private static bool TryGetPropertyNodeBindingContractData(
+            object node,
+            out Dictionary<string, object> bindingData)
+        {
+            bindingData = null;
+
+            if (!IsPropertyNodeType(node?.GetType()))
+            {
+                return false;
+            }
+
+            object boundProperty = GetMemberValue(node, "property");
+            if (boundProperty == null)
+            {
+                return false;
+            }
+
+            string propertyDisplayName = GetStringProperty(boundProperty, "displayName", "name");
+            string propertyReferenceName = GetPropertyReferenceName(boundProperty);
+            string propertyType = string.Empty;
+            if (TryResolvePropertyTypeFromInstance(boundProperty, out string canonicalPropertyType, out _, out _))
+            {
+                propertyType = canonicalPropertyType;
+            }
+
+            bindingData = new Dictionary<string, object>
+            {
+                ["propertyName"] = propertyDisplayName,
+                ["propertyDisplayName"] = propertyDisplayName,
+                ["referenceName"] = propertyReferenceName,
+                ["propertyType"] = propertyType,
+            };
+
+            return true;
         }
 
         private static Dictionary<string, object> BuildExportedConnectionContractData(object edge)
@@ -10708,15 +10779,16 @@ namespace ShaderGraphMcp.Editor.Adapters
             "Node ids must be exact GraphData objectId values reported by add_node or read_graph_summary.",
             "This first path only supports Vector1Node output slot 0 / Out into a different Vector1Node input slot 1 / X.",
             "ColorNode output slot 0 / Out is supported only when the input node is SplitNode input slot 0 / In.",
-            "Vector4Node output slot 0 / Out is supported when the input node is SubGraphOutputNode input slot 0 / Out.",
+            "PropertyNode output slot Out is supported when the bound property resolves to Color or Vector4 and the input node is SplitNode input slot 0 / In.",
+            "Vector4Node output slot 0 / Out and PropertyNode output slot Out when the bound property resolves to Vector4 are supported when the input node is SubGraphOutputNode input slot 0 / Out.",
             "UVNode output slot Out / UV is supported when the input node is TilingAndOffsetNode input slot UV, SampleTexture2DNode input slot UV, or NormalFromTextureNode input slot UV.",
             "TilingAndOffsetNode output slot Out is supported when the input node is SampleTexture2DNode input slot UV or NormalFromTextureNode input slot UV.",
-            "Texture2DAssetNode output slot Out / Texture is supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture.",
+            "Texture2DAssetNode output slot Out / Texture and PropertyNode output slot Out when the bound property resolves to Texture2D are supported when the input node is SampleTexture2DNode input slot Texture or NormalFromTextureNode input slot Texture.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is SplitNode input slot 0 / In.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalStrengthNode input slot In.",
             "SampleTexture2DNode output slot RGBA is supported when the input node is NormalUnpackNode input slot In.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is NormalBlendNode input slot 0 / A or 1 / B.",
-            "Vector2Node output slot Out is supported when the input node is NormalReconstructZNode input slot In.",
+            "Vector2Node output slot Out and PropertyNode output slot Out when the bound property resolves to Vector2 are supported when the input node is NormalReconstructZNode input slot In.",
             "SampleTexture2DNode output slots R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X, CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots, ComparisonNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or AppendVectorNode input slot 0 / A or 1 / B.",
             "Vector1Node output slot 0 / Out and scalar arithmetic output slot Out are supported when the input node is NormalStrengthNode input slot Strength or NormalFromTextureNode input slot Offset or Strength.",
             "SplitNode output slots 1-4 / R,G,B,A are supported when the input node is a different Vector1Node input slot 1 / X.",
@@ -10724,10 +10796,12 @@ namespace ShaderGraphMcp.Editor.Adapters
             "Vector1Node, SplitNode channel outputs, and scalar arithmetic output slot Out are supported when the input node is CombineNode input slots R/G/B/A or Vector2Node/Vector3Node/Vector4Node scalar input slots.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is SplitNode input slot 0 / In.",
             "Vector1Node output slot 0 / Out is also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
+            "PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are supported when the input node is a different Vector1Node input slot 1 / X.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
             "Vector1Node, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are supported when the input node is ComparisonNode input slot 0 / A or 1 / B.",
             "ComparisonNode output slot 2 / Out is supported when the input node is BranchNode input slot 0 / Predicate, including fan-out into multiple Branch predicates.",
+            "PropertyNode output slot Out is supported when the bound property resolves to Boolean and the input node is BranchNode input slot 0 / Predicate.",
             "Vector1Node, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are supported when the input node is BranchNode input slot 1 / True or 2 / False.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are also supported when the input node is MultiplyNode input slot 0 / A or 1 / B, BranchNode input slot 1 / True or 2 / False, or LerpNode input slot 0 / A, 1 / B, or 2 / T.",
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, SampleTexture2DNode output slot RGBA, Vector1Node output slot 0 / Out, SplitNode channel outputs, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are also supported when the input node is AppendVectorNode input slot 0 / A or 1 / B.",
@@ -12049,6 +12123,16 @@ namespace ShaderGraphMcp.Editor.Adapters
             return string.Equals(fullTypeName, "UnityEditor.ShaderGraph.PropertyNode", StringComparison.Ordinal);
         }
 
+        private static bool IsPropertyNodeType(string nodeTypeName)
+        {
+            return string.Equals(NormalizeNodeToken(nodeTypeName), NormalizeNodeToken("Property"), StringComparison.Ordinal) ||
+                   string.Equals(NormalizeNodeToken(nodeTypeName), NormalizeNodeToken("PropertyNode"), StringComparison.Ordinal) ||
+                   string.Equals(
+                       NormalizeNodeToken(nodeTypeName),
+                       NormalizeNodeToken("UnityEditor.ShaderGraph.PropertyNode"),
+                       StringComparison.Ordinal);
+        }
+
         private static bool TryConfigurePropertyNodeProbe(
             object graphData,
             object shaderNode,
@@ -12421,6 +12505,29 @@ namespace ShaderGraphMcp.Editor.Adapters
                     return false;
                 }
 
+                if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.PropertyNode", StringComparison.Ordinal))
+                {
+                    if (TryResolveDynamicPortAlias(
+                            node,
+                            normalizedPort,
+                            true,
+                            out slotId,
+                            out canonicalPort,
+                            ("Out", new[] { "Out" })) ||
+                        TryResolvePortAlias(normalizedPort, out slotId, out canonicalPort, (0, "Out")))
+                    {
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: Out on PropertyNode."
+                    );
+                    return false;
+                }
+
                 if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal))
                 {
                     if (IsPortAlias(normalizedPort, "0", "Out"))
@@ -12683,6 +12790,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                     isOutput,
                     "UnityEditor.ShaderGraph.Vector1Node",
                     "UnityEditor.ShaderGraph.ColorNode",
+                    "UnityEditor.ShaderGraph.PropertyNode",
                     "UnityEditor.ShaderGraph.Vector2Node",
                     "UnityEditor.ShaderGraph.Vector3Node",
                     "UnityEditor.ShaderGraph.Vector4Node",
@@ -14077,6 +14185,34 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             string outputNodeTypeName = GetTypeName(outputNode);
             string inputNodeTypeName = GetTypeName(inputNode);
+            bool supportsPropertyScalarOutput =
+                IsSupportedPropertyNodeOutputForPropertyTypes(outputNode, canonicalOutputPort, "Float/Vector1", "Integer");
+            bool supportsPropertyColorVectorOutput =
+                IsSupportedPropertyNodeOutputForPropertyTypes(outputNode, canonicalOutputPort, "Color", "Vector4");
+            bool supportsPropertyTexture2DOutput =
+                IsSupportedPropertyNodeOutputForPropertyTypes(outputNode, canonicalOutputPort, "Texture2D");
+            bool supportsPropertyVector2Output =
+                IsSupportedPropertyNodeOutputForPropertyTypes(outputNode, canonicalOutputPort, "Vector2");
+            bool supportsPropertyVector4Output =
+                IsSupportedPropertyNodeOutputForPropertyTypes(outputNode, canonicalOutputPort, "Vector4");
+            bool supportsPropertyBooleanOutput =
+                IsSupportedPropertyNodeOutputForPropertyTypes(outputNode, canonicalOutputPort, "Boolean");
+            bool supportsScalarValueSourceOutput =
+                IsSupportedScalarValueSourceOutput(outputNodeTypeName, canonicalOutputPort) ||
+                supportsPropertyScalarOutput;
+            bool supportsScalarBuilderSourceOutput =
+                IsSupportedScalarBuilderSourceOutput(outputNodeTypeName, canonicalOutputPort) ||
+                supportsPropertyScalarOutput;
+            bool supportsSplitVectorSourceOutput =
+                IsSupportedSplitVectorSourceOutput(outputNodeTypeName, canonicalOutputPort) ||
+                supportsPropertyColorVectorOutput;
+            bool supportsColorValueSourceOutput =
+                IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) ||
+                supportsPropertyColorVectorOutput;
+            bool supportsVector1LikeOutput =
+                (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) &&
+                 string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal)) ||
+                supportsPropertyScalarOutput;
 
             if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal))
@@ -14090,34 +14226,34 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedSplitVectorSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsSplitVectorSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
                 string.Equals(canonicalInputPort, "In", StringComparison.Ordinal))
             {
                 return true;
             }
 
-            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsColorValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal) &&
                 string.Equals(canonicalInputPort, "In", StringComparison.Ordinal))
             {
                 return true;
             }
 
-            if (IsSupportedScalarValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsScalarValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) &&
                 string.Equals(canonicalInputPort, "X", StringComparison.Ordinal))
             {
                 return true;
             }
 
-            if (IsSupportedScalarBuilderSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsScalarBuilderSourceOutput &&
                 IsSupportedVectorBuilderInputPort(inputNodeTypeName, canonicalInputPort))
             {
                 return true;
             }
 
-            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector1Node", StringComparison.Ordinal) &&
+            if (supportsVector1LikeOutput &&
                 IsSupportedArithmeticConnectionNodeType(inputNodeTypeName))
             {
                 return true;
@@ -14135,7 +14271,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedScalarValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsScalarValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.ComparisonNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "B", StringComparison.Ordinal)))
@@ -14151,7 +14287,14 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedScalarValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsPropertyBooleanOutput &&
+                string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
+                string.Equals(canonicalInputPort, "Predicate", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (supportsScalarValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "True", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "False", StringComparison.Ordinal)))
@@ -14159,7 +14302,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsColorValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.BranchNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "True", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "False", StringComparison.Ordinal)))
@@ -14167,7 +14310,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsColorValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.MultiplyNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "B", StringComparison.Ordinal)))
@@ -14175,7 +14318,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsColorValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.LerpNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "B", StringComparison.Ordinal) ||
@@ -14184,7 +14327,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector4Node", StringComparison.Ordinal) &&
+            if ((string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector4Node", StringComparison.Ordinal) ||
+                 supportsPropertyVector4Output) &&
                 string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
                 string.Equals(inputNodeTypeName, SubGraphOutputNodeTypeName, StringComparison.Ordinal) &&
                 string.Equals(canonicalInputPort, "Out", StringComparison.Ordinal))
@@ -14210,7 +14354,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Texture2DAssetNode", StringComparison.Ordinal) &&
+            if ((string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Texture2DAssetNode", StringComparison.Ordinal) ||
+                 supportsPropertyTexture2DOutput) &&
                 string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
                 (string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.SampleTexture2DNode", StringComparison.Ordinal) ||
                  string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.NormalFromTextureNode", StringComparison.Ordinal)) &&
@@ -14235,7 +14380,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsColorValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.NormalBlendNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "A", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "B", StringComparison.Ordinal)))
@@ -14243,7 +14388,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal) &&
+            if ((string.Equals(outputNodeTypeName, "UnityEditor.ShaderGraph.Vector2Node", StringComparison.Ordinal) ||
+                 supportsPropertyVector2Output) &&
                 string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal) &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.NormalReconstructZNode", StringComparison.Ordinal) &&
                 string.Equals(canonicalInputPort, "In", StringComparison.Ordinal))
@@ -14259,14 +14405,14 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (IsSupportedScalarValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsScalarValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.NormalStrengthNode", StringComparison.Ordinal) &&
                 string.Equals(canonicalInputPort, "Strength", StringComparison.Ordinal))
             {
                 return true;
             }
 
-            if (IsSupportedScalarValueSourceOutput(outputNodeTypeName, canonicalOutputPort) &&
+            if (supportsScalarValueSourceOutput &&
                 string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.NormalFromTextureNode", StringComparison.Ordinal) &&
                 (string.Equals(canonicalInputPort, "Offset", StringComparison.Ordinal) ||
                  string.Equals(canonicalInputPort, "Strength", StringComparison.Ordinal)))
@@ -14276,8 +14422,8 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             if (string.Equals(inputNodeTypeName, "UnityEditor.ShaderGraph.AppendVectorNode", StringComparison.Ordinal) &&
                 IsSupportedAppendInputPort(canonicalInputPort) &&
-                (IsSupportedColorValueSourceOutput(outputNodeTypeName, canonicalOutputPort) ||
-                 IsSupportedScalarBuilderSourceOutput(outputNodeTypeName, canonicalOutputPort)))
+                (supportsColorValueSourceOutput ||
+                 supportsScalarBuilderSourceOutput))
             {
                 return true;
             }
@@ -14306,8 +14452,50 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             failureReason =
                 $"Unsupported connection pair '{outputNodeTypeName}.{canonicalOutputPort}' -> '{inputNodeTypeName}.{canonicalInputPort}'. " +
-                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D/NormalStrength -> Split, Vector2.Out -> NormalReconstructZ.In, scalar outputs including Split and SampleTexture2D channels -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1 -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out -> one or more Branch Predicate inputs, scalar outputs -> Branch.True/False, Branch.Out -> one or more Vector1/arithmetic inputs, Color.Out -> Split plus Multiply inputs within one graph, Append.Out -> Split plus Multiply inputs within one graph, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA -> Multiply A/B, Branch.True/False, Lerp A/B/T, or NormalBlend A/B, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA plus Vector1/Split/scalar arithmetic/SampleTexture2D channels -> Append A/B, Vector1/scalar arithmetic -> NormalStrength.Strength or NormalFromTexture.Offset/Strength, SampleTexture2D.RGBA -> NormalStrength.In/NormalUnpack.In, UV -> TilingAndOffset/SampleTexture2D/NormalFromTexture UV, TilingAndOffset.Out -> SampleTexture2D/NormalFromTexture UV, and Texture2DAsset.Out -> SampleTexture2D/NormalFromTexture Texture.";
+                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D/NormalStrength/Property(Color|Vector4) -> Split, Vector4.Out/Property(Vector4).Out -> SubGraphOutput.Out, Vector2.Out/Property(Vector2).Out -> NormalReconstructZ.In, scalar outputs including Split and SampleTexture2D channels plus Property(Float|Integer) -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1/Property(Float|Integer) -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out or Property(Boolean).Out -> one or more Branch Predicate inputs, scalar outputs -> Branch.True/False, Branch.Out -> one or more Vector1/arithmetic inputs, Color.Out -> Split plus Multiply inputs within one graph, Append.Out -> Split plus Multiply inputs within one graph, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA/Property(Color|Vector4) -> Multiply A/B, Branch.True/False, Lerp A/B/T, or NormalBlend A/B, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA/Property(Color|Vector4) plus Vector1/Split/scalar arithmetic/SampleTexture2D channels/Property(Float|Integer) -> Append A/B, Vector1/scalar arithmetic/Property(Float|Integer) -> NormalStrength.Strength or NormalFromTexture.Offset/Strength, SampleTexture2D.RGBA -> NormalStrength.In/NormalUnpack.In, UV -> TilingAndOffset/SampleTexture2D/NormalFromTexture UV, TilingAndOffset.Out -> SampleTexture2D/NormalFromTexture UV, and Texture2DAsset.Out/Property(Texture2D).Out -> SampleTexture2D/NormalFromTexture Texture.";
             return false;
+        }
+
+        private static bool IsSupportedPropertyNodeOutputForPropertyTypes(
+            object node,
+            string canonicalOutputPort,
+            params string[] canonicalPropertyTypes)
+        {
+            if (!IsPropertyNodeType(node?.GetType()) ||
+                !string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!TryGetPropertyNodeBoundPropertyType(node, out string boundPropertyType))
+            {
+                return false;
+            }
+
+            foreach (string candidatePropertyType in canonicalPropertyTypes ?? Array.Empty<string>())
+            {
+                if (string.Equals(boundPropertyType, candidatePropertyType, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryGetPropertyNodeBoundPropertyType(
+            object node,
+            out string canonicalPropertyType)
+        {
+            canonicalPropertyType = string.Empty;
+
+            if (!IsPropertyNodeType(node?.GetType()))
+            {
+                return false;
+            }
+
+            object boundProperty = GetMemberValue(node, "property");
+            return TryResolvePropertyTypeFromInstance(boundProperty, out canonicalPropertyType, out _, out _);
         }
 
         private static bool IsSupportedArithmeticConnectionNodeType(string nodeTypeName)
