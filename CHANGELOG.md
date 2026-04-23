@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.0 - 2026-04-23
+
+Widened release of the package-backed Shader Graph authoring surface while
+keeping support explicit, metadata-backed, and EditMode-tested.
+
+### Added
+
+- Package-backed blackboard property support for `Integer`, `Vector2`,
+  `Vector3`, `Vector4`, `Boolean`, `Texture2D`, `Cubemap`, `Texture3D`,
+  `Texture2DArray`, `Gradient`, and `SamplerState` in addition to the
+  existing `Color` and `Float/Vector1` baseline.
+- Property-bound `PropertyNode` creation, lookup, export, import, and
+  contract replay metadata for the verified property families.
+- Verified connection coverage for texture, UV, sample, normal,
+  property-node, append, branch, comparison, and color/vector routing paths.
+- Graph and subgraph contract boundary checks for graph-vs-subgraph mismatch
+  and non-blank import targets.
+- Release planning and design notes for the 1.1 property and contract replay
+  slices under `docs/superpowers/`.
+
+### Changed
+
+- Promoted the Unity package version to `1.1.0`.
+- Promoted the Python package metadata to `1.1.0`.
+- Promoted the MCP server version handshake to `1.1.0`.
+- Updated supported connection metadata so response envelopes describe the
+  widened package-backed matrix.
+- Split remaining post-`1.1` work into focused GitHub issues for advanced
+  property-node routing, graph-addable catalog expansion, and deeper subgraph
+  composition.
+
+### Verified
+
+- Unity EditMode tests passed for the widened package-backed authoring matrix.
+- Python server tests passed with 67 tests.
+- `git diff --check` passed before the release packaging commit.
+
 ## 1.0.0 - 2026-03-21
 
 First stable release of the package-backed Unity Shader Graph MCP stack.

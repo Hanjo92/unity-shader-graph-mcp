@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .server import ServerDefinition
 
 MCP_PROTOCOL_VERSION = "2024-11-05"
-MCP_SERVER_VERSION = "1.0.0"
+MCP_SERVER_VERSION = "1.1.0"
 
 
 class TransportAdapter(Protocol):

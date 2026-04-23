@@ -2,9 +2,9 @@
 
 ## Target
 
-- Repo release: `1.0.0`
-- Unity package: `1.0.0`
-- Python package metadata: `1.0.0`
+- Repo release: `1.1.0`
+- Unity package: `1.1.0`
+- Python package metadata: `1.1.0`
 
 ## Before Tagging
 
@@ -12,7 +12,7 @@
 - Run `Tools > Shader Graph MCP > Debug > Run Blank Graph Happy Path`.
 - Run the newest fan-in / chaining debug smoke menus only if you changed matrix coverage.
 - Run `python3 -m unittest server.tests.test_mcp_transport_subprocess` to confirm live `--mcp` subprocess smoke passes.
-- For final `1.0.0`, run one real Unity batchmode bridge smoke with `UNITY_SHADER_GRAPH_MCP_UNITY_EXE` and `UNITY_SHADER_GRAPH_MCP_UNITY_PROJECT` set.
+- For final `1.1.0`, run one real Unity batchmode bridge smoke with `UNITY_SHADER_GRAPH_MCP_UNITY_EXE` and `UNITY_SHADER_GRAPH_MCP_UNITY_PROJECT` set when a Unity project is available.
 - Confirm [milestone-boundary.md](/Users/song/Projects/unity-shader-graph-mcp/docs/milestone-boundary.md) still matches runtime behavior.
 - Confirm [CHANGELOG.md](/Users/song/Projects/unity-shader-graph-mcp/CHANGELOG.md) describes the actual release scope.
 - Confirm package versions:
@@ -28,8 +28,8 @@
 
 ## Release Message
 
-- Describe this cut as the first stable package-backed Shader Graph editing release.
-- Call out that the core graph mutation engine is real and EditMode-tested.
+- Describe this cut as the widened package-backed Shader Graph authoring release on top of `1.0.0`.
+- Call out that the expanded property, connection, and contract replay surface is real and EditMode-tested.
 - Call out whether the release was verified with scaffold fallback only or with the real Unity batchmode bridge enabled.
 
 ## After Tagging
@@ -38,4 +38,4 @@
 - Verify one blank graph can complete the full happy path through `Tools > Shader Graph MCP > Debug > Run Blank Graph Happy Path`.
 - Verify one external MCP client can complete `initialize -> tools/list -> tools/call` against `python3 server/src/unity_shader_graph_mcp/__main__.py --mcp`.
 - Verify that same external MCP flow once more with the Unity bridge environment variables enabled.
-- Use post-release feedback to decide whether final `1.0.0` only needs transport/productization work or also needs more node/port matrix coverage.
+- Use post-release feedback to choose the next `1.2.x` slice across advanced property-node routing, graph-addable catalog expansion, and deeper subgraph composition.

@@ -1,8 +1,8 @@
 # Milestone Boundary
 
-This repository is currently in the "narrow package-backed MVP" milestone.
+This repository is currently in the `1.1.0` widened package-backed milestone.
 
-The goal is to keep the contract, CLI, and Unity-side file flow real enough to exercise end-to-end, while only landing the narrowest Shader Graph mutations that have been confirmed against the installed package surface.
+The goal is to keep the contract, live MCP transport, CLI, and Unity-side file flow real enough to exercise end-to-end, while only landing Shader Graph mutations that have been confirmed against the installed package surface.
 
 ## Real Today
 
@@ -11,7 +11,7 @@ The goal is to keep the contract, CLI, and Unity-side file flow real enough to e
 - The Unity package can create a `.shadergraph` placeholder asset path and maintain a sidecar scaffold manifest.
 - `create_graph` now has a real package-backed path for blank graphs only.
 - `read_graph_summary` now has a real package-backed path that loads `UnityEditor.ShaderGraph.GraphData` via reflection and reports graph metadata from the installed Shader Graph package.
-- `add_property` now has a real package-backed path for `Color` and `Float`/`Vector1` blackboard inputs through `GraphData.AddGraphInput(...)`.
+- `add_property` now has a real package-backed path for `Color`, `Float`/`Vector1`, `Integer`, `Vector2`, `Vector3`, `Vector4`, `Boolean`, `Texture2D`, `Cubemap`, `Texture3D`, `Texture2DArray`, `Gradient`, and `SamplerState` blackboard inputs through `GraphData.AddGraphInput(...)`.
 - `add_node` now resolves node types through a catalog-driven package-backed path. The runtime contract treats `supportedNodeTypes` as the current `graph-addable` subset, while wider `discoverable` node candidates can be reported separately for editor diagnostics.
 - `connect_ports` now has real package-backed paths for three narrow rules: `Vector1Node` output slot `0` / `Out` into a different `Vector1Node` input slot `1` / `X`, `ColorNode` output slot `0` / `Out` into `SplitNode` input slot `0` / `In`, and `SplitNode` output slots `1-4` / `R,G,B,A` into a different `Vector1Node` input slot `1` / `X`, using exact `GraphData` `objectId` values from `add_node` or `read_graph_summary`.
 - `connect_ports` now also supports scalar component routing into vector-builder nodes: `Vector1Node`, `SplitNode.R/G/B/A`, and scalar arithmetic `Out` can feed `CombineNode.R/G/B/A` plus `Vector2Node`, `Vector3Node`, and `Vector4Node` scalar inputs.
@@ -51,13 +51,12 @@ The goal is to keep the contract, CLI, and Unity-side file flow real enough to e
 - Connection conversion, general fan-out beyond the current `Comparison.Out -> multiple Branch.Predicate`, `Branch.Out -> multiple Vector1/arithmetic inputs`, `ColorNode.Out -> SplitNode.In + MultiplyNode.A/B`, and `AppendVectorNode.Out -> SplitNode.In + MultiplyNode.A/B` paths, cross-type coercion, direct boolean-to-scalar routing outside `Branch.Predicate`, Color node inputs, and broader Color connections beyond the currently verified `Multiply`, `Branch`, `Lerp`, `Append`, and `NormalBlend` vector paths stay unsupported.
 - The discoverable node catalog is intentionally broader than the runtime-supported `add_node` contract. Internal, legacy, output-only, and probe-rejected node types remain visible in diagnostics but are excluded from `supportedNodeTypes`.
 - Probe-rejected node types stay grouped by stable failure-reason buckets in diagnostics so the next `graph-addable` expansion target can be chosen from concrete graph-creation, instantiation, `AddNode`, layout, or `ValidateGraph` failures.
-- The CLI is transport-agnostic and does not yet speak MCP directly.
-- Tool registration is still an internal server registry, not a live MCP transport binding.
+- The CLI and live MCP stdio transport both route through the shared server registry, with Unity batchmode bridge execution enabled when the Unity environment variables are configured.
 
 ## Blocked On Unity Shader Graph APIs
 
 - Creating a real Shader Graph asset from the package API surface beyond a blank-only package-backed path.
-- Expanding blackboard property coverage beyond `Color` and `Float`/`Vector1`.
+- Expanding blackboard property coverage beyond the current verified `1.1.0` property matrix.
 - Expanding the `graph-addable` node subset beyond the current verified smoke nodes and probe-passed catalog entries.
 - Reducing repeated probe-rejected buckets by converting common failure reasons into explicit filters, allowlist promotions, or dedicated node-specific initialization paths.
 - Expanding port and edge coverage beyond the current verified narrow paths and the scalar arithmetic `Vector1 <-> arithmetic node` routes.
