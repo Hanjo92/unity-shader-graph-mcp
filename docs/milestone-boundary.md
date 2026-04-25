@@ -1,6 +1,6 @@
 # Milestone Boundary
 
-This repository is currently in the `1.1.0` widened package-backed milestone.
+This repository is currently in the `1.2.0` focused package-backed milestone.
 
 The goal is to keep the contract, live MCP transport, CLI, and Unity-side file flow real enough to exercise end-to-end, while only landing Shader Graph mutations that have been confirmed against the installed package surface.
 
@@ -13,6 +13,7 @@ The goal is to keep the contract, live MCP transport, CLI, and Unity-side file f
 - `read_graph_summary` now has a real package-backed path that loads `UnityEditor.ShaderGraph.GraphData` via reflection and reports graph metadata from the installed Shader Graph package.
 - `add_property` now has a real package-backed path for `Color`, `Float`/`Vector1`, `Integer`, `Vector2`, `Vector3`, `Vector4`, `Boolean`, `Texture2D`, `Cubemap`, `Texture3D`, `Texture2DArray`, `Gradient`, and `SamplerState` blackboard inputs through `GraphData.AddGraphInput(...)`.
 - `add_node` now resolves node types through a catalog-driven package-backed path. The runtime contract treats `supportedNodeTypes` as the current `graph-addable` subset, while wider `discoverable` node candidates can be reported separately for editor diagnostics.
+- `add_node` now also includes the verified `SampleGradient` graph-addable promotion even though the underlying Shader Graph type does not use the usual `*Node` suffix.
 - `connect_ports` now has real package-backed paths for three narrow rules: `Vector1Node` output slot `0` / `Out` into a different `Vector1Node` input slot `1` / `X`, `ColorNode` output slot `0` / `Out` into `SplitNode` input slot `0` / `In`, and `SplitNode` output slots `1-4` / `R,G,B,A` into a different `Vector1Node` input slot `1` / `X`, using exact `GraphData` `objectId` values from `add_node` or `read_graph_summary`.
 - `connect_ports` now also supports scalar component routing into vector-builder nodes: `Vector1Node`, `SplitNode.R/G/B/A`, and scalar arithmetic `Out` can feed `CombineNode.R/G/B/A` plus `Vector2Node`, `Vector3Node`, and `Vector4Node` scalar inputs.
 - `connect_ports` now also supports wider vector-to-split routing: `ColorNode.Out`, `CombineNode.RGBA`, and `Vector4Node.Out` can feed `SplitNode.In`.
@@ -33,6 +34,8 @@ The goal is to keep the contract, live MCP transport, CLI, and Unity-side file f
 - The current EditMode smoke coverage now also locks `SampleTexture2DNode` channel routing into `AppendVectorNode.A/B`, followed by the existing `Append -> Split -> Vector1` path.
 - The current EditMode smoke coverage now also locks `SampleTexture2DNode.RGBA -> LerpNode.A`, followed by the existing `Lerp -> Split -> Vector1` path.
 - The current EditMode smoke coverage now also locks `SampleTexture2DNode.RGBA -> BranchNode.True`, followed by the existing `Branch -> Split -> Vector1` path.
+- The current EditMode smoke coverage now also locks Boolean-bound `PropertyNode.Out -> BranchNode.Predicate` routing and rejects unsupported Boolean property-node routes outside predicate inputs.
+- The current EditMode smoke coverage now also locks graph and subgraph `export_graph_contract` / `import_graph_contract` path parity for `.shadergraph` and `.shadersubgraph` assets.
 - The current EditMode smoke coverage also locks mixed Append chains into downstream vector consumers: `AppendVectorNode.Out -> MultiplyNode.A/B`, `AppendVectorNode.Out -> LerpNode.A/B/T`, and `AppendVectorNode.Out -> BranchNode.True/False`, followed by the existing `Multiply` / `Lerp` / `Branch -> SplitNode.In` paths.
 - The current EditMode smoke coverage also locks the reverse mixed chains `MultiplyNode.Out -> AppendVectorNode.A/B`, `LerpNode.Out -> AppendVectorNode.A/B`, and `BranchNode.Out -> AppendVectorNode.A/B`, followed by `AppendVectorNode.Out -> SplitNode.In`.
 - The current EditMode smoke coverage also locks vector fan-in into `Append`: `CombineNode.RGBA -> AppendVectorNode.A`, `Vector4Node.Out -> AppendVectorNode.A`, then `AppendVectorNode.Out -> SplitNode.In`.
@@ -56,7 +59,7 @@ The goal is to keep the contract, live MCP transport, CLI, and Unity-side file f
 ## Blocked On Unity Shader Graph APIs
 
 - Creating a real Shader Graph asset from the package API surface beyond a blank-only package-backed path.
-- Expanding blackboard property coverage beyond the current verified `1.1.0` property matrix.
+- Expanding blackboard property coverage beyond the current verified `1.2.0` property matrix.
 - Expanding the `graph-addable` node subset beyond the current verified smoke nodes and probe-passed catalog entries.
 - Reducing repeated probe-rejected buckets by converting common failure reasons into explicit filters, allowlist promotions, or dedicated node-specific initialization paths.
 - Expanding port and edge coverage beyond the current verified narrow paths and the scalar arithmetic `Vector1 <-> arithmetic node` routes.

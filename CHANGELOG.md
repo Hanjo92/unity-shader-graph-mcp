@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.2.0 - 2026-04-25
+
+Focused post-`1.1` release for the package-backed Shader Graph backlog.
+
+### Added
+
+- Boolean-bound `PropertyNode.Out -> BranchNode.Predicate` package-backed
+  routing, with an explicit unsupported-route guard for direct Boolean-to-scalar
+  property-node connections.
+- `SampleGradient` promotion in the graph-addable catalog, including runtime
+  smoke coverage and catalog report coverage for the non-`*Node` Shader Graph
+  type shape.
+- Graph and subgraph `export_graph_contract` / `import_graph_contract` path
+  parity so `.shadersubgraph` contract requests are accepted by both the
+  Python MCP validation layer and Unity batchmode request parser.
+
+### Changed
+
+- Promoted the Unity package version to `1.2.0`.
+- Promoted the Python package metadata to `1.2.0`.
+- Promoted the MCP server version handshake to `1.2.0`.
+- Updated release notes, release checklist, README, and milestone boundary docs
+  to describe the focused `1.2.0` release scope.
+
+### Verified
+
+- Unity EditMode tests passed for the focused `1.2.0` backlog implementation.
+- Python server tests passed with 67 tests.
+- `git diff --check` passed before the release packaging commit.
+
 ## 1.1.0 - 2026-04-23
 
 Widened release of the package-backed Shader Graph authoring surface while
