@@ -3978,6 +3978,7 @@ namespace ShaderGraphMcp.Editor.Tests
             var supportedCanonicalNames = ShaderGraphTestAssets.GetStringList(response.Data, "supportedNodeCanonicalNames");
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Float/Vector1"));
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Color"));
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("SampleGradient"));
         }
 
         [Test]
@@ -4282,6 +4283,34 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(
                 ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"),
                 Is.EqualTo(selectedNodeTypes.Length));
+        }
+
+        [Test]
+        public void BlankGraph_AddSampleGradientNode_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphSampleGradientNode", out _);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "SampleGradient",
+                "Sample Gradient");
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            string addedNodeId = ShaderGraphTestAssets.GetAddedNodeId(addNodeResponse);
+            Assert.That(addedNodeId, Is.Not.Empty);
+
+            var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo("SampleGradient"));
+            Assert.That(
+                ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeClass"),
+                Is.EqualTo("UnityEditor.ShaderGraph.SampleGradient"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(1));
+            var nodes = ShaderGraphTestAssets.GetStringList(summaryResponse.Data, "nodes");
+            Assert.That(nodes, Has.Some.Contains("SampleGradient"));
         }
 
         [TestCaseSource(nameof(ArithmeticVector1ChainCases))]
@@ -5717,6 +5746,68 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(5));
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(4));
+        }
+
+        [Test]
+        public void BlankGraph_PropertyNodeBooleanToVector1Input_IsRejectedWithBooleanRoutingHint()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphPropertyNodeBooleanVector1Rejected", out _);
+
+            ShaderGraphTestAssets.RequirePackageReady(
+                ShaderGraphAssetTool.HandleAddProperty(assetPath, "Use Branch", "Boolean", "true"));
+
+            ShaderGraphResponse propertyNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Property",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Use Branch",
+                    null,
+                    null,
+                    "Boolean"));
+            ShaderGraphTestAssets.RequirePackageReady(propertyNodeResponse);
+            string propertyNodeId = ShaderGraphTestAssets.GetAddedNodeId(propertyNodeResponse);
+
+            ShaderGraphResponse sinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Vector1", "Scalar Sink");
+            ShaderGraphTestAssets.RequirePackageReady(sinkResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(sinkResponse);
+
+            ShaderGraphResponse response = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                propertyNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+
+            Assert.That(response.Success, Is.False);
+            Assert.That(
+                response.Message,
+                Does.Contain("Boolean property-node outputs are only supported when connecting to BranchNode.Predicate."));
+            Assert.That(ShaderGraphTestAssets.GetString(response.Data, "backendKind"), Is.EqualTo("PackageReady"));
+            Assert.That(
+                ShaderGraphTestAssets.GetString(response.Data, "executionBackendKind"),
+                Is.EqualTo("PackageBacked"));
+
+            var requestedConnection = ShaderGraphTestAssets.RequireDictionary(response.Data, "requestedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(requestedConnection, "outputNodeId"), Is.EqualTo(propertyNodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(requestedConnection, "outputPort"), Is.EqualTo("Out"));
+            Assert.That(ShaderGraphTestAssets.GetString(requestedConnection, "inputNodeId"), Is.EqualTo(sinkNodeId));
+            Assert.That(ShaderGraphTestAssets.GetString(requestedConnection, "inputPort"), Is.EqualTo("X"));
+
+            IReadOnlyList<string> supportedConnectionRules = ShaderGraphTestAssets.GetStringList(
+                response.Data,
+                "supportedConnectionRules");
+            Assert.That(
+                supportedConnectionRules,
+                Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Boolean and the input node is BranchNode input slot 0 / Predicate."));
         }
 
         [Test]

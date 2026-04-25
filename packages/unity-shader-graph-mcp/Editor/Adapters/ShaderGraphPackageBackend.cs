@@ -12025,7 +12025,9 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (!shortTypeName.EndsWith("Node", StringComparison.Ordinal))
+            bool isExplicitlyValidatedNonNodeType =
+                string.Equals(fullTypeName, "UnityEditor.ShaderGraph.SampleGradient", StringComparison.Ordinal);
+            if (!shortTypeName.EndsWith("Node", StringComparison.Ordinal) && !isExplicitlyValidatedNonNodeType)
             {
                 exclusionReason = "Types that do not follow the public *Node shape stay discoverable-only until explicitly validated.";
                 return true;
@@ -14292,6 +14294,12 @@ namespace ShaderGraphMcp.Editor.Adapters
                 string.Equals(canonicalInputPort, "Predicate", StringComparison.Ordinal))
             {
                 return true;
+            }
+
+            if (supportsPropertyBooleanOutput)
+            {
+                failureReason = "Boolean property-node outputs are only supported when connecting to BranchNode.Predicate.";
+                return false;
             }
 
             if (supportsScalarValueSourceOutput &&

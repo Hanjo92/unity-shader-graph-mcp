@@ -144,11 +144,27 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
         "action": "export_graph_contract",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
     },
+    "export_subgraph_contract": {
+        "action": "export_graph_contract",
+        "path": "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph",
+    },
     "import_graph_contract": {
         "action": "import_graph_contract",
         "path": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
         "graphContract": {
             "contractVersion": "unity-shader-graph-mcp/export-graph-contract-v1",
+            "categories": [],
+            "properties": [],
+            "nodes": [],
+            "connections": [],
+        },
+    },
+    "import_subgraph_contract": {
+        "action": "import_graph_contract",
+        "path": "Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph",
+        "graphContract": {
+            "contractVersion": "unity-shader-graph-mcp/export-graph-contract-v1",
+            "isSubGraph": True,
             "categories": [],
             "properties": [],
             "nodes": [],
@@ -292,7 +308,8 @@ ACTION_FIXTURES: dict[str, dict[str, object]] = {
 
 class ShaderGraphServerContractTests(unittest.TestCase):
     def test_every_supported_action_has_a_contract_fixture(self) -> None:
-        self.assertEqual(set(ACTION_FIXTURES), set(SUPPORTED_SHADERGRAPH_ASSET_ACTIONS))
+        fixture_actions = {payload["action"] for payload in ACTION_FIXTURES.values()}
+        self.assertEqual(fixture_actions, set(SUPPORTED_SHADERGRAPH_ASSET_ACTIONS))
 
     def test_each_action_normalizes_and_dispatches(self) -> None:
         for action, payload in ACTION_FIXTURES.items():
@@ -304,9 +321,9 @@ class ShaderGraphServerContractTests(unittest.TestCase):
                 ):
                     response = handle_shadergraph_asset(payload)
 
-                self.assertEqual(request.action, action)
+                self.assertEqual(request.action, payload["action"])
                 self.assertTrue(response["success"])
-                self.assertEqual(response["data"]["request"]["action"], action)
+                self.assertEqual(response["data"]["request"]["action"], payload["action"])
                 self.assertIn(response["data"]["status"], {"scaffold", "validated_scaffold"})
                 self.assertIn(response["data"]["validationState"], {"validated"})
 

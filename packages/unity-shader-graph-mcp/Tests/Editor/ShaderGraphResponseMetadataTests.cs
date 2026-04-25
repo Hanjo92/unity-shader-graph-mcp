@@ -5043,6 +5043,43 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void Fail_PreservesPropertyNodeBooleanUnsupportedConnectionEnvelope()
+        {
+            var response = ShaderGraphResponse.Fail(
+                "Boolean property-node outputs are only supported when connecting to BranchNode.Predicate.",
+                new Dictionary<string, object>
+                {
+                    ["executionBackendKind"] = ShaderGraphExecutionKind.PackageBacked.ToString(),
+                    ["backendKind"] = ShaderGraphBackendKind.PackageReady.ToString(),
+                    ["supportedConnectionRules"] = CurrentSupportedConnectionRules,
+                    ["requestedConnection"] = new Dictionary<string, object>
+                    {
+                        ["outputNodeId"] = "property-30",
+                        ["outputPort"] = "Out",
+                        ["inputNodeId"] = "vector1-31",
+                        ["inputPort"] = "X",
+                    },
+                });
+
+            Assert.That(response.Success, Is.False);
+            Assert.That(
+                response.Message,
+                Is.EqualTo("Boolean property-node outputs are only supported when connecting to BranchNode.Predicate."));
+            Assert.That(response.Data["executionBackendKind"], Is.EqualTo("PackageBacked"));
+            Assert.That(response.Data["backendKind"], Is.EqualTo("PackageReady"));
+
+            var supportedConnectionRules = (string[])response.Data["supportedConnectionRules"];
+            Assert.That(supportedConnectionRules, Has.Length.EqualTo(CurrentSupportedConnectionRules.Length));
+            Assert.That(supportedConnectionRules, Does.Contain("PropertyNode output slot Out is supported when the bound property resolves to Boolean and the input node is BranchNode input slot 0 / Predicate."));
+
+            var requestedConnection = (IReadOnlyDictionary<string, object>)response.Data["requestedConnection"];
+            Assert.That(requestedConnection["outputNodeId"], Is.EqualTo("property-30"));
+            Assert.That(requestedConnection["outputPort"], Is.EqualTo("Out"));
+            Assert.That(requestedConnection["inputNodeId"], Is.EqualTo("vector1-31"));
+            Assert.That(requestedConnection["inputPort"], Is.EqualTo("X"));
+        }
+
+        [Test]
         public void Ok_PreservesSampleTexture2DChannelToBranchConnectionEnvelope()
         {
             var response = ShaderGraphResponse.Ok(

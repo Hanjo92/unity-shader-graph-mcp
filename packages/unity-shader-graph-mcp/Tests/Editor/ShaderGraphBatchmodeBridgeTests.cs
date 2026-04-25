@@ -606,6 +606,25 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsExportGraphContractRequest_FromSubGraphAssetPathPayload()
+        {
+            string json = @"{
+                ""tool"": ""shadergraph_asset"",
+                ""action"": ""export_graph_contract"",
+                ""assetPath"": ""Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph""
+            }";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var exportRequest = request as ExportGraphContractRequest;
+            Assert.That(exportRequest, Is.Not.Null);
+            Assert.That(exportRequest.AssetPath, Is.EqualTo("Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsImportGraphContractRequest_FromAssetPathPayload()
         {
             const string contractJson = "{\"contractVersion\":\"unity-shader-graph-mcp/export-graph-contract-v1\",\"categories\":[],\"properties\":[],\"nodes\":[],\"connections\":[]}";
@@ -626,6 +645,29 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(importRequest, Is.Not.Null);
             Assert.That(importRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
             Assert.That(importRequest.GraphContractJson, Does.Contain("unity-shader-graph-mcp/export-graph-contract-v1"));
+        }
+
+        [Test]
+        public void TryParseRequest_ReturnsImportGraphContractRequest_FromSubGraphAssetPathPayload()
+        {
+            const string contractJson = "{\"contractVersion\":\"unity-shader-graph-mcp/export-graph-contract-v1\",\"isSubGraph\":true,\"categories\":[],\"properties\":[],\"nodes\":[],\"connections\":[]}";
+            string escapedContractJson = contractJson.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            string json = "{"
+                + "\"tool\":\"shadergraph_asset\","
+                + "\"action\":\"import_graph_contract\","
+                + "\"assetPath\":\"Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph\","
+                + "\"graphContractJson\":\"" + escapedContractJson + "\""
+                + "}";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var importRequest = request as ImportGraphContractRequest;
+            Assert.That(importRequest, Is.Not.Null);
+            Assert.That(importRequest.AssetPath, Is.EqualTo("Assets/ShaderSubGraphs/ExampleSubGraph.shadersubgraph"));
+            Assert.That(importRequest.GraphContractJson, Does.Contain("\"isSubGraph\":true"));
         }
 
         [Test]

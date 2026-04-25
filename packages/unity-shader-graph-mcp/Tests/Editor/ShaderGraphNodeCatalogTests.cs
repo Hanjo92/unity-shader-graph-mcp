@@ -21,6 +21,7 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(lines, Has.Some.Contains("Color (UnityEditor.ShaderGraph.ColorNode)"));
             Assert.That(lines, Has.Some.Contains("Split (UnityEditor.ShaderGraph.SplitNode)"));
             Assert.That(lines, Has.Some.Contains("Float/Vector1 (UnityEditor.ShaderGraph.Vector1Node)"));
+            Assert.That(lines, Has.Some.Contains("SampleGradient (UnityEditor.ShaderGraph.SampleGradient)"));
         }
 
         [Test]

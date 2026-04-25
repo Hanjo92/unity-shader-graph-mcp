@@ -1735,8 +1735,6 @@ namespace ShaderGraphMcp.Editor.Tools
                 case ShaderGraphAction.SplitCategory:
                 case ShaderGraphAction.ListCategories:
                 case ShaderGraphAction.ReadGraphSummary:
-                case ShaderGraphAction.ExportGraphContract:
-                case ShaderGraphAction.ImportGraphContract:
                 case ShaderGraphAction.FindNode:
                 case ShaderGraphAction.FindProperty:
                 case ShaderGraphAction.ListSupportedNodes:
