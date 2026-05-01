@@ -15,6 +15,7 @@ Import the package under test from this repository:
 2. Add the local package from `packages/unity-shader-graph-mcp/package.json`.
 3. Let Unity recompile the Editor assembly.
 4. Open `Window > General > Test Runner` and confirm the package EditMode tests are visible.
+5. Open `Tools > Shader Graph MCP > Open Panel` to check package status, run setup reports, and launch the current happy-path smoke from one place.
 
 If you prefer a manifest entry, add the local package path as a file dependency in the target project's `Packages/manifest.json`.
 
@@ -74,6 +75,7 @@ Use the current verified package-backed flow in this order:
 
 For the shortest Unity-side release smoke, run:
 
+- `Tools > Shader Graph MCP > Open Panel`, then click `Run Blank Graph Happy Path`
 - `Tools > Shader Graph MCP > Debug > Run Blank Graph Happy Path`
 
 The supported boundary is intentionally narrow. Template-backed graph creation, universal node coverage, and universal port coverage are not part of the 1.0.0 release contract.
