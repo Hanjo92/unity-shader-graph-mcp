@@ -55,6 +55,25 @@ namespace ShaderGraphMcp.Editor.Tests
             "SampleTexture2D",
         };
 
+        private static readonly string[] PureMathValueVectorNodeTypes =
+        {
+            "Float/Vector1",
+            "Vector2",
+            "Vector3",
+            "Vector4",
+            "Combine",
+            "Split",
+            "Append",
+            "Add",
+            "Subtract",
+            "Multiply",
+            "Divide",
+            "Lerp",
+            "Clamp",
+            "Sine",
+            "Cosine",
+        };
+
         private static IEnumerable<TestCaseData> ArithmeticVector1ChainCases()
         {
             yield return new TestCaseData("Add", new[] { "A", "B" }, 2);
@@ -272,6 +291,34 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
             Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
             Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "executionBackendKind"), Is.EqualTo("PackageBacked"));
+        }
+
+        [Test]
+        public void BlankGraph_PureMathValueVectorNodeBatch_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphPureMathValueVectorNodeBatch", out _);
+
+            foreach (string nodeType in PureMathValueVectorNodeTypes)
+            {
+                string displayName = $"{nodeType.Replace("/", " ")} Batch";
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                    assetPath,
+                    nodeType,
+                    displayName);
+                ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+                var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo(nodeType));
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "objectId"), Is.Not.Empty);
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(PureMathValueVectorNodeTypes.Length));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
         }
 
         [Test]

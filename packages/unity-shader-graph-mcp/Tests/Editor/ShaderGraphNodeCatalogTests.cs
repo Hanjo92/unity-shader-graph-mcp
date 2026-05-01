@@ -6,6 +6,25 @@ namespace ShaderGraphMcp.Editor.Tests
 {
     public sealed class ShaderGraphNodeCatalogTests
     {
+        private static readonly string[] PureMathValueVectorNodeTypes =
+        {
+            "Float/Vector1",
+            "Vector2",
+            "Vector3",
+            "Vector4",
+            "Combine",
+            "Split",
+            "Append",
+            "Add",
+            "Subtract",
+            "Multiply",
+            "Divide",
+            "Lerp",
+            "Clamp",
+            "Sine",
+            "Cosine",
+        };
+
         [Test]
         public void SupportedNodeCatalogReportLines_IncludeCurrentSmokeNodes()
         {
@@ -22,6 +41,23 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(lines, Has.Some.Contains("Split (UnityEditor.ShaderGraph.SplitNode)"));
             Assert.That(lines, Has.Some.Contains("Float/Vector1 (UnityEditor.ShaderGraph.Vector1Node)"));
             Assert.That(lines, Has.Some.Contains("SampleGradient (UnityEditor.ShaderGraph.SampleGradient)"));
+        }
+
+        [Test]
+        public void SupportedNodeCanonicalNames_IncludePureMathValueVectorBatch()
+        {
+            ShaderGraphTestAssets.RequirePackageReady();
+
+            var supportedNames = ShaderGraphPackageGraphInspector.GetSupportedNodeCanonicalNames();
+            var classification = ShaderGraphPackageGraphInspector.BuildNodeCatalogClassificationData();
+
+            foreach (string nodeType in PureMathValueVectorNodeTypes)
+            {
+                Assert.That(supportedNames, Has.Some.EqualTo(nodeType), nodeType);
+            }
+
+            Assert.That(classification["semantics"], Does.Contain("graph-addable"));
+            Assert.That(classification["supportedCount"], Is.GreaterThanOrEqualTo(PureMathValueVectorNodeTypes.Length));
         }
 
         [Test]
