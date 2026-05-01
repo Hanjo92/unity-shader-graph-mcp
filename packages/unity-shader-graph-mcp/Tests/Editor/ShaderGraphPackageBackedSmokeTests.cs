@@ -3975,6 +3975,22 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "supportedNodeCount"), Is.GreaterThan(0));
             Assert.That(ShaderGraphTestAssets.GetInt(response.Data, "discoveredNodeCount"), Is.GreaterThan(0));
 
+            var classification = ShaderGraphTestAssets.RequireDictionary(response.Data, "nodeCatalogClassification");
+            int supportedCount = ShaderGraphTestAssets.GetInt(classification, "supportedCount");
+            int totalDiscoveredCount = ShaderGraphTestAssets.GetInt(classification, "totalDiscoveredCount");
+            int excludedCount = ShaderGraphTestAssets.GetInt(classification, "excludedCount");
+            int probeRejectedCount = ShaderGraphTestAssets.GetInt(classification, "probeRejectedCount");
+            int unsupportedCount = ShaderGraphTestAssets.GetInt(classification, "unsupportedCount");
+            Assert.That(supportedCount, Is.EqualTo(ShaderGraphTestAssets.GetInt(response.Data, "supportedNodeCount")));
+            Assert.That(totalDiscoveredCount, Is.EqualTo(ShaderGraphTestAssets.GetInt(response.Data, "discoveredNodeCount")));
+            Assert.That(unsupportedCount, Is.EqualTo(excludedCount + probeRejectedCount));
+            Assert.That(ShaderGraphTestAssets.GetString(classification, "semantics"), Does.Contain("diagnostic-only"));
+
+            var classificationStates = ShaderGraphTestAssets.GetStringList(classification, "classificationStates");
+            Assert.That(classificationStates, Has.Some.EqualTo("graph-addable"));
+            Assert.That(classificationStates, Has.Some.EqualTo("filtered"));
+            Assert.That(classificationStates, Has.Some.EqualTo("probe-failed"));
+
             var supportedCanonicalNames = ShaderGraphTestAssets.GetStringList(response.Data, "supportedNodeCanonicalNames");
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Float/Vector1"));
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Color"));

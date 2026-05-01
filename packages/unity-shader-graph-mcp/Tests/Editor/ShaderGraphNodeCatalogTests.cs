@@ -115,6 +115,7 @@ namespace ShaderGraphMcp.Editor.Tests
         [TestCase("filtered", "Serialization and redirect placeholder node types are excluded from the safe addable catalog.", "filtered:serialization-placeholder")]
         [TestCase("probe-failed", "Probe graph creation failed: no graph", "probe:graph-create")]
         [TestCase("probe-failed", "Node instantiation failed: ctor exploded", "probe:instantiation")]
+        [TestCase("probe-failed", "Property probe setup failed: binding unavailable", "probe:missing-initializer")]
         [TestCase("probe-failed", "Node layout assignment failed: drawState missing", "probe:layout")]
         [TestCase("probe-failed", "GraphData.AddNode(...) failed: invalid cast", "probe:add-node")]
         [TestCase("probe-failed", "GraphData.ValidateGraph() failed: validation error", "probe:validate-graph")]

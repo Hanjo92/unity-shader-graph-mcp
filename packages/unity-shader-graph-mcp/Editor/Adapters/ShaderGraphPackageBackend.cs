@@ -5064,6 +5064,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["supportedNodeCount"] = GetGraphAddableNodeCatalog().Count,
                 ["discoveredNodeTypes"] = discoveredNodeTypes,
                 ["discoveredNodeCount"] = GetDiscoveredNodeCatalog().Count,
+                ["nodeCatalogClassification"] = BuildNodeCatalogClassificationData(),
                 ["nodeCatalogSemantics"] = "supported=graph-addable",
                 ["notes"] = new[]
                 {
@@ -11772,6 +11773,27 @@ namespace ShaderGraphMcp.Editor.Adapters
             return GetDiscoveredNodeTypeLabels();
         }
 
+        internal static Dictionary<string, object> BuildNodeCatalogClassificationData()
+        {
+            int supportedCount = GetGraphAddableNodeCatalog().Count;
+            int totalDiscoveredCount = GetDiscoveredNodeCatalog().Count;
+            int excludedCount = GetExcludedNodeCatalogReportLines().Count;
+            int probeRejectedCount = GetProbeRejectedNodeCatalogCount();
+
+            return new Dictionary<string, object>
+            {
+                ["totalDiscoveredCount"] = totalDiscoveredCount,
+                ["supportedCount"] = supportedCount,
+                ["excludedCount"] = excludedCount,
+                ["probeRejectedCount"] = probeRejectedCount,
+                ["unsupportedCount"] = excludedCount + probeRejectedCount,
+                ["classificationStates"] = new[] { "graph-addable", "filtered", "probe-failed" },
+                ["excludedBuckets"] = GetExcludedNodeCatalogBucketReportLines().ToArray(),
+                ["probeRejectedBuckets"] = GetProbeRejectedNodeCatalogBucketReportLines().ToArray(),
+                ["semantics"] = "supported nodes are verified graph-addable; filtered/probe-failed entries are diagnostic-only.",
+            };
+        }
+
         private static string[] GetDiscoveredNodeTypeLabels()
         {
             return GetDiscoveredNodeCatalog()
@@ -12297,6 +12319,11 @@ namespace ShaderGraphMcp.Editor.Adapters
                 if (note.StartsWith("Node instantiation failed:", StringComparison.Ordinal))
                 {
                     return "probe:instantiation";
+                }
+
+                if (note.StartsWith("Property probe setup failed:", StringComparison.Ordinal))
+                {
+                    return "probe:missing-initializer";
                 }
 
                 if (note.StartsWith("Node layout assignment failed:", StringComparison.Ordinal))

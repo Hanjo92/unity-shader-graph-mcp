@@ -2927,6 +2927,7 @@ namespace ShaderGraphMcp.Editor.Helpers
                 ["supportedNodeCount"] = supportedNodeTypes.Length,
                 ["discoveredNodeTypes"] = discoveredNodeTypes,
                 ["discoveredNodeCount"] = discoveredNodeTypes.Length,
+                ["nodeCatalogClassification"] = ShaderGraphPackageGraphInspector.BuildNodeCatalogClassificationData(),
                 ["nodeCatalogSemantics"] = "supported=graph-addable",
                 ["notes"] = new[]
                 {

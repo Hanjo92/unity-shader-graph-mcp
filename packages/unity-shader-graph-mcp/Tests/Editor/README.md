@@ -13,7 +13,7 @@ Suggested first tests:
 - `import_graph_contract` should also validate blank-or-near-blank targets and include a known-fail coverage assertion for graph-versus-subgraph contract mismatch.
 - `add_property` should still start with `Color` and `Float`/`Vector1` coverage
 - `save_graph` should regress the package-backed validate + write + refresh path
-- `supportedNodeTypes` should be treated as the current graph-addable subset, while `discoverableNodeTypes` can remain broader for diagnostics
+- `supportedNodeTypes` should be treated as the current graph-addable subset, while `discoveredNodeTypes` and `nodeCatalogClassification` can remain broader for diagnostics
 - probe-rejected diagnostics should stay grouped by stable failure-reason buckets so catalog triage can distinguish reflection filters from runtime graph-creation, instantiation, layout, `AddNode`, and `ValidateGraph` failures
 - preferred common graph-addable nodes such as `Add`, `Multiply`, `Lerp`, and `Clamp` should be exercised through asset-backed smoke tests whenever they remain present in the supported catalog
 - connection-rule metadata should stay envelope-only so the runtime can publish `supportedConnectionRules` without changing the response shape, while ColorNode inputs remain unsupported and broader general fan-out beyond the current `Comparison`, `Branch`, `Color`, and `Append` fan-out routes stays out of scope

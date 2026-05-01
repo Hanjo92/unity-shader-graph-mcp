@@ -42,4 +42,4 @@ Contract examples should stay aligned to that blank-graph release path and shoul
 - `backendKind`
 - `compatibility`
 - `supportedCreateTemplates` where applicable
-- `supportedNodeTypes` and `supportedConnectionRules` where applicable
+- `supportedNodeTypes`, `nodeCatalogClassification`, and `supportedConnectionRules` where applicable

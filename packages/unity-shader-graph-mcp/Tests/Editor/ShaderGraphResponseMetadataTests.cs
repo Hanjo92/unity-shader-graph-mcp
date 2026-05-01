@@ -686,6 +686,18 @@ namespace ShaderGraphMcp.Editor.Tests
                         "Float/Vector1 (UnityEditor.ShaderGraph.Vector1Node)",
                     },
                     ["discoveredNodeCount"] = 3,
+                    ["nodeCatalogClassification"] = new Dictionary<string, object>
+                    {
+                        ["totalDiscoveredCount"] = 3,
+                        ["supportedCount"] = 2,
+                        ["excludedCount"] = 1,
+                        ["probeRejectedCount"] = 0,
+                        ["unsupportedCount"] = 1,
+                        ["classificationStates"] = new[] { "graph-addable", "filtered", "probe-failed" },
+                        ["excludedBuckets"] = new[] { "filtered:preview-block-output | count: 1" },
+                        ["probeRejectedBuckets"] = new string[0],
+                        ["semantics"] = "supported nodes are verified graph-addable; filtered/probe-failed entries are diagnostic-only.",
+                    },
                 });
 
             Assert.That(response.Success, Is.True);
@@ -694,6 +706,10 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(response.Data["nodeCatalogSemantics"], Is.EqualTo("supported=graph-addable"));
             Assert.That(response.Data["supportedNodeCount"], Is.EqualTo(2));
             Assert.That(response.Data["discoveredNodeCount"], Is.EqualTo(3));
+
+            var classification = (IReadOnlyDictionary<string, object>)response.Data["nodeCatalogClassification"];
+            Assert.That(classification["supportedCount"], Is.EqualTo(2));
+            Assert.That(classification["unsupportedCount"], Is.EqualTo(1));
 
             Assert.That((string[])response.Data["supportedNodeCanonicalNames"], Is.EquivalentTo(new[] { "Color", "Float/Vector1" }));
         }
