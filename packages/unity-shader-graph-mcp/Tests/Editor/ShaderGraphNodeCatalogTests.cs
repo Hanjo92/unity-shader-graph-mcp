@@ -144,13 +144,33 @@ namespace ShaderGraphMcp.Editor.Tests
             }
         }
 
+        [Test]
+        public void SupportedNodeCatalogReportLines_RecordInitializerBackedPromotions()
+        {
+            ShaderGraphTestAssets.RequirePackageReady();
+
+            var lines = ShaderGraphPackageGraphInspector.GetSupportedNodeCatalogReportLines();
+            var classification = ShaderGraphPackageGraphInspector.BuildNodeCatalogClassificationData();
+
+            Assert.That(
+                lines,
+                Has.Some.Contains("Property (UnityEditor.ShaderGraph.PropertyNode)")
+                    .And.Contains("Node initializer 'PropertyNode' applied"));
+            Assert.That(ShaderGraphTestAssets.GetInt(classification, "initializerBackedCount"), Is.GreaterThanOrEqualTo(1));
+
+            var initializerBackedNodeTypes = ShaderGraphTestAssets.GetStringList(classification, "initializerBackedNodeTypes");
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("Property"));
+        }
+
         [TestCase("filtered", "Nested internal node types are excluded from the initial graph-addable catalog.", "filtered:nested-internal")]
         [TestCase("filtered", "Legacy master node types are excluded from the safe addable catalog.", "filtered:legacy-master")]
         [TestCase("filtered", "Types that do not follow the public *Node shape stay discoverable-only until explicitly validated.", "filtered:non-public-node-shape")]
         [TestCase("filtered", "Preview, block-only, and output-only node types are excluded from the safe addable catalog.", "filtered:preview-block-output")]
         [TestCase("filtered", "Serialization and redirect placeholder node types are excluded from the safe addable catalog.", "filtered:serialization-placeholder")]
+        [TestCase("graph-addable", "Node initializer 'PropertyNode' applied. Activator -> AddNode -> ValidateGraph succeeded.", "supported:initializer-backed")]
         [TestCase("probe-failed", "Probe graph creation failed: no graph", "probe:graph-create")]
         [TestCase("probe-failed", "Node instantiation failed: ctor exploded", "probe:instantiation")]
+        [TestCase("probe-failed", "Node initializer 'PropertyNode' failed: binding unavailable", "probe:missing-initializer")]
         [TestCase("probe-failed", "Property probe setup failed: binding unavailable", "probe:missing-initializer")]
         [TestCase("probe-failed", "Node layout assignment failed: drawState missing", "probe:layout")]
         [TestCase("probe-failed", "GraphData.AddNode(...) failed: invalid cast", "probe:add-node")]

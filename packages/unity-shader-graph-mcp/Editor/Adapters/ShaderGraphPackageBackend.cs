@@ -491,6 +491,21 @@ namespace ShaderGraphMcp.Editor.Adapters
         private static readonly BindingFlags StaticFlags =
             BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
+        private delegate bool TryInitializeNodeProbeDelegate(
+            object graphData,
+            object shaderNode,
+            out string failureReason);
+
+        private delegate bool TryInitializeNodeForAddDelegate(
+            object graphData,
+            object shaderNode,
+            AddNodeRequest request,
+            List<string> notes,
+            out Dictionary<string, object> nodeInitializerData,
+            out Dictionary<string, object> propertyBindingData,
+            out object boundProperty,
+            out string failureReason);
+
         private sealed class ShaderGraphNodeDescriptor
         {
             public ShaderGraphNodeDescriptor(
@@ -531,11 +546,37 @@ namespace ShaderGraphMcp.Editor.Adapters
                 string.Equals(CatalogStatus, "graph-addable", StringComparison.Ordinal);
         }
 
+        private sealed class ShaderGraphNodeInitializer
+        {
+            public ShaderGraphNodeInitializer(
+                string key,
+                string description,
+                TryInitializeNodeProbeDelegate tryInitializeProbe,
+                TryInitializeNodeForAddDelegate tryInitializeForAdd)
+            {
+                Key = key ?? string.Empty;
+                Description = description ?? string.Empty;
+                TryInitializeProbe = tryInitializeProbe;
+                TryInitializeForAdd = tryInitializeForAdd;
+            }
+
+            public string Key { get; }
+
+            public string Description { get; }
+
+            public TryInitializeNodeProbeDelegate TryInitializeProbe { get; }
+
+            public TryInitializeNodeForAddDelegate TryInitializeForAdd { get; }
+        }
+
         private static readonly Lazy<IReadOnlyList<ShaderGraphNodeDescriptor>> DiscoveredNodeCatalog =
             new Lazy<IReadOnlyList<ShaderGraphNodeDescriptor>>(DiscoverSupportedNodeCatalog);
 
         private static readonly Lazy<IReadOnlyList<ShaderGraphNodeDescriptor>> SupportedNodeCatalog =
             new Lazy<IReadOnlyList<ShaderGraphNodeDescriptor>>(FilterSupportedNodeCatalog);
+
+        private static readonly Lazy<IReadOnlyDictionary<string, ShaderGraphNodeInitializer>> NodeInitializers =
+            new Lazy<IReadOnlyDictionary<string, ShaderGraphNodeInitializer>>(BuildNodeInitializerRegistry);
 
         public static ShaderGraphResponse CreateGraph(
             CreateGraphRequest request,
@@ -7427,34 +7468,24 @@ namespace ShaderGraphMcp.Editor.Adapters
                 );
             }
 
-            string queryPropertyName = string.IsNullOrWhiteSpace(request.PropertyName) ? string.Empty : request.PropertyName.Trim();
-            string queryPropertyDisplayName = string.IsNullOrWhiteSpace(request.PropertyDisplayName) ? string.Empty : request.PropertyDisplayName.Trim();
-            string queryReferenceName = string.IsNullOrWhiteSpace(request.ReferenceName) ? string.Empty : request.ReferenceName.Trim();
-            string queryPropertyType = string.IsNullOrWhiteSpace(request.PropertyType) ? string.Empty : request.PropertyType.Trim();
+            Dictionary<string, object> nodeInitializerData = null;
             Dictionary<string, object> propertyBindingData = null;
             object boundProperty = null;
-
-            if (IsPropertyNodeType(nodeType))
+            if (TryGetNodeInitializer(nodeType, out ShaderGraphNodeInitializer nodeInitializer))
             {
-                object[] propertyMatches = FindMatchingProperties(
+                if (!nodeInitializer.TryInitializeForAdd(
                     graphData,
-                    queryPropertyName,
-                    queryPropertyDisplayName,
-                    queryReferenceName,
-                    queryPropertyType);
-
-                propertyBindingData = BuildPropertyBindingData(
-                    queryPropertyName,
-                    queryPropertyDisplayName,
-                    queryReferenceName,
-                    queryPropertyType,
-                    propertyMatches);
-
-                if (propertyMatches.Length == 0)
+                    shaderNode,
+                    request,
+                    loadNotes,
+                    out nodeInitializerData,
+                    out propertyBindingData,
+                    out boundProperty,
+                    out string initializerFailure))
                 {
                     return ShaderGraphResponse.Fail(
-                        $"Could not resolve a Shader Graph property for Property node binding in '{assetPath}'.",
-                        AttachPropertyBindingData(
+                        initializerFailure,
+                        AttachAddNodeContextData(
                             BuildUnsupportedNodeData(
                                 assetPath,
                                 compatibility,
@@ -7463,56 +7494,13 @@ namespace ShaderGraphMcp.Editor.Adapters
                                 nodeTypeInput,
                                 request.DisplayName
                             ),
+                            nodeInitializerData,
                             propertyBindingData
                         )
                     );
                 }
 
-                if (propertyMatches.Length > 1)
-                {
-                    return ShaderGraphResponse.Fail(
-                        $"Property node binding query matched multiple Shader Graph properties in '{assetPath}'. Narrow the query with propertyName, propertyDisplayName, referenceName, or propertyType.",
-                        AttachPropertyBindingData(
-                            BuildUnsupportedNodeData(
-                                assetPath,
-                                compatibility,
-                                executionKind,
-                                loadNotes,
-                                nodeTypeInput,
-                                request.DisplayName
-                            ),
-                            propertyBindingData
-                        )
-                    );
-                }
-
-                boundProperty = propertyMatches[0];
-                if (!TryBindPropertyNode(shaderNode, boundProperty, out string bindFailure))
-                {
-                    return ShaderGraphResponse.Fail(
-                        $"Unable to bind Property node '{nodeTypeInput}' in '{assetPath}': {bindFailure}",
-                        AttachPropertyBindingData(
-                            BuildUnsupportedNodeData(
-                                assetPath,
-                                compatibility,
-                                executionKind,
-                                loadNotes,
-                                nodeTypeInput,
-                                request.DisplayName
-                            ),
-                            propertyBindingData
-                        )
-                    );
-                }
-
-                propertyBindingData = BuildPropertyBindingData(
-                    queryPropertyName,
-                    queryPropertyDisplayName,
-                    queryReferenceName,
-                    queryPropertyType,
-                    propertyMatches,
-                    boundProperty);
-                loadNotes.Add($"Bound Property node to Shader Graph property '{GetStringProperty(boundProperty, "displayName", "name")}'.");
+                loadNotes.Add($"Applied node initializer '{nodeInitializer.Key}'.");
             }
 
             string displayName = request.DisplayName?.Trim();
@@ -7555,7 +7543,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 {
                     return ShaderGraphResponse.Fail(
                         $"Unable to place Shader Graph node '{nodeTypeInput}' in '{assetPath}': {layoutFailure}",
-                        AttachPropertyBindingData(
+                        AttachAddNodeContextData(
                             BuildUnsupportedNodeData(
                                 assetPath,
                                 compatibility,
@@ -7564,6 +7552,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                                 nodeTypeInput,
                                 request.DisplayName
                             ),
+                            nodeInitializerData,
                             propertyBindingData
                         )
                     );
@@ -7576,7 +7565,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Unable to add Shader Graph node '{nodeTypeInput}' to '{assetPath}': {addNodeFailure}",
-                    AttachPropertyBindingData(
+                    AttachAddNodeContextData(
                         BuildUnsupportedNodeData(
                             assetPath,
                             compatibility,
@@ -7585,6 +7574,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                             nodeTypeInput,
                             request.DisplayName
                         ),
+                        nodeInitializerData,
                         propertyBindingData
                     )
                 );
@@ -7598,7 +7588,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Graph validation failed after adding node '{nodeTypeInput}': {validateFailure}",
-                    AttachPropertyBindingData(
+                    AttachAddNodeContextData(
                         BuildUnsupportedNodeData(
                             assetPath,
                             compatibility,
@@ -7607,6 +7597,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                             nodeTypeInput,
                             request.DisplayName
                         ),
+                        nodeInitializerData,
                         propertyBindingData
                     )
                 );
@@ -7616,7 +7607,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 return ShaderGraphResponse.Fail(
                     $"Unable to save Shader Graph after adding node '{nodeTypeInput}': {writeFailure}",
-                    AttachPropertyBindingData(
+                    AttachAddNodeContextData(
                         BuildUnsupportedNodeData(
                             assetPath,
                             compatibility,
@@ -7625,6 +7616,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                             nodeTypeInput,
                             request.DisplayName
                         ),
+                        nodeInitializerData,
                         propertyBindingData
                     )
                 );
@@ -7676,6 +7668,11 @@ namespace ShaderGraphMcp.Editor.Adapters
             if (propertyBindingData != null)
             {
                 data["propertyBinding"] = propertyBindingData;
+            }
+
+            if (nodeInitializerData != null)
+            {
+                data["nodeInitializer"] = nodeInitializerData;
             }
 
             return ShaderGraphResponse.Ok(
@@ -10906,6 +10903,28 @@ namespace ShaderGraphMcp.Editor.Adapters
             return data;
         }
 
+        private static Dictionary<string, object> AttachNodeInitializerData(
+            Dictionary<string, object> data,
+            Dictionary<string, object> nodeInitializerData)
+        {
+            if (data != null && nodeInitializerData != null)
+            {
+                data["nodeInitializer"] = nodeInitializerData;
+            }
+
+            return data;
+        }
+
+        private static Dictionary<string, object> AttachAddNodeContextData(
+            Dictionary<string, object> data,
+            Dictionary<string, object> nodeInitializerData,
+            Dictionary<string, object> propertyBindingData)
+        {
+            AttachNodeInitializerData(data, nodeInitializerData);
+            AttachPropertyBindingData(data, propertyBindingData);
+            return data;
+        }
+
         private static Dictionary<string, object> BuildUnsupportedConnectionData(
             ShaderGraphAssetSnapshot snapshot,
             string requestedOutputNodeId,
@@ -11740,6 +11759,42 @@ namespace ShaderGraphMcp.Editor.Adapters
             return SupportedNodeCatalog.Value;
         }
 
+        private static IReadOnlyDictionary<string, ShaderGraphNodeInitializer> BuildNodeInitializerRegistry()
+        {
+            return new Dictionary<string, ShaderGraphNodeInitializer>(StringComparer.Ordinal)
+            {
+                ["UnityEditor.ShaderGraph.PropertyNode"] = new ShaderGraphNodeInitializer(
+                    "PropertyNode",
+                    "Binds a temporary or requested Shader Graph property before AddNode/ValidateGraph.",
+                    TryInitializePropertyNodeProbe,
+                    TryInitializePropertyNodeForAdd),
+            };
+        }
+
+        private static bool TryGetNodeInitializer(Type nodeClassType, out ShaderGraphNodeInitializer initializer)
+        {
+            initializer = null;
+            string fullTypeName = nodeClassType?.FullName ?? nodeClassType?.Name ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(fullTypeName) &&
+                   NodeInitializers.Value.TryGetValue(fullTypeName, out initializer);
+        }
+
+        private static Dictionary<string, object> BuildNodeInitializerData(ShaderGraphNodeInitializer initializer)
+        {
+            if (initializer == null)
+            {
+                return null;
+            }
+
+            return new Dictionary<string, object>
+            {
+                ["key"] = initializer.Key,
+                ["description"] = initializer.Description,
+                ["initializerBacked"] = true,
+                ["semantics"] = "Node-specific initializers run before GraphData.AddNode and ValidateGraph for node types that require serialized setup.",
+            };
+        }
+
         private static string[] GetSupportedNodeTypeLabels()
         {
             return GetGraphAddableNodeCatalog()
@@ -11779,6 +11834,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             int totalDiscoveredCount = GetDiscoveredNodeCatalog().Count;
             int excludedCount = GetExcludedNodeCatalogReportLines().Count;
             int probeRejectedCount = GetProbeRejectedNodeCatalogCount();
+            string[] initializerBackedNodeTypes = GetInitializerBackedNodeCanonicalNames();
 
             return new Dictionary<string, object>
             {
@@ -11786,12 +11842,28 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["supportedCount"] = supportedCount,
                 ["excludedCount"] = excludedCount,
                 ["probeRejectedCount"] = probeRejectedCount,
+                ["initializerBackedCount"] = initializerBackedNodeTypes.Length,
+                ["initializerBackedNodeTypes"] = initializerBackedNodeTypes,
                 ["unsupportedCount"] = excludedCount + probeRejectedCount,
                 ["classificationStates"] = new[] { "graph-addable", "filtered", "probe-failed" },
                 ["excludedBuckets"] = GetExcludedNodeCatalogBucketReportLines().ToArray(),
                 ["probeRejectedBuckets"] = GetProbeRejectedNodeCatalogBucketReportLines().ToArray(),
-                ["semantics"] = "supported nodes are verified graph-addable; filtered/probe-failed entries are diagnostic-only.",
+                ["semantics"] = "supported nodes are verified graph-addable; initializer-backed entries used node-specific setup before validation; filtered/probe-failed entries are diagnostic-only.",
             };
+        }
+
+        private static string[] GetInitializerBackedNodeCanonicalNames()
+        {
+            return GetGraphAddableNodeCatalog()
+                .Where(descriptor => IsInitializerBackedNodeCatalogNote(descriptor.CatalogNote))
+                .Select(descriptor => descriptor.CanonicalName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static bool IsInitializerBackedNodeCatalogNote(string catalogNote)
+        {
+            return (catalogNote ?? string.Empty).StartsWith("Node initializer '", StringComparison.Ordinal);
         }
 
         private static string[] GetDiscoveredNodeTypeLabels()
@@ -12107,11 +12179,16 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
-            if (IsPropertyNodeType(nodeClassType) &&
-                !TryConfigurePropertyNodeProbe(graphData, shaderNode, out string propertyProbeFailure))
+            string initializerNote = string.Empty;
+            if (TryGetNodeInitializer(nodeClassType, out ShaderGraphNodeInitializer nodeInitializer))
             {
-                probeNote = $"Property probe setup failed: {propertyProbeFailure}";
-                return false;
+                if (!nodeInitializer.TryInitializeProbe(graphData, shaderNode, out string initializerFailure))
+                {
+                    probeNote = $"Node initializer '{nodeInitializer.Key}' failed: {initializerFailure}";
+                    return false;
+                }
+
+                initializerNote = $"Node initializer '{nodeInitializer.Key}' applied. ";
             }
 
             if (!TryAssignVisibleNodeLayout(
@@ -12137,7 +12214,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
-            probeNote = "Activator -> AddNode -> ValidateGraph succeeded.";
+            probeNote = initializerNote + "Activator -> AddNode -> ValidateGraph succeeded.";
             return true;
         }
 
@@ -12157,7 +12234,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                        StringComparison.Ordinal);
         }
 
-        private static bool TryConfigurePropertyNodeProbe(
+        private static bool TryInitializePropertyNodeProbe(
             object graphData,
             object shaderNode,
             out string failureReason)
@@ -12202,6 +12279,72 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
+            return true;
+        }
+
+        private static bool TryInitializePropertyNodeForAdd(
+            object graphData,
+            object shaderNode,
+            AddNodeRequest request,
+            List<string> notes,
+            out Dictionary<string, object> nodeInitializerData,
+            out Dictionary<string, object> propertyBindingData,
+            out object boundProperty,
+            out string failureReason)
+        {
+            ShaderGraphNodeInitializer initializer = NodeInitializers.Value["UnityEditor.ShaderGraph.PropertyNode"];
+            nodeInitializerData = BuildNodeInitializerData(initializer);
+            propertyBindingData = null;
+            boundProperty = null;
+            failureReason = null;
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            string nodeType = request.NodeType?.Trim() ?? string.Empty;
+            string queryPropertyName = string.IsNullOrWhiteSpace(request.PropertyName) ? string.Empty : request.PropertyName.Trim();
+            string queryPropertyDisplayName = string.IsNullOrWhiteSpace(request.PropertyDisplayName) ? string.Empty : request.PropertyDisplayName.Trim();
+            string queryReferenceName = string.IsNullOrWhiteSpace(request.ReferenceName) ? string.Empty : request.ReferenceName.Trim();
+            string queryPropertyType = string.IsNullOrWhiteSpace(request.PropertyType) ? string.Empty : request.PropertyType.Trim();
+            object[] propertyMatches = FindMatchingProperties(
+                graphData,
+                queryPropertyName,
+                queryPropertyDisplayName,
+                queryReferenceName,
+                queryPropertyType);
+
+            propertyBindingData = BuildPropertyBindingData(
+                queryPropertyName,
+                queryPropertyDisplayName,
+                queryReferenceName,
+                queryPropertyType,
+                propertyMatches);
+
+            if (propertyMatches.Length == 0)
+            {
+                failureReason = $"Could not resolve a Shader Graph property for Property node binding in '{assetPath}'.";
+                return false;
+            }
+
+            if (propertyMatches.Length > 1)
+            {
+                failureReason = $"Property node binding query matched multiple Shader Graph properties in '{assetPath}'. Narrow the query with propertyName, propertyDisplayName, referenceName, or propertyType.";
+                return false;
+            }
+
+            boundProperty = propertyMatches[0];
+            if (!TryBindPropertyNode(shaderNode, boundProperty, out string bindFailure))
+            {
+                failureReason = $"Unable to bind Property node '{nodeType}' in '{assetPath}': {bindFailure}";
+                return false;
+            }
+
+            propertyBindingData = BuildPropertyBindingData(
+                queryPropertyName,
+                queryPropertyDisplayName,
+                queryReferenceName,
+                queryPropertyType,
+                propertyMatches,
+                boundProperty);
+            notes?.Add($"Bound Property node to Shader Graph property '{GetStringProperty(boundProperty, "displayName", "name")}'.");
             return true;
         }
 
@@ -12321,6 +12464,11 @@ namespace ShaderGraphMcp.Editor.Adapters
                     return "probe:instantiation";
                 }
 
+                if (note.StartsWith("Node initializer '", StringComparison.Ordinal))
+                {
+                    return "probe:missing-initializer";
+                }
+
                 if (note.StartsWith("Property probe setup failed:", StringComparison.Ordinal))
                 {
                     return "probe:missing-initializer";
@@ -12351,6 +12499,11 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             if (string.Equals(status, "graph-addable", StringComparison.Ordinal))
             {
+                if (IsInitializerBackedNodeCatalogNote(note))
+                {
+                    return "supported:initializer-backed";
+                }
+
                 return "supported:graph-addable";
             }
 

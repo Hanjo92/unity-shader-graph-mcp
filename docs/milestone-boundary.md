@@ -56,6 +56,7 @@ The goal is to keep the contract, live MCP transport, CLI, and Unity-side file f
 - `list_supported_nodes` now includes `nodeCatalogClassification` so full-node-support work can track total discovered candidates, verified graph-addable nodes, filtered exclusions, and probe-rejected buckets without implying all discovered nodes are supported.
 - Probe-rejected node types stay grouped by stable failure-reason buckets in diagnostics so the next `graph-addable` expansion target can be chosen from concrete graph-creation, instantiation, `AddNode`, layout, or `ValidateGraph` failures.
 - The first full-node-support expansion batch is the verified pure math/value/vector set: `Float/Vector1`, `Vector2`, `Vector3`, `Vector4`, `Combine`, `Split`, `Append`, `Add`, `Subtract`, `Multiply`, `Divide`, `Lerp`, `Clamp`, `Sine`, and `Cosine`. Each node in this batch is locked by `add_node -> read_graph_summary -> save_graph`; broader port compatibility remains governed by the connection matrix above.
+- Node-specific initializers now have an explicit registry. `PropertyNode` is the first initializer-backed graph-addable node, and `nodeCatalogClassification.initializerBackedNodeTypes` separates these promoted nodes from the plain parameterless probe path.
 - The CLI and live MCP stdio transport both route through the shared server registry, with Unity batchmode bridge execution enabled when the Unity environment variables are configured.
 
 ## Blocked On Unity Shader Graph APIs

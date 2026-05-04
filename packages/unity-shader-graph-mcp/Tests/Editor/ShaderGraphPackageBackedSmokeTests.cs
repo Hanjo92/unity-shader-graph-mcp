@@ -2369,6 +2369,10 @@ namespace ShaderGraphMcp.Editor.Tests
                     label.StartsWith("Property (", StringComparison.Ordinal)),
                 Is.True);
 
+            var nodeInitializer = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeInitializer");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeInitializer, "key"), Is.EqualTo("PropertyNode"));
+            Assert.That(nodeInitializer["initializerBacked"], Is.EqualTo(true));
+
             var propertyBinding = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "propertyBinding");
             var boundProperty = ShaderGraphTestAssets.RequireDictionary(propertyBinding, "boundProperty");
             Assert.That(ShaderGraphTestAssets.GetString(boundProperty, "displayName"), Is.EqualTo("Tint"));
@@ -4032,6 +4036,12 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(totalDiscoveredCount, Is.EqualTo(ShaderGraphTestAssets.GetInt(response.Data, "discoveredNodeCount")));
             Assert.That(unsupportedCount, Is.EqualTo(excludedCount + probeRejectedCount));
             Assert.That(ShaderGraphTestAssets.GetString(classification, "semantics"), Does.Contain("diagnostic-only"));
+
+            int initializerBackedCount = ShaderGraphTestAssets.GetInt(classification, "initializerBackedCount");
+            Assert.That(initializerBackedCount, Is.GreaterThanOrEqualTo(1));
+
+            var initializerBackedNodeTypes = ShaderGraphTestAssets.GetStringList(classification, "initializerBackedNodeTypes");
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("Property"));
 
             var classificationStates = ShaderGraphTestAssets.GetStringList(classification, "classificationStates");
             Assert.That(classificationStates, Has.Some.EqualTo("graph-addable"));
