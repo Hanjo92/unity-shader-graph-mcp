@@ -25,6 +25,19 @@ namespace ShaderGraphMcp.Editor.Tests
             "Cosine",
         };
 
+        private static readonly string[] TextureSampleNodeTypes =
+        {
+            "Texture2DAsset",
+            "SampleTexture2D",
+            "Texture2DArrayAsset",
+            "SampleTexture2DArray",
+            "Texture3DAsset",
+            "SampleTexture3D",
+            "CubemapAsset",
+            "SampleCubemap",
+            "SamplerState",
+        };
+
         [Test]
         public void SupportedNodeCatalogReportLines_IncludeCurrentSmokeNodes()
         {
@@ -58,6 +71,30 @@ namespace ShaderGraphMcp.Editor.Tests
 
             Assert.That(classification["semantics"], Does.Contain("graph-addable"));
             Assert.That(classification["supportedCount"], Is.GreaterThanOrEqualTo(PureMathValueVectorNodeTypes.Length));
+        }
+
+        [Test]
+        public void SupportedNodeCanonicalNames_IncludeTextureSampleBatch()
+        {
+            ShaderGraphTestAssets.RequirePackageReady();
+
+            var supportedNames = ShaderGraphPackageGraphInspector.GetSupportedNodeCanonicalNames();
+            var classification = ShaderGraphPackageGraphInspector.BuildNodeCatalogClassificationData();
+            var textureSampleClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "textureSampleNodeClassification");
+            var assetFreeNodeTypes = ShaderGraphTestAssets.GetStringList(textureSampleClassification, "assetFreeNodeTypes");
+            var fixtureBackedNodeTypes = ShaderGraphTestAssets.GetStringList(textureSampleClassification, "fixtureBackedNodeTypes");
+
+            foreach (string nodeType in TextureSampleNodeTypes)
+            {
+                Assert.That(supportedNames, Has.Some.EqualTo(nodeType), nodeType);
+            }
+
+            Assert.That(assetFreeNodeTypes, Has.Some.EqualTo("Texture2DAsset"));
+            Assert.That(assetFreeNodeTypes, Has.Some.EqualTo("SamplerState"));
+            Assert.That(fixtureBackedNodeTypes, Has.Some.EqualTo("SampleTexture2D"));
+            Assert.That(fixtureBackedNodeTypes, Has.Some.EqualTo("SampleCubemap"));
         }
 
         [Test]

@@ -74,6 +74,19 @@ namespace ShaderGraphMcp.Editor.Tests
             "Cosine",
         };
 
+        private static readonly string[] TextureSampleNodeTypes =
+        {
+            "Texture2DAsset",
+            "SampleTexture2D",
+            "Texture2DArrayAsset",
+            "SampleTexture2DArray",
+            "Texture3DAsset",
+            "SampleTexture3D",
+            "CubemapAsset",
+            "SampleCubemap",
+            "SamplerState",
+        };
+
         private static IEnumerable<TestCaseData> ArithmeticVector1ChainCases()
         {
             yield return new TestCaseData("Add", new[] { "A", "B" }, 2);
@@ -315,6 +328,34 @@ namespace ShaderGraphMcp.Editor.Tests
             ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(PureMathValueVectorNodeTypes.Length));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_TextureSampleNodeBatch_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphTextureSampleNodeBatch", out _);
+
+            foreach (string nodeType in TextureSampleNodeTypes)
+            {
+                string displayName = $"{nodeType} Batch";
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                    assetPath,
+                    nodeType,
+                    displayName);
+                ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+                var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo(nodeType));
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "objectId"), Is.Not.Empty);
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(TextureSampleNodeTypes.Length));
 
             ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(saveResponse);
@@ -4042,6 +4083,21 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var initializerBackedNodeTypes = ShaderGraphTestAssets.GetStringList(classification, "initializerBackedNodeTypes");
             Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("Property"));
+
+            var textureSampleClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "textureSampleNodeClassification");
+            Assert.That(
+                ShaderGraphTestAssets.GetString(textureSampleClassification, "semantics"),
+                Does.Contain("externally asset-bound"));
+
+            var assetFreeNodeTypes = ShaderGraphTestAssets.GetStringList(textureSampleClassification, "assetFreeNodeTypes");
+            Assert.That(assetFreeNodeTypes, Has.Some.EqualTo("Texture2DAsset"));
+            Assert.That(assetFreeNodeTypes, Has.Some.EqualTo("SamplerState"));
+
+            var fixtureBackedNodeTypes = ShaderGraphTestAssets.GetStringList(textureSampleClassification, "fixtureBackedNodeTypes");
+            Assert.That(fixtureBackedNodeTypes, Has.Some.EqualTo("SampleTexture2D"));
+            Assert.That(fixtureBackedNodeTypes, Has.Some.EqualTo("SampleCubemap"));
 
             var classificationStates = ShaderGraphTestAssets.GetStringList(classification, "classificationStates");
             Assert.That(classificationStates, Has.Some.EqualTo("graph-addable"));

@@ -578,6 +578,28 @@ namespace ShaderGraphMcp.Editor.Adapters
         private static readonly Lazy<IReadOnlyDictionary<string, ShaderGraphNodeInitializer>> NodeInitializers =
             new Lazy<IReadOnlyDictionary<string, ShaderGraphNodeInitializer>>(BuildNodeInitializerRegistry);
 
+        private static readonly string[] AssetFreeTextureSampleNodeTypes =
+        {
+            "CubemapAsset",
+            "SamplerState",
+            "Texture2DAsset",
+            "Texture2DArrayAsset",
+            "Texture3DAsset",
+        };
+
+        private static readonly string[] FixtureBackedTextureSampleNodeTypes =
+        {
+            "SampleCubemap",
+            "SampleTexture2D",
+            "SampleTexture2DArray",
+            "SampleTexture3D",
+        };
+
+        private static readonly string[] ExternallyAssetBoundTextureSampleNodeTypes =
+        {
+            "SampleVirtualTexture",
+        };
+
         public static ShaderGraphResponse CreateGraph(
             CreateGraphRequest request,
             ShaderGraphCompatibilitySnapshot compatibility,
@@ -11844,6 +11866,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["probeRejectedCount"] = probeRejectedCount,
                 ["initializerBackedCount"] = initializerBackedNodeTypes.Length,
                 ["initializerBackedNodeTypes"] = initializerBackedNodeTypes,
+                ["textureSampleNodeClassification"] = BuildTextureSampleNodeClassificationData(),
                 ["unsupportedCount"] = excludedCount + probeRejectedCount,
                 ["classificationStates"] = new[] { "graph-addable", "filtered", "probe-failed" },
                 ["excludedBuckets"] = GetExcludedNodeCatalogBucketReportLines().ToArray(),
@@ -11864,6 +11887,71 @@ namespace ShaderGraphMcp.Editor.Adapters
         private static bool IsInitializerBackedNodeCatalogNote(string catalogNote)
         {
             return (catalogNote ?? string.Empty).StartsWith("Node initializer '", StringComparison.Ordinal);
+        }
+
+        private static Dictionary<string, object> BuildTextureSampleNodeClassificationData()
+        {
+            string[] externallyAssetBoundUnsupportedNodeTypes =
+                GetUnsupportedTextureSampleNodeTypes(ExternallyAssetBoundTextureSampleNodeTypes);
+
+            return new Dictionary<string, object>
+            {
+                ["semantics"] = "Texture/sample candidates are split into asset-free, package-fixture-backed, and externally asset-bound groups. Externally asset-bound candidates remain diagnostic-only unless the current Shader Graph package proves them graph-addable.",
+                ["assetFreeCandidateTypes"] = AssetFreeTextureSampleNodeTypes,
+                ["fixtureBackedCandidateTypes"] = FixtureBackedTextureSampleNodeTypes,
+                ["externallyAssetBoundCandidateTypes"] = ExternallyAssetBoundTextureSampleNodeTypes,
+                ["assetFreeNodeTypes"] = GetSupportedTextureSampleNodeTypes(AssetFreeTextureSampleNodeTypes),
+                ["fixtureBackedNodeTypes"] = GetSupportedTextureSampleNodeTypes(FixtureBackedTextureSampleNodeTypes),
+                ["externallyAssetBoundNodeTypes"] = GetSupportedTextureSampleNodeTypes(ExternallyAssetBoundTextureSampleNodeTypes),
+                ["externallyAssetBoundUnsupportedNodeTypes"] = externallyAssetBoundUnsupportedNodeTypes,
+                ["externallyAssetBoundUnsupportedDiagnostics"] =
+                    BuildTextureSampleUnsupportedDiagnostics(externallyAssetBoundUnsupportedNodeTypes),
+            };
+        }
+
+        private static string[] GetSupportedTextureSampleNodeTypes(IEnumerable<string> candidateNodeTypes)
+        {
+            var supportedNames = new HashSet<string>(
+                GetGraphAddableNodeCatalog().Select(descriptor => descriptor.CanonicalName),
+                StringComparer.Ordinal);
+
+            return candidateNodeTypes
+                .Where(candidate => supportedNames.Contains(candidate))
+                .OrderBy(candidate => candidate, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string[] GetUnsupportedTextureSampleNodeTypes(IEnumerable<string> candidateNodeTypes)
+        {
+            var supportedNames = new HashSet<string>(
+                GetGraphAddableNodeCatalog().Select(descriptor => descriptor.CanonicalName),
+                StringComparer.Ordinal);
+
+            return candidateNodeTypes
+                .Where(candidate => !supportedNames.Contains(candidate))
+                .OrderBy(candidate => candidate, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string[] BuildTextureSampleUnsupportedDiagnostics(IEnumerable<string> candidateNodeTypes)
+        {
+            return candidateNodeTypes
+                .Select(BuildTextureSampleUnsupportedDiagnostic)
+                .OrderBy(diagnostic => diagnostic, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string BuildTextureSampleUnsupportedDiagnostic(string candidateNodeType)
+        {
+            ShaderGraphNodeDescriptor descriptor = GetDiscoveredNodeCatalog()
+                .FirstOrDefault(candidate => string.Equals(candidate.CanonicalName, candidateNodeType, StringComparison.Ordinal));
+
+            if (descriptor == null)
+            {
+                return $"{candidateNodeType} | status: not-discovered | note: Node type was not discovered in loaded Shader Graph assemblies.";
+            }
+
+            return $"{candidateNodeType} | status: {descriptor.CatalogStatus} | note: {descriptor.CatalogNote}";
         }
 
         private static string[] GetDiscoveredNodeTypeLabels()
