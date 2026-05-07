@@ -124,6 +124,14 @@ namespace ShaderGraphMcp.Editor.Tests
             "RenderTypeBranch",
         };
 
+        private static readonly string[] ConfigurableMetadataRequiredNodeTypes =
+        {
+            "CustomFunction",
+            "Dropdown",
+            "Keyword",
+            "SubGraph",
+        };
+
         private static IEnumerable<TestCaseData> ArithmeticVector1ChainCases()
         {
             yield return new TestCaseData("Add", new[] { "A", "B" }, 2);
@@ -453,6 +461,29 @@ namespace ShaderGraphMcp.Editor.Tests
             ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(saveResponse);
             Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_ConfigurableNodesWithoutMetadata_AreRejectedWithDiagnostics()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphConfigurableNodesWithoutMetadata", out _);
+
+            foreach (string nodeType in ConfigurableMetadataRequiredNodeTypes)
+            {
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                    assetPath,
+                    nodeType,
+                    $"{nodeType} Without Metadata");
+
+                Assert.That(addNodeResponse.Success, Is.False, nodeType);
+                Assert.That(addNodeResponse.Message, Does.Contain($"Unsupported Shader Graph node type '{nodeType}'"));
+                Assert.That(ShaderGraphTestAssets.GetString(addNodeResponse.Data, "nodeCatalogSemantics"), Is.EqualTo("supported=graph-addable"));
+                Assert.That(ShaderGraphTestAssets.GetStringList(addNodeResponse.Data, "supportedNodeTypes"), Has.None.Contains(nodeType));
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
         }
 
         [Test]
@@ -4229,6 +4260,28 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(renderingMaterialNodeTypes, Has.Some.EqualTo("RenderType"));
             Assert.That(renderingMaterialNodeTypes, Has.Some.EqualTo("RenderTypeBranch"));
 
+            var configurableClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "configurableNodeClassification");
+            Assert.That(
+                ShaderGraphTestAssets.GetString(configurableClassification, "semantics"),
+                Does.Contain("explicit metadata"));
+
+            var configurablePropertyBackedNodeTypes = ShaderGraphTestAssets.GetStringList(configurableClassification, "propertyBackedNodeTypes");
+            Assert.That(configurablePropertyBackedNodeTypes, Has.Some.EqualTo("Property"));
+
+            var configurableMetadataUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "metadataRequiredUnsupportedNodeTypes");
+            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.Some.EqualTo("CustomFunction"));
+            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.Some.EqualTo("Dropdown"));
+            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.Some.EqualTo("Keyword"));
+
+            var configurableExternalUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "externallyAssetBoundUnsupportedNodeTypes");
+            Assert.That(configurableExternalUnsupportedNodeTypes, Has.Some.EqualTo("SubGraph"));
+
             var classificationStates = ShaderGraphTestAssets.GetStringList(classification, "classificationStates");
             Assert.That(classificationStates, Has.Some.EqualTo("graph-addable"));
             Assert.That(classificationStates, Has.Some.EqualTo("filtered"));
@@ -4238,6 +4291,10 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Float/Vector1"));
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Color"));
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("SampleGradient"));
+            Assert.That(supportedCanonicalNames, Has.None.EqualTo("CustomFunction"));
+            Assert.That(supportedCanonicalNames, Has.None.EqualTo("Dropdown"));
+            Assert.That(supportedCanonicalNames, Has.None.EqualTo("Keyword"));
+            Assert.That(supportedCanonicalNames, Has.None.EqualTo("SubGraph"));
         }
 
         [Test]

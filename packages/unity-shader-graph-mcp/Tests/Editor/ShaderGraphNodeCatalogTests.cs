@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using ShaderGraphMcp.Editor.Adapters;
@@ -73,6 +74,13 @@ namespace ShaderGraphMcp.Editor.Tests
             "Fog",
             "RenderType",
             "RenderTypeBranch",
+        };
+
+        private static readonly string[] ConfigurableMetadataRequiredNodeTypes =
+        {
+            "CustomFunction",
+            "Dropdown",
+            "Keyword",
         };
 
         [Test]
@@ -188,6 +196,49 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void SupportedNodeCanonicalNames_ClassifyConfigurableNodes()
+        {
+            ShaderGraphTestAssets.RequirePackageReady();
+
+            var supportedNames = ShaderGraphPackageGraphInspector.GetSupportedNodeCanonicalNames();
+            var classification = ShaderGraphPackageGraphInspector.BuildNodeCatalogClassificationData();
+            var configurableClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "configurableNodeClassification");
+            var propertyBackedNodeTypes = ShaderGraphTestAssets.GetStringList(configurableClassification, "propertyBackedNodeTypes");
+            var metadataRequiredUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "metadataRequiredUnsupportedNodeTypes");
+            var metadataRequiredUnsupportedDiagnostics = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "metadataRequiredUnsupportedDiagnostics");
+            var externallyAssetBoundUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "externallyAssetBoundUnsupportedNodeTypes");
+            var externallyAssetBoundUnsupportedDiagnostics = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "externallyAssetBoundUnsupportedDiagnostics");
+
+            foreach (string nodeType in ConfigurableMetadataRequiredNodeTypes)
+            {
+                Assert.That(supportedNames, Has.None.EqualTo(nodeType), nodeType);
+                Assert.That(metadataRequiredUnsupportedNodeTypes, Has.Some.EqualTo(nodeType), nodeType);
+            }
+
+            Assert.That(propertyBackedNodeTypes, Has.Some.EqualTo("Property"));
+            Assert.That(supportedNames, Has.None.EqualTo("SubGraph"));
+            AssertUnsupportedDiagnosticIfDiscovered(
+                metadataRequiredUnsupportedDiagnostics,
+                "CustomFunction",
+                "configuration serialization");
+            Assert.That(externallyAssetBoundUnsupportedNodeTypes, Has.Some.EqualTo("SubGraph"));
+            AssertUnsupportedDiagnosticIfDiscovered(
+                externallyAssetBoundUnsupportedDiagnostics,
+                "SubGraph",
+                "Externally asset-bound");
+        }
+
+        [Test]
         public void SupportedNodeCatalogReportLines_ExposeCurrentAliases()
         {
             ShaderGraphTestAssets.RequirePackageReady();
@@ -294,6 +345,8 @@ namespace ShaderGraphMcp.Editor.Tests
         [TestCase("filtered", "Types that do not follow the public *Node shape stay discoverable-only until explicitly validated.", "filtered:non-public-node-shape")]
         [TestCase("filtered", "Preview, block-only, and output-only node types are excluded from the safe addable catalog.", "filtered:preview-block-output")]
         [TestCase("filtered", "Serialization and redirect placeholder node types are excluded from the safe addable catalog.", "filtered:serialization-placeholder")]
+        [TestCase("filtered", "Metadata-backed configurable node types require explicit configuration serialization before safe graph-addable support.", "filtered:metadata-required")]
+        [TestCase("filtered", "Externally asset-bound configurable node types require explicit asset binding before safe graph-addable support.", "filtered:external-asset-bound")]
         [TestCase("graph-addable", "Node initializer 'PropertyNode' applied. Activator -> AddNode -> ValidateGraph succeeded.", "supported:initializer-backed")]
         [TestCase("probe-failed", "Probe graph creation failed: no graph", "probe:graph-create")]
         [TestCase("probe-failed", "Node instantiation failed: ctor exploded", "probe:instantiation")]
@@ -322,6 +375,20 @@ namespace ShaderGraphMcp.Editor.Tests
             string countText = line.Substring(markerIndex + marker.Length).Trim();
             Assert.That(int.TryParse(countText, out int parsed), Is.True, $"Bucket line has invalid count: {line}");
             return parsed;
+        }
+
+        private static void AssertUnsupportedDiagnosticIfDiscovered(
+            IReadOnlyList<string> diagnostics,
+            string nodeType,
+            string expectedNote)
+        {
+            string diagnostic = diagnostics.FirstOrDefault(line => line.Contains(nodeType));
+            Assert.That(diagnostic, Is.Not.Null, nodeType);
+
+            if (!diagnostic.Contains("status: not-discovered"))
+            {
+                Assert.That(diagnostic, Does.Contain(expectedNote), nodeType);
+            }
         }
     }
 }

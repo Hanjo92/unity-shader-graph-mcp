@@ -662,6 +662,23 @@ namespace ShaderGraphMcp.Editor.Adapters
             "RenderTypeBranch",
         };
 
+        private static readonly string[] ConfigurableMetadataRequiredNodeTypes =
+        {
+            "CustomFunction",
+            "Dropdown",
+            "Keyword",
+        };
+
+        private static readonly string[] ConfigurablePropertyBackedNodeTypes =
+        {
+            "Property",
+        };
+
+        private static readonly string[] ConfigurableExternallyAssetBoundNodeTypes =
+        {
+            "SubGraph",
+        };
+
         public static ShaderGraphResponse CreateGraph(
             CreateGraphRequest request,
             ShaderGraphCompatibilitySnapshot compatibility,
@@ -11931,11 +11948,37 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["textureSampleNodeClassification"] = BuildTextureSampleNodeClassificationData(),
                 ["coordinateUtilityNodeClassification"] = BuildCoordinateUtilityNodeClassificationData(),
                 ["normalLightingRenderingNodeClassification"] = BuildNormalLightingRenderingNodeClassificationData(),
+                ["configurableNodeClassification"] = BuildConfigurableNodeClassificationData(),
                 ["unsupportedCount"] = excludedCount + probeRejectedCount,
                 ["classificationStates"] = new[] { "graph-addable", "filtered", "probe-failed" },
                 ["excludedBuckets"] = GetExcludedNodeCatalogBucketReportLines().ToArray(),
                 ["probeRejectedBuckets"] = GetProbeRejectedNodeCatalogBucketReportLines().ToArray(),
                 ["semantics"] = "supported nodes are verified graph-addable; initializer-backed entries used node-specific setup before validation; filtered/probe-failed entries are diagnostic-only.",
+            };
+        }
+
+        private static Dictionary<string, object> BuildConfigurableNodeClassificationData()
+        {
+            string[] metadataRequiredUnsupportedNodeTypes =
+                GetUnsupportedCatalogNodeTypes(ConfigurableMetadataRequiredNodeTypes);
+            string[] externallyAssetBoundUnsupportedNodeTypes =
+                GetUnsupportedCatalogNodeTypes(ConfigurableExternallyAssetBoundNodeTypes);
+
+            return new Dictionary<string, object>
+            {
+                ["semantics"] = "Configurable graph-authoring nodes are split by whether they can be safely recreated from explicit metadata. Property uses a node initializer and property binding metadata; metadata-backed and externally asset-bound nodes remain diagnostic-only until explicit configuration serialization or asset binding is implemented.",
+                ["metadataRequiredCandidateTypes"] = ConfigurableMetadataRequiredNodeTypes,
+                ["propertyBackedCandidateTypes"] = ConfigurablePropertyBackedNodeTypes,
+                ["externallyAssetBoundCandidateTypes"] = ConfigurableExternallyAssetBoundNodeTypes,
+                ["metadataRequiredNodeTypes"] = GetSupportedCatalogNodeTypes(ConfigurableMetadataRequiredNodeTypes),
+                ["propertyBackedNodeTypes"] = GetSupportedCatalogNodeTypes(ConfigurablePropertyBackedNodeTypes),
+                ["externallyAssetBoundNodeTypes"] = GetSupportedCatalogNodeTypes(ConfigurableExternallyAssetBoundNodeTypes),
+                ["metadataRequiredUnsupportedNodeTypes"] = metadataRequiredUnsupportedNodeTypes,
+                ["metadataRequiredUnsupportedDiagnostics"] =
+                    BuildUnsupportedCatalogNodeDiagnostics(metadataRequiredUnsupportedNodeTypes),
+                ["externallyAssetBoundUnsupportedNodeTypes"] = externallyAssetBoundUnsupportedNodeTypes,
+                ["externallyAssetBoundUnsupportedDiagnostics"] =
+                    BuildUnsupportedCatalogNodeDiagnostics(externallyAssetBoundUnsupportedNodeTypes),
             };
         }
 
@@ -12332,6 +12375,20 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
+            if (string.Equals(shortTypeName, "CustomFunctionNode", StringComparison.Ordinal) ||
+                string.Equals(shortTypeName, "DropdownNode", StringComparison.Ordinal) ||
+                string.Equals(shortTypeName, "KeywordNode", StringComparison.Ordinal))
+            {
+                exclusionReason = "Metadata-backed configurable node types require explicit configuration serialization before safe graph-addable support.";
+                return true;
+            }
+
+            if (string.Equals(shortTypeName, "SubGraphNode", StringComparison.Ordinal))
+            {
+                exclusionReason = "Externally asset-bound configurable node types require explicit asset binding before safe graph-addable support.";
+                return true;
+            }
+
             if (string.Equals(shortTypeName, "RedirectNodeData", StringComparison.Ordinal) ||
                 string.Equals(shortTypeName, "UnknownNodeType", StringComparison.Ordinal) ||
                 fullTypeName.Contains("MultiJsonInternal+", StringComparison.Ordinal))
@@ -12644,6 +12701,16 @@ namespace ShaderGraphMcp.Editor.Adapters
                 if (note.StartsWith("Serialization and redirect placeholder node types", StringComparison.Ordinal))
                 {
                     return "filtered:serialization-placeholder";
+                }
+
+                if (note.StartsWith("Metadata-backed configurable node types", StringComparison.Ordinal))
+                {
+                    return "filtered:metadata-required";
+                }
+
+                if (note.StartsWith("Externally asset-bound configurable node types", StringComparison.Ordinal))
+                {
+                    return "filtered:external-asset-bound";
                 }
 
                 return "filtered:other";
