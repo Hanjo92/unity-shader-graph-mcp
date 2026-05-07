@@ -103,6 +103,27 @@ namespace ShaderGraphMcp.Editor.Tests
             "TransformationMatrix",
         };
 
+        private static readonly string[] NormalLightingRenderingNodeTypes =
+        {
+            "NormalBlend",
+            "NormalFromHeight",
+            "NormalFromTexture",
+            "NormalReconstructZ",
+            "NormalStrength",
+            "NormalUnpack",
+            "Ambient",
+            "BakedGI",
+            "Blackbody",
+            "DielectricSpecular",
+            "MainLightDirection",
+            "MetalReflectance",
+            "Reflection",
+            "ReflectionProbe",
+            "Fog",
+            "RenderType",
+            "RenderTypeBranch",
+        };
+
         private static IEnumerable<TestCaseData> ArithmeticVector1ChainCases()
         {
             yield return new TestCaseData("Add", new[] { "A", "B" }, 2);
@@ -400,6 +421,34 @@ namespace ShaderGraphMcp.Editor.Tests
             ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(CoordinateUtilityNodeTypes.Length));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_NormalLightingRenderingNodeBatch_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphNormalLightingRenderingNodeBatch", out _);
+
+            foreach (string nodeType in NormalLightingRenderingNodeTypes)
+            {
+                string displayName = $"{nodeType} Batch";
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                    assetPath,
+                    nodeType,
+                    displayName);
+                ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+                var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo(nodeType));
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "objectId"), Is.Not.Empty);
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(NormalLightingRenderingNodeTypes.Length));
 
             ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(saveResponse);
@@ -4160,6 +4209,25 @@ namespace ShaderGraphMcp.Editor.Tests
             var utilityNodeTypes = ShaderGraphTestAssets.GetStringList(coordinateUtilityClassification, "utilityNodeTypes");
             Assert.That(utilityNodeTypes, Has.Some.EqualTo("Time"));
             Assert.That(utilityNodeTypes, Has.Some.EqualTo("TransformationMatrix"));
+
+            var normalLightingClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "normalLightingRenderingNodeClassification");
+            Assert.That(
+                ShaderGraphTestAssets.GetString(normalLightingClassification, "semantics"),
+                Does.Contain("render-pipeline-specific"));
+
+            var normalWorkflowNodeTypes = ShaderGraphTestAssets.GetStringList(normalLightingClassification, "normalWorkflowNodeTypes");
+            Assert.That(normalWorkflowNodeTypes, Has.Some.EqualTo("NormalFromTexture"));
+            Assert.That(normalWorkflowNodeTypes, Has.Some.EqualTo("NormalStrength"));
+
+            var lightingReflectionNodeTypes = ShaderGraphTestAssets.GetStringList(normalLightingClassification, "lightingReflectionNodeTypes");
+            Assert.That(lightingReflectionNodeTypes, Has.Some.EqualTo("BakedGI"));
+            Assert.That(lightingReflectionNodeTypes, Has.Some.EqualTo("MainLightDirection"));
+
+            var renderingMaterialNodeTypes = ShaderGraphTestAssets.GetStringList(normalLightingClassification, "renderingMaterialNodeTypes");
+            Assert.That(renderingMaterialNodeTypes, Has.Some.EqualTo("RenderType"));
+            Assert.That(renderingMaterialNodeTypes, Has.Some.EqualTo("RenderTypeBranch"));
 
             var classificationStates = ShaderGraphTestAssets.GetStringList(classification, "classificationStates");
             Assert.That(classificationStates, Has.Some.EqualTo("graph-addable"));

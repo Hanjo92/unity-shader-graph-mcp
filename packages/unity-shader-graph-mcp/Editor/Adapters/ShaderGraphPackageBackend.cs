@@ -633,6 +633,35 @@ namespace ShaderGraphMcp.Editor.Adapters
             "VertexID",
         };
 
+        private static readonly string[] NormalWorkflowNodeTypes =
+        {
+            "NormalBlend",
+            "NormalFromHeight",
+            "NormalFromTexture",
+            "NormalReconstructZ",
+            "NormalStrength",
+            "NormalUnpack",
+        };
+
+        private static readonly string[] LightingReflectionNodeTypes =
+        {
+            "Ambient",
+            "BakedGI",
+            "Blackbody",
+            "DielectricSpecular",
+            "MainLightDirection",
+            "MetalReflectance",
+            "Reflection",
+            "ReflectionProbe",
+        };
+
+        private static readonly string[] RenderingMaterialHelperNodeTypes =
+        {
+            "Fog",
+            "RenderType",
+            "RenderTypeBranch",
+        };
+
         public static ShaderGraphResponse CreateGraph(
             CreateGraphRequest request,
             ShaderGraphCompatibilitySnapshot compatibility,
@@ -11901,6 +11930,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["initializerBackedNodeTypes"] = initializerBackedNodeTypes,
                 ["textureSampleNodeClassification"] = BuildTextureSampleNodeClassificationData(),
                 ["coordinateUtilityNodeClassification"] = BuildCoordinateUtilityNodeClassificationData(),
+                ["normalLightingRenderingNodeClassification"] = BuildNormalLightingRenderingNodeClassificationData(),
                 ["unsupportedCount"] = excludedCount + probeRejectedCount,
                 ["classificationStates"] = new[] { "graph-addable", "filtered", "probe-failed" },
                 ["excludedBuckets"] = GetExcludedNodeCatalogBucketReportLines().ToArray(),
@@ -12007,6 +12037,29 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["unityVersionSensitiveUnsupportedNodeTypes"] = versionSensitiveUnsupportedNodeTypes,
                 ["unityVersionSensitiveUnsupportedDiagnostics"] =
                     BuildUnsupportedCatalogNodeDiagnostics(versionSensitiveUnsupportedNodeTypes),
+            };
+        }
+
+        private static Dictionary<string, object> BuildNormalLightingRenderingNodeClassificationData()
+        {
+            string[] pipelineSensitiveUnsupportedNodeTypes =
+                GetUnsupportedCatalogNodeTypes(LightingReflectionNodeTypes)
+                    .Concat(GetUnsupportedCatalogNodeTypes(RenderingMaterialHelperNodeTypes))
+                    .OrderBy(candidate => candidate, StringComparer.Ordinal)
+                    .ToArray();
+
+            return new Dictionary<string, object>
+            {
+                ["semantics"] = "Normal, lighting, reflection, rendering, and material-helper nodes are split by graph-addable support. Lighting/reflection/rendering helpers can be render-pipeline-specific and remain diagnostic-only unless the package probe proves them graph-addable.",
+                ["normalWorkflowCandidateTypes"] = NormalWorkflowNodeTypes,
+                ["lightingReflectionCandidateTypes"] = LightingReflectionNodeTypes,
+                ["renderingMaterialCandidateTypes"] = RenderingMaterialHelperNodeTypes,
+                ["normalWorkflowNodeTypes"] = GetSupportedCatalogNodeTypes(NormalWorkflowNodeTypes),
+                ["lightingReflectionNodeTypes"] = GetSupportedCatalogNodeTypes(LightingReflectionNodeTypes),
+                ["renderingMaterialNodeTypes"] = GetSupportedCatalogNodeTypes(RenderingMaterialHelperNodeTypes),
+                ["renderPipelineSensitiveUnsupportedNodeTypes"] = pipelineSensitiveUnsupportedNodeTypes,
+                ["renderPipelineSensitiveUnsupportedDiagnostics"] =
+                    BuildUnsupportedCatalogNodeDiagnostics(pipelineSensitiveUnsupportedNodeTypes),
             };
         }
 

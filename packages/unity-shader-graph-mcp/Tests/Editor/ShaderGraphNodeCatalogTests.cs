@@ -54,6 +54,27 @@ namespace ShaderGraphMcp.Editor.Tests
             "TransformationMatrix",
         };
 
+        private static readonly string[] NormalLightingRenderingNodeTypes =
+        {
+            "NormalBlend",
+            "NormalFromHeight",
+            "NormalFromTexture",
+            "NormalReconstructZ",
+            "NormalStrength",
+            "NormalUnpack",
+            "Ambient",
+            "BakedGI",
+            "Blackbody",
+            "DielectricSpecular",
+            "MainLightDirection",
+            "MetalReflectance",
+            "Reflection",
+            "ReflectionProbe",
+            "Fog",
+            "RenderType",
+            "RenderTypeBranch",
+        };
+
         [Test]
         public void SupportedNodeCatalogReportLines_IncludeCurrentSmokeNodes()
         {
@@ -137,6 +158,33 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(sceneCameraNodeTypes, Has.Some.EqualTo("Camera"));
             Assert.That(utilityNodeTypes, Has.Some.EqualTo("Time"));
             Assert.That(utilityNodeTypes, Has.Some.EqualTo("TransformationMatrix"));
+        }
+
+        [Test]
+        public void SupportedNodeCanonicalNames_IncludeNormalLightingRenderingBatch()
+        {
+            ShaderGraphTestAssets.RequirePackageReady();
+
+            var supportedNames = ShaderGraphPackageGraphInspector.GetSupportedNodeCanonicalNames();
+            var classification = ShaderGraphPackageGraphInspector.BuildNodeCatalogClassificationData();
+            var normalLightingClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "normalLightingRenderingNodeClassification");
+            var normalWorkflowNodeTypes = ShaderGraphTestAssets.GetStringList(normalLightingClassification, "normalWorkflowNodeTypes");
+            var lightingReflectionNodeTypes = ShaderGraphTestAssets.GetStringList(normalLightingClassification, "lightingReflectionNodeTypes");
+            var renderingMaterialNodeTypes = ShaderGraphTestAssets.GetStringList(normalLightingClassification, "renderingMaterialNodeTypes");
+
+            foreach (string nodeType in NormalLightingRenderingNodeTypes)
+            {
+                Assert.That(supportedNames, Has.Some.EqualTo(nodeType), nodeType);
+            }
+
+            Assert.That(normalWorkflowNodeTypes, Has.Some.EqualTo("NormalFromTexture"));
+            Assert.That(normalWorkflowNodeTypes, Has.Some.EqualTo("NormalStrength"));
+            Assert.That(lightingReflectionNodeTypes, Has.Some.EqualTo("BakedGI"));
+            Assert.That(lightingReflectionNodeTypes, Has.Some.EqualTo("MainLightDirection"));
+            Assert.That(renderingMaterialNodeTypes, Has.Some.EqualTo("RenderType"));
+            Assert.That(renderingMaterialNodeTypes, Has.Some.EqualTo("RenderTypeBranch"));
         }
 
         [Test]
