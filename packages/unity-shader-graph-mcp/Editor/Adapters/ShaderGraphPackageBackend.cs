@@ -600,6 +600,39 @@ namespace ShaderGraphMcp.Editor.Adapters
             "SampleVirtualTexture",
         };
 
+        private static readonly string[] CoordinateSpaceNodeTypes =
+        {
+            "BitangentVector",
+            "NormalVector",
+            "Position",
+            "ScreenPosition",
+            "TangentVector",
+            "UV",
+            "ViewDirection",
+            "ViewVector",
+        };
+
+        private static readonly string[] SceneCameraNodeTypes =
+        {
+            "Camera",
+            "Object",
+            "SceneColor",
+            "SceneDepth",
+            "SceneDepthDifference",
+        };
+
+        private static readonly string[] UtilitySpaceNodeTypes =
+        {
+            "EyeIndex",
+            "InstanceID",
+            "IsFrontFace",
+            "Time",
+            "Transform",
+            "TransformationMatrix",
+            "VertexColor",
+            "VertexID",
+        };
+
         public static ShaderGraphResponse CreateGraph(
             CreateGraphRequest request,
             ShaderGraphCompatibilitySnapshot compatibility,
@@ -11867,6 +11900,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["initializerBackedCount"] = initializerBackedNodeTypes.Length,
                 ["initializerBackedNodeTypes"] = initializerBackedNodeTypes,
                 ["textureSampleNodeClassification"] = BuildTextureSampleNodeClassificationData(),
+                ["coordinateUtilityNodeClassification"] = BuildCoordinateUtilityNodeClassificationData(),
                 ["unsupportedCount"] = excludedCount + probeRejectedCount,
                 ["classificationStates"] = new[] { "graph-addable", "filtered", "probe-failed" },
                 ["excludedBuckets"] = GetExcludedNodeCatalogBucketReportLines().ToArray(),
@@ -11892,7 +11926,7 @@ namespace ShaderGraphMcp.Editor.Adapters
         private static Dictionary<string, object> BuildTextureSampleNodeClassificationData()
         {
             string[] externallyAssetBoundUnsupportedNodeTypes =
-                GetUnsupportedTextureSampleNodeTypes(ExternallyAssetBoundTextureSampleNodeTypes);
+                GetUnsupportedCatalogNodeTypes(ExternallyAssetBoundTextureSampleNodeTypes);
 
             return new Dictionary<string, object>
             {
@@ -11900,16 +11934,16 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["assetFreeCandidateTypes"] = AssetFreeTextureSampleNodeTypes,
                 ["fixtureBackedCandidateTypes"] = FixtureBackedTextureSampleNodeTypes,
                 ["externallyAssetBoundCandidateTypes"] = ExternallyAssetBoundTextureSampleNodeTypes,
-                ["assetFreeNodeTypes"] = GetSupportedTextureSampleNodeTypes(AssetFreeTextureSampleNodeTypes),
-                ["fixtureBackedNodeTypes"] = GetSupportedTextureSampleNodeTypes(FixtureBackedTextureSampleNodeTypes),
-                ["externallyAssetBoundNodeTypes"] = GetSupportedTextureSampleNodeTypes(ExternallyAssetBoundTextureSampleNodeTypes),
+                ["assetFreeNodeTypes"] = GetSupportedCatalogNodeTypes(AssetFreeTextureSampleNodeTypes),
+                ["fixtureBackedNodeTypes"] = GetSupportedCatalogNodeTypes(FixtureBackedTextureSampleNodeTypes),
+                ["externallyAssetBoundNodeTypes"] = GetSupportedCatalogNodeTypes(ExternallyAssetBoundTextureSampleNodeTypes),
                 ["externallyAssetBoundUnsupportedNodeTypes"] = externallyAssetBoundUnsupportedNodeTypes,
                 ["externallyAssetBoundUnsupportedDiagnostics"] =
-                    BuildTextureSampleUnsupportedDiagnostics(externallyAssetBoundUnsupportedNodeTypes),
+                    BuildUnsupportedCatalogNodeDiagnostics(externallyAssetBoundUnsupportedNodeTypes),
             };
         }
 
-        private static string[] GetSupportedTextureSampleNodeTypes(IEnumerable<string> candidateNodeTypes)
+        private static string[] GetSupportedCatalogNodeTypes(IEnumerable<string> candidateNodeTypes)
         {
             var supportedNames = new HashSet<string>(
                 GetGraphAddableNodeCatalog().Select(descriptor => descriptor.CanonicalName),
@@ -11921,7 +11955,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 .ToArray();
         }
 
-        private static string[] GetUnsupportedTextureSampleNodeTypes(IEnumerable<string> candidateNodeTypes)
+        private static string[] GetUnsupportedCatalogNodeTypes(IEnumerable<string> candidateNodeTypes)
         {
             var supportedNames = new HashSet<string>(
                 GetGraphAddableNodeCatalog().Select(descriptor => descriptor.CanonicalName),
@@ -11933,15 +11967,15 @@ namespace ShaderGraphMcp.Editor.Adapters
                 .ToArray();
         }
 
-        private static string[] BuildTextureSampleUnsupportedDiagnostics(IEnumerable<string> candidateNodeTypes)
+        private static string[] BuildUnsupportedCatalogNodeDiagnostics(IEnumerable<string> candidateNodeTypes)
         {
             return candidateNodeTypes
-                .Select(BuildTextureSampleUnsupportedDiagnostic)
+                .Select(BuildUnsupportedCatalogNodeDiagnostic)
                 .OrderBy(diagnostic => diagnostic, StringComparer.Ordinal)
                 .ToArray();
         }
 
-        private static string BuildTextureSampleUnsupportedDiagnostic(string candidateNodeType)
+        private static string BuildUnsupportedCatalogNodeDiagnostic(string candidateNodeType)
         {
             ShaderGraphNodeDescriptor descriptor = GetDiscoveredNodeCatalog()
                 .FirstOrDefault(candidate => string.Equals(candidate.CanonicalName, candidateNodeType, StringComparison.Ordinal));
@@ -11952,6 +11986,28 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             return $"{candidateNodeType} | status: {descriptor.CatalogStatus} | note: {descriptor.CatalogNote}";
+        }
+
+        private static Dictionary<string, object> BuildCoordinateUtilityNodeClassificationData()
+        {
+            string[] versionSensitiveUnsupportedNodeTypes = GetUnsupportedCatalogNodeTypes(SceneCameraNodeTypes)
+                .Concat(GetUnsupportedCatalogNodeTypes(UtilitySpaceNodeTypes))
+                .OrderBy(candidate => candidate, StringComparer.Ordinal)
+                .ToArray();
+
+            return new Dictionary<string, object>
+            {
+                ["semantics"] = "Coordinate, scene, camera, and utility nodes are split by graph-addable support. Scene/camera and platform-context nodes can be Unity-version-sensitive and remain diagnostic-only unless the package probe proves them graph-addable.",
+                ["coordinateSpaceCandidateTypes"] = CoordinateSpaceNodeTypes,
+                ["sceneCameraCandidateTypes"] = SceneCameraNodeTypes,
+                ["utilityCandidateTypes"] = UtilitySpaceNodeTypes,
+                ["coordinateSpaceNodeTypes"] = GetSupportedCatalogNodeTypes(CoordinateSpaceNodeTypes),
+                ["sceneCameraNodeTypes"] = GetSupportedCatalogNodeTypes(SceneCameraNodeTypes),
+                ["utilityNodeTypes"] = GetSupportedCatalogNodeTypes(UtilitySpaceNodeTypes),
+                ["unityVersionSensitiveUnsupportedNodeTypes"] = versionSensitiveUnsupportedNodeTypes,
+                ["unityVersionSensitiveUnsupportedDiagnostics"] =
+                    BuildUnsupportedCatalogNodeDiagnostics(versionSensitiveUnsupportedNodeTypes),
+            };
         }
 
         private static string[] GetDiscoveredNodeTypeLabels()

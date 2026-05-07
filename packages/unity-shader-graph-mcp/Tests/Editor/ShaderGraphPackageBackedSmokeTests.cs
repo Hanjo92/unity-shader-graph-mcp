@@ -87,6 +87,22 @@ namespace ShaderGraphMcp.Editor.Tests
             "SamplerState",
         };
 
+        private static readonly string[] CoordinateUtilityNodeTypes =
+        {
+            "UV",
+            "ScreenPosition",
+            "Position",
+            "NormalVector",
+            "TangentVector",
+            "BitangentVector",
+            "ViewDirection",
+            "Time",
+            "Object",
+            "Camera",
+            "Transform",
+            "TransformationMatrix",
+        };
+
         private static IEnumerable<TestCaseData> ArithmeticVector1ChainCases()
         {
             yield return new TestCaseData("Add", new[] { "A", "B" }, 2);
@@ -356,6 +372,34 @@ namespace ShaderGraphMcp.Editor.Tests
             ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(TextureSampleNodeTypes.Length));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_CoordinateUtilityNodeBatch_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCoordinateUtilityNodeBatch", out _);
+
+            foreach (string nodeType in CoordinateUtilityNodeTypes)
+            {
+                string displayName = $"{nodeType} Batch";
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                    assetPath,
+                    nodeType,
+                    displayName);
+                ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+                var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo(nodeType));
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "objectId"), Is.Not.Empty);
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(CoordinateUtilityNodeTypes.Length));
 
             ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(saveResponse);
@@ -4098,6 +4142,24 @@ namespace ShaderGraphMcp.Editor.Tests
             var fixtureBackedNodeTypes = ShaderGraphTestAssets.GetStringList(textureSampleClassification, "fixtureBackedNodeTypes");
             Assert.That(fixtureBackedNodeTypes, Has.Some.EqualTo("SampleTexture2D"));
             Assert.That(fixtureBackedNodeTypes, Has.Some.EqualTo("SampleCubemap"));
+
+            var coordinateUtilityClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "coordinateUtilityNodeClassification");
+            Assert.That(
+                ShaderGraphTestAssets.GetString(coordinateUtilityClassification, "semantics"),
+                Does.Contain("Unity-version-sensitive"));
+
+            var coordinateSpaceNodeTypes = ShaderGraphTestAssets.GetStringList(coordinateUtilityClassification, "coordinateSpaceNodeTypes");
+            Assert.That(coordinateSpaceNodeTypes, Has.Some.EqualTo("UV"));
+            Assert.That(coordinateSpaceNodeTypes, Has.Some.EqualTo("Position"));
+
+            var sceneCameraNodeTypes = ShaderGraphTestAssets.GetStringList(coordinateUtilityClassification, "sceneCameraNodeTypes");
+            Assert.That(sceneCameraNodeTypes, Has.Some.EqualTo("Camera"));
+
+            var utilityNodeTypes = ShaderGraphTestAssets.GetStringList(coordinateUtilityClassification, "utilityNodeTypes");
+            Assert.That(utilityNodeTypes, Has.Some.EqualTo("Time"));
+            Assert.That(utilityNodeTypes, Has.Some.EqualTo("TransformationMatrix"));
 
             var classificationStates = ShaderGraphTestAssets.GetStringList(classification, "classificationStates");
             Assert.That(classificationStates, Has.Some.EqualTo("graph-addable"));

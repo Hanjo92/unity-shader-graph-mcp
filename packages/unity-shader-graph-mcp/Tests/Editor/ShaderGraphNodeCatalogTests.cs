@@ -38,6 +38,22 @@ namespace ShaderGraphMcp.Editor.Tests
             "SamplerState",
         };
 
+        private static readonly string[] CoordinateUtilityNodeTypes =
+        {
+            "UV",
+            "ScreenPosition",
+            "Position",
+            "NormalVector",
+            "TangentVector",
+            "BitangentVector",
+            "ViewDirection",
+            "Time",
+            "Object",
+            "Camera",
+            "Transform",
+            "TransformationMatrix",
+        };
+
         [Test]
         public void SupportedNodeCatalogReportLines_IncludeCurrentSmokeNodes()
         {
@@ -95,6 +111,32 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(assetFreeNodeTypes, Has.Some.EqualTo("SamplerState"));
             Assert.That(fixtureBackedNodeTypes, Has.Some.EqualTo("SampleTexture2D"));
             Assert.That(fixtureBackedNodeTypes, Has.Some.EqualTo("SampleCubemap"));
+        }
+
+        [Test]
+        public void SupportedNodeCanonicalNames_IncludeCoordinateUtilityBatch()
+        {
+            ShaderGraphTestAssets.RequirePackageReady();
+
+            var supportedNames = ShaderGraphPackageGraphInspector.GetSupportedNodeCanonicalNames();
+            var classification = ShaderGraphPackageGraphInspector.BuildNodeCatalogClassificationData();
+            var coordinateUtilityClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "coordinateUtilityNodeClassification");
+            var coordinateSpaceNodeTypes = ShaderGraphTestAssets.GetStringList(coordinateUtilityClassification, "coordinateSpaceNodeTypes");
+            var sceneCameraNodeTypes = ShaderGraphTestAssets.GetStringList(coordinateUtilityClassification, "sceneCameraNodeTypes");
+            var utilityNodeTypes = ShaderGraphTestAssets.GetStringList(coordinateUtilityClassification, "utilityNodeTypes");
+
+            foreach (string nodeType in CoordinateUtilityNodeTypes)
+            {
+                Assert.That(supportedNames, Has.Some.EqualTo(nodeType), nodeType);
+            }
+
+            Assert.That(coordinateSpaceNodeTypes, Has.Some.EqualTo("UV"));
+            Assert.That(coordinateSpaceNodeTypes, Has.Some.EqualTo("Position"));
+            Assert.That(sceneCameraNodeTypes, Has.Some.EqualTo("Camera"));
+            Assert.That(utilityNodeTypes, Has.Some.EqualTo("Time"));
+            Assert.That(utilityNodeTypes, Has.Some.EqualTo("TransformationMatrix"));
         }
 
         [Test]
