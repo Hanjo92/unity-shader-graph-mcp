@@ -151,6 +151,20 @@ namespace ShaderGraphMcp.Editor.Tests
             "SpriteSkinning",
         };
 
+        private static IEnumerable<TestCaseData> PromotedNodeBatchContractReplayCases()
+        {
+            yield return new TestCaseData("PureMathValueVector", PureMathValueVectorNodeTypes)
+                .SetName("BlankGraph_ImportGraphContract_ReplaysPureMathValueVectorNodeBatch_StaysPackageBacked");
+            yield return new TestCaseData("TextureSample", TextureSampleNodeTypes)
+                .SetName("BlankGraph_ImportGraphContract_ReplaysTextureSampleNodeBatch_StaysPackageBacked");
+            yield return new TestCaseData("CoordinateUtility", CoordinateUtilityNodeTypes)
+                .SetName("BlankGraph_ImportGraphContract_ReplaysCoordinateUtilityNodeBatch_StaysPackageBacked");
+            yield return new TestCaseData("NormalLightingRendering", NormalLightingRenderingNodeTypes)
+                .SetName("BlankGraph_ImportGraphContract_ReplaysNormalLightingRenderingNodeBatch_StaysPackageBacked");
+            yield return new TestCaseData("SpecializedPortableDefault", SpecializedPortableDefaultNodeTypes)
+                .SetName("BlankGraph_ImportGraphContract_ReplaysSpecializedPortableDefaultNodeBatch_StaysPackageBacked");
+        }
+
         private static IEnumerable<TestCaseData> ArithmeticVector1ChainCases()
         {
             yield return new TestCaseData("Add", new[] { "A", "B" }, 2);
@@ -1285,6 +1299,14 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(2));
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+        }
+
+        [TestCaseSource(nameof(PromotedNodeBatchContractReplayCases))]
+        public void BlankGraph_ImportGraphContract_ReplaysPromotedNodeBatch_StaysPackageBacked(
+            string batchName,
+            string[] nodeTypes)
+        {
+            AssertPromotedNodeBatchContractReplay(batchName, nodeTypes);
         }
 
         [Test]
@@ -11515,6 +11537,77 @@ namespace ShaderGraphMcp.Editor.Tests
 
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(10));
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(9));
+        }
+
+        private void AssertPromotedNodeBatchContractReplay(string batchName, IReadOnlyList<string> nodeTypes)
+        {
+            string sourceAssetPath = CreateBlankGraph($"BlankGraphImport{batchName}NodeBatchSource", out _);
+
+            for (int index = 0; index < nodeTypes.Count; index += 1)
+            {
+                string nodeType = nodeTypes[index];
+                string displayName = $"{nodeType.Replace("/", " ")} Contract {index + 1}";
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                    new AddNodeRequest(
+                        sourceAssetPath,
+                        nodeType,
+                        displayName,
+                        -640f + (index % 4) * 220f,
+                        -240f + (index / 4) * 180f,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null));
+                ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+            }
+
+            ShaderGraphResponse sourceExportResponse = ShaderGraphAssetTool.HandleExportGraphContract(sourceAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(sourceExportResponse);
+            var sourceContract = ShaderGraphTestAssets.RequireDictionary(sourceExportResponse.Data, "exportedGraphContract");
+            Assert.That(ShaderGraphTestAssets.GetInt(sourceContract, "nodeCount"), Is.EqualTo(nodeTypes.Count));
+            Assert.That(ShaderGraphTestAssets.GetInt(sourceContract, "connectionCount"), Is.EqualTo(0));
+
+            string targetAssetPath = CreateBlankGraph($"BlankGraphImport{batchName}NodeBatchTarget", out _);
+            ShaderGraphResponse importResponse = ShaderGraphAssetTool.HandleImportGraphContract(
+                targetAssetPath,
+                ShaderGraphTestAssets.SerializeToJson(sourceContract));
+            ShaderGraphTestAssets.RequirePackageReady(importResponse);
+
+            var importedCounts = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedCounts");
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "nodeCount"), Is.EqualTo(nodeTypes.Count));
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "connectionCount"), Is.EqualTo(0));
+
+            ShaderGraphResponse targetExportResponse = ShaderGraphAssetTool.HandleExportGraphContract(targetAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(targetExportResponse);
+            var targetContract = ShaderGraphTestAssets.RequireDictionary(targetExportResponse.Data, "exportedGraphContract");
+            Assert.That(ShaderGraphTestAssets.GetInt(targetContract, "nodeCount"), Is.EqualTo(nodeTypes.Count));
+            Assert.That(ShaderGraphTestAssets.GetInt(targetContract, "connectionCount"), Is.EqualTo(0));
+
+            IReadOnlyList<object> sourceNodes = (IReadOnlyList<object>)sourceContract["nodes"];
+            IReadOnlyList<object> targetNodes = (IReadOnlyList<object>)targetContract["nodes"];
+            string[] sourceNodeSignatures = sourceNodes
+                .Select(node => BuildContractReplayNodeSignature((IReadOnlyDictionary<string, object>)node))
+                .ToArray();
+            string[] targetNodeSignatures = targetNodes
+                .Select(node => BuildContractReplayNodeSignature((IReadOnlyDictionary<string, object>)node))
+                .ToArray();
+            Assert.That(targetNodeSignatures, Is.EquivalentTo(sourceNodeSignatures));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(targetAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(nodeTypes.Count));
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(0));
+        }
+
+        private static string BuildContractReplayNodeSignature(IReadOnlyDictionary<string, object> nodeContract)
+        {
+            return string.Join(
+                "|",
+                ShaderGraphTestAssets.GetString(nodeContract, "nodeType"),
+                ShaderGraphTestAssets.GetString(nodeContract, "displayName"),
+                ShaderGraphTestAssets.GetString(nodeContract, "positionSummary"));
         }
 
         private string CreateBlankGraph(string graphNamePrefix, out ShaderGraphResponse createResponse)
