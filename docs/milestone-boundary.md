@@ -1,6 +1,6 @@
 # Milestone Boundary
 
-This repository is currently in the `1.2.0` focused package-backed milestone.
+This repository is currently in the `1.3.0` full-node-support foundation milestone.
 
 The goal is to keep the contract, live MCP transport, CLI, and Unity-side file flow real enough to exercise end-to-end, while only landing Shader Graph mutations that have been confirmed against the installed package surface.
 
@@ -80,7 +80,7 @@ arbitrary source ports, destination ports, implicit conversions, or fan-out.
 ## Blocked On Unity Shader Graph APIs
 
 - Creating a real Shader Graph asset from the package API surface beyond a blank-only package-backed path.
-- Expanding blackboard property coverage beyond the current verified `1.2.0` property matrix.
+- Expanding blackboard property coverage beyond the current verified property matrix.
 - Expanding the `graph-addable` node subset beyond the current verified smoke nodes and probe-passed catalog entries.
 - Reducing repeated probe-rejected buckets by converting common failure reasons into explicit filters, allowlist promotions, or dedicated node-specific initialization paths.
 - Expanding port and edge coverage beyond the current verified narrow paths and the scalar arithmetic `Vector1 <-> arithmetic node` routes.

@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.3.0 - 2026-05-10
+
+Focused full-node-support foundation release. This cut expands the verified
+graph-addable node catalog and makes the boundary between discovered nodes,
+supported nodes, and supported connections explicit.
+
+### Added
+
+- Shader Graph MCP setup panel under `Tools > Shader Graph MCP > Open Panel`
+  for package status, support discovery, compatibility reports, node catalog
+  reports, docs, and happy-path smoke entrypoints.
+- Node catalog classification for discovered Shader Graph node candidates,
+  including supported, filtered, probe-failed, initializer-backed,
+  metadata-required, externally asset-bound, package-specific, version-sensitive,
+  and render-pipeline-sensitive buckets.
+- Verified graph-addable node promotion batches for:
+  - pure math, value, and vector nodes
+  - texture and sample nodes
+  - coordinate, scene, camera, and utility nodes
+  - normal, lighting, reflection, rendering, and material-helper nodes
+  - portable default specialized nodes
+- Node initializer registry with `PropertyNode` as the first initializer-backed
+  graph-addable node.
+- Contract replay coverage for promoted node batches through
+  `export_graph_contract -> import_graph_contract`.
+
+### Changed
+
+- Promoted the Unity package version to `1.3.0`.
+- Promoted the Python package metadata to `1.3.0`.
+- Promoted the MCP server version handshake to `1.3.0`.
+- Updated README, compatibility, install, release, and milestone boundary docs
+  to clarify that `supportedNodeTypes`, `discoveredNodeTypes`,
+  `nodeCatalogClassification`, and `supportedConnectionRules` are separate
+  contracts.
+
+### Known Limits
+
+- This is not universal Shader Graph node support yet. Configuration-heavy and
+  externally asset-bound families such as `CustomFunction`, `Dropdown`,
+  `Keyword`, arbitrary `SubGraphNode`, and package-specific UI/sprite/VFX
+  nodes remain diagnostic-only unless explicitly supported by a future slice.
+- Addable node support does not imply arbitrary port compatibility or implicit
+  type coercion; `supportedConnectionRules` remains the connection contract.
+
+### Verified
+
+- Unity EditMode tests passed for the full-node-support foundation slice.
+- Python server tests passed with 67 tests.
+- `git diff --check` passed before the release packaging commit.
+
 ## 1.2.0 - 2026-04-25
 
 Focused post-`1.1` release for the package-backed Shader Graph backlog.
