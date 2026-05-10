@@ -30,9 +30,21 @@ The matrix is intended to answer three questions:
 4. Record `unityVersion`, `backendKind`, `graphTypeName`, `baseTypeName`, `hasCoreMutationSurface`, and the missing method names when the surface is incomplete.
 5. Regenerate the report after upgrading Unity or the Shader Graph package.
 
+## Node And Connection Catalogs
+
+Catalog snapshots intentionally separate discovery from support:
+
+- `supportedNodeTypes` is the runtime `add_node` subset that has a package-backed initializer path and smoke coverage.
+- `discoveredNodeTypes` is the broader type list observed in loaded Shader Graph assemblies. It is not an allowlist.
+- `nodeCatalogClassification` groups supported, filtered, metadata-required, asset-bound, package-specific, and probe-rejected node families so follow-up work can be chosen from real diagnostics.
+- `supportedConnectionRules` is the current `connect_ports` allowlist. It remains separate from node addability because port compatibility, type coercion, and fan-out support are verified independently.
+
+When the compatibility baseline changes, regenerate both reports from the panel:
+`Write Compatibility Report` for backend surface health and `Write Node Catalog
+Report` for node catalog classification.
+
 ## What To Update When Versions Change
 
 - If the report stays `PackageReady`, keep the current package-backed paths and update this table only when the observed baseline changes.
 - If the report drops to `PackageDetectedButIncomplete`, use the fallback notes and missing methods to decide whether the next release should remain scaffold-only or trim the supported matrix.
 - If the package is not detected, keep the matrix row as scaffold-only and avoid claiming package-backed compatibility.
-

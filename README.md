@@ -26,6 +26,18 @@ The `1.2.0` milestone is now closed; remaining engine expansion and authoring-su
 
 This repository is intentionally split into independent work areas so multiple sub-agents can work in parallel with minimal merge risk.
 
+## Support Boundary Quick Read
+
+Full Shader Graph type discovery is not the same as full runtime support.
+
+- `supportedNodeTypes` is the current `add_node` allowlist. Use these names for graph-addable nodes.
+- `discoveredNodeTypes` is broader diagnostic data from the loaded Shader Graph assemblies. It can include internal, legacy, output-only, metadata-required, asset-bound, or probe-rejected types.
+- `nodeCatalogClassification` explains why discovered nodes are supported, filtered, or deferred.
+- `supportedConnectionRules` is the enforced `connect_ports` matrix. A node being addable does not imply arbitrary ports or type coercions can connect.
+
+For Unity-side discovery, open `Tools > Shader Graph MCP > Open Panel`, then use `List Supported Nodes`, `Write Node Catalog Report`, and `Write Compatibility Report`.
+For external MCP clients, call `list_supported_nodes` and `list_supported_connections` before issuing `add_node` or `connect_ports`.
+
 ## Workspace Layout
 
 - `packages/unity-shader-graph-mcp/`: Unity package and Editor bridge

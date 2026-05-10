@@ -78,4 +78,41 @@ For the shortest Unity-side release smoke, run:
 - `Tools > Shader Graph MCP > Open Panel`, then click `Run Blank Graph Happy Path`
 - `Tools > Shader Graph MCP > Debug > Run Blank Graph Happy Path`
 
-The supported boundary is intentionally narrow. Template-backed graph creation, universal node coverage, and universal port coverage are not part of the 1.0.0 release contract.
+## Inspect Support Before Mutating
+
+The panel is the preferred discovery path when using the package from Unity:
+
+1. Open `Tools > Shader Graph MCP > Open Panel`.
+2. Click `List Supported Nodes` before choosing an `add_node` type.
+3. Run `Write Node Catalog Report` when you need the full discovered/support/deferred breakdown under `Assets/ShaderGraphMcpDiagnostics/`.
+4. Run `Write Compatibility Report` after changing Unity or Shader Graph versions.
+
+External MCP clients should do the same discovery through tool calls:
+
+```json
+{
+  "tool": "shadergraph_asset",
+  "action": "list_supported_nodes"
+}
+```
+
+Read `supportedNodeTypes` as the graph-addable subset. Treat `discoveredNodeTypes`
+as diagnostics only, and use `nodeCatalogClassification` to understand filtered
+or deferred nodes.
+
+Before connecting ports, call:
+
+```json
+{
+  "tool": "shadergraph_asset",
+  "action": "list_supported_connections"
+}
+```
+
+Read `supportedConnectionRules` as the enforced runtime connection matrix.
+Addable nodes do not imply universal port compatibility, implicit type coercion,
+or arbitrary fan-out.
+
+The supported boundary is intentionally narrow. Template-backed graph creation,
+universal node coverage, and universal port coverage are not part of the current
+release contract.

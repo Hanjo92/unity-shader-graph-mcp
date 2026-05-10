@@ -35,6 +35,10 @@ Unity EditMode smoke tests and server contract tests are promoted.
 - Template-backed graph creation remains outside the release contract.
 - Graph-addable catalog expansion remains promotion-based rather than exposing
   the entire discovered Shader Graph type list.
+- `supportedNodeTypes` is the addable subset, while `discoveredNodeTypes` and
+  `nodeCatalogClassification` remain diagnostics for future promotions.
+- `supportedConnectionRules` is the connection contract; addable nodes do not
+  imply arbitrary port compatibility or implicit type coercion.
 - Deeper arbitrary `SubGraphNode` composition and broader connection coercion
   remain post-`1.2` follow-up work.
 

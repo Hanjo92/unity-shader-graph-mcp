@@ -47,6 +47,18 @@ The goal is to keep the contract, live MCP transport, CLI, and Unity-side file f
 - The shared test metadata keeps `supportedConnectionRules` envelope-only so connection metadata can evolve without changing the response shape.
 - The compatibility probe confirms `UnityEditor.ShaderGraph.GraphData` and the `AddGraphInput`, `AddNode`, `Connect`, and `ValidateGraph` reflection surface in Unity 2022.3 with Shader Graph 17.3.0.
 
+## Discovery Versus Runtime Support
+
+The node catalog has three separate meanings that should not be collapsed:
+
+- `supportedNodeTypes` is the package-backed `add_node` contract. These labels are the only node type inputs users should treat as graph-addable.
+- `discoveredNodeTypes` is diagnostic assembly discovery. It can include Shader Graph types that are internal, legacy, output-only, metadata-required, externally asset-bound, package-context-sensitive, or rejected by the current package probe.
+- `nodeCatalogClassification` explains that gap with stable buckets so future full-node-support work can promote nodes deliberately instead of exposing every discovered type.
+
+Connection support is tracked separately. `supportedConnectionRules` is the
+current `connect_ports` runtime matrix; addable node support does not imply
+arbitrary source ports, destination ports, implicit conversions, or fan-out.
+
 ## Scaffold-Only Today
 
 - `create_graph` is blank-only when package-backed. Template-backed graph authoring remains unsupported.
@@ -120,11 +132,12 @@ To run the next Unity editor spike by hand:
 1. Open the repository in Unity 2022.3 with Shader Graph installed.
 2. Import `packages/unity-shader-graph-mcp` as the package under test.
 3. Run the Editor tests in `packages/unity-shader-graph-mcp/Tests/Editor`.
-4. Run `Tools > Shader Graph MCP > Write Compatibility Report`.
-5. Inspect the generated file under `Assets/ShaderGraphMcpDiagnostics/`.
-6. Verify `candidateTypeNames`, `discoveredTypeNames`, `resolvedMethodSignatures`, and the `GraphData` surface before wiring any real graph mutation calls.
-7. Only replace the scaffold backend after the compatibility snapshot reports `PackageReady`.
-8. After that, treat `save_graph` as the package-backed validate + write + refresh step that closes the edit loop.
+4. Open `Tools > Shader Graph MCP > Open Panel`.
+5. Run `Write Compatibility Report` and `Write Node Catalog Report`.
+6. Inspect the generated files under `Assets/ShaderGraphMcpDiagnostics/`.
+7. Verify `candidateTypeNames`, `discoveredTypeNames`, `resolvedMethodSignatures`, the `GraphData` surface, `supportedNodeTypes`, `nodeCatalogClassification`, and `supportedConnectionRules` before wiring any real graph mutation calls.
+8. Only replace the scaffold backend after the compatibility snapshot reports `PackageReady`.
+9. After that, treat `save_graph` as the package-backed validate + write + refresh step that closes the edit loop.
 
 ## Hand-Off Rule
 
