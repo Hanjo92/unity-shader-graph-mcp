@@ -132,6 +132,25 @@ namespace ShaderGraphMcp.Editor.Tests
             "SubGraph",
         };
 
+        private static readonly string[] SpecializedPortableDefaultNodeTypes =
+        {
+            "DefaultBitmapText",
+            "DefaultGradient",
+            "DefaultSDFText",
+            "DefaultSolid",
+            "DefaultTexture",
+        };
+
+        private static readonly string[] SpecializedPackageSpecificNodeTypes =
+        {
+            "ComputeDeform",
+            "CustomInterpolator",
+            "ElementTextureUV",
+            "LinearBlendSkinning",
+            "SampleElementTexture",
+            "SpriteSkinning",
+        };
+
         private static IEnumerable<TestCaseData> ArithmeticVector1ChainCases()
         {
             yield return new TestCaseData("Add", new[] { "A", "B" }, 2);
@@ -474,6 +493,57 @@ namespace ShaderGraphMcp.Editor.Tests
                     assetPath,
                     nodeType,
                     $"{nodeType} Without Metadata");
+
+                Assert.That(addNodeResponse.Success, Is.False, nodeType);
+                Assert.That(addNodeResponse.Message, Does.Contain($"Unsupported Shader Graph node type '{nodeType}'"));
+                Assert.That(ShaderGraphTestAssets.GetString(addNodeResponse.Data, "nodeCatalogSemantics"), Is.EqualTo("supported=graph-addable"));
+                Assert.That(ShaderGraphTestAssets.GetStringList(addNodeResponse.Data, "supportedNodeTypes"), Has.None.Contains(nodeType));
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_SpecializedPortableDefaultNodeBatch_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphSpecializedPortableDefaultNodeBatch", out _);
+
+            foreach (string nodeType in SpecializedPortableDefaultNodeTypes)
+            {
+                string displayName = $"{nodeType} Batch";
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                    assetPath,
+                    nodeType,
+                    displayName);
+                ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+                var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo(nodeType));
+                Assert.That(ShaderGraphTestAssets.GetString(addedNode, "objectId"), Is.Not.Empty);
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(SpecializedPortableDefaultNodeTypes.Length));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_SpecializedPackageSpecificNodes_AreRejectedWithDiagnostics()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphSpecializedPackageSpecificNodes", out _);
+
+            foreach (string nodeType in SpecializedPackageSpecificNodeTypes)
+            {
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                    assetPath,
+                    nodeType,
+                    $"{nodeType} Without Package Context");
 
                 Assert.That(addNodeResponse.Success, Is.False, nodeType);
                 Assert.That(addNodeResponse.Message, Does.Contain($"Unsupported Shader Graph node type '{nodeType}'"));
@@ -4282,6 +4352,25 @@ namespace ShaderGraphMcp.Editor.Tests
                 "externallyAssetBoundUnsupportedNodeTypes");
             Assert.That(configurableExternalUnsupportedNodeTypes, Has.Some.EqualTo("SubGraph"));
 
+            var specializedClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "specializedNodeClassification");
+            Assert.That(
+                ShaderGraphTestAssets.GetString(specializedClassification, "semantics"),
+                Does.Contain("Portable default"));
+
+            var specializedPortableDefaultNodeTypes = ShaderGraphTestAssets.GetStringList(
+                specializedClassification,
+                "portableDefaultNodeTypes");
+            Assert.That(specializedPortableDefaultNodeTypes, Has.Some.EqualTo("DefaultTexture"));
+            Assert.That(specializedPortableDefaultNodeTypes, Has.Some.EqualTo("DefaultGradient"));
+
+            var specializedPackageSpecificUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
+                specializedClassification,
+                "packageSpecificUnsupportedNodeTypes");
+            Assert.That(specializedPackageSpecificUnsupportedNodeTypes, Has.Some.EqualTo("SampleElementTexture"));
+            Assert.That(specializedPackageSpecificUnsupportedNodeTypes, Has.Some.EqualTo("SpriteSkinning"));
+
             var classificationStates = ShaderGraphTestAssets.GetStringList(classification, "classificationStates");
             Assert.That(classificationStates, Has.Some.EqualTo("graph-addable"));
             Assert.That(classificationStates, Has.Some.EqualTo("filtered"));
@@ -4295,6 +4384,8 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(supportedCanonicalNames, Has.None.EqualTo("Dropdown"));
             Assert.That(supportedCanonicalNames, Has.None.EqualTo("Keyword"));
             Assert.That(supportedCanonicalNames, Has.None.EqualTo("SubGraph"));
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("DefaultTexture"));
+            Assert.That(supportedCanonicalNames, Has.None.EqualTo("SampleElementTexture"));
         }
 
         [Test]

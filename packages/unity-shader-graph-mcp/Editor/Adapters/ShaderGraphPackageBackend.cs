@@ -679,6 +679,25 @@ namespace ShaderGraphMcp.Editor.Adapters
             "SubGraph",
         };
 
+        private static readonly string[] SpecializedPortableDefaultNodeTypes =
+        {
+            "DefaultBitmapText",
+            "DefaultGradient",
+            "DefaultSDFText",
+            "DefaultSolid",
+            "DefaultTexture",
+        };
+
+        private static readonly string[] SpecializedPackageSpecificNodeTypes =
+        {
+            "ComputeDeform",
+            "CustomInterpolator",
+            "ElementTextureUV",
+            "LinearBlendSkinning",
+            "SampleElementTexture",
+            "SpriteSkinning",
+        };
+
         public static ShaderGraphResponse CreateGraph(
             CreateGraphRequest request,
             ShaderGraphCompatibilitySnapshot compatibility,
@@ -11949,11 +11968,35 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["coordinateUtilityNodeClassification"] = BuildCoordinateUtilityNodeClassificationData(),
                 ["normalLightingRenderingNodeClassification"] = BuildNormalLightingRenderingNodeClassificationData(),
                 ["configurableNodeClassification"] = BuildConfigurableNodeClassificationData(),
+                ["specializedNodeClassification"] = BuildSpecializedNodeClassificationData(),
                 ["unsupportedCount"] = excludedCount + probeRejectedCount,
                 ["classificationStates"] = new[] { "graph-addable", "filtered", "probe-failed" },
                 ["excludedBuckets"] = GetExcludedNodeCatalogBucketReportLines().ToArray(),
                 ["probeRejectedBuckets"] = GetProbeRejectedNodeCatalogBucketReportLines().ToArray(),
                 ["semantics"] = "supported nodes are verified graph-addable; initializer-backed entries used node-specific setup before validation; filtered/probe-failed entries are diagnostic-only.",
+            };
+        }
+
+        private static Dictionary<string, object> BuildSpecializedNodeClassificationData()
+        {
+            string[] portableDefaultUnsupportedNodeTypes =
+                GetUnsupportedCatalogNodeTypes(SpecializedPortableDefaultNodeTypes);
+            string[] packageSpecificUnsupportedNodeTypes =
+                GetUnsupportedCatalogNodeTypes(SpecializedPackageSpecificNodeTypes);
+
+            return new Dictionary<string, object>
+            {
+                ["semantics"] = "Specialized nodes are split into portable default asset nodes and package-specific context nodes. Portable default nodes are graph-addable when the package probe validates them; package-specific UI, sprite, VFX, and deformation nodes remain diagnostic-only until the contract can preserve their required package context.",
+                ["portableDefaultCandidateTypes"] = SpecializedPortableDefaultNodeTypes,
+                ["packageSpecificCandidateTypes"] = SpecializedPackageSpecificNodeTypes,
+                ["portableDefaultNodeTypes"] = GetSupportedCatalogNodeTypes(SpecializedPortableDefaultNodeTypes),
+                ["packageSpecificNodeTypes"] = GetSupportedCatalogNodeTypes(SpecializedPackageSpecificNodeTypes),
+                ["portableDefaultUnsupportedNodeTypes"] = portableDefaultUnsupportedNodeTypes,
+                ["portableDefaultUnsupportedDiagnostics"] =
+                    BuildUnsupportedCatalogNodeDiagnostics(portableDefaultUnsupportedNodeTypes),
+                ["packageSpecificUnsupportedNodeTypes"] = packageSpecificUnsupportedNodeTypes,
+                ["packageSpecificUnsupportedDiagnostics"] =
+                    BuildUnsupportedCatalogNodeDiagnostics(packageSpecificUnsupportedNodeTypes),
             };
         }
 
@@ -12375,6 +12418,13 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
+            string canonicalNodeType = BuildCanonicalNodeName(nodeClassType);
+            if (SpecializedPackageSpecificNodeTypes.Contains(canonicalNodeType, StringComparer.Ordinal))
+            {
+                exclusionReason = "Package-specific specialized node types require explicit package-context serialization before safe graph-addable support.";
+                return true;
+            }
+
             if (string.Equals(shortTypeName, "CustomFunctionNode", StringComparison.Ordinal) ||
                 string.Equals(shortTypeName, "DropdownNode", StringComparison.Ordinal) ||
                 string.Equals(shortTypeName, "KeywordNode", StringComparison.Ordinal))
@@ -12701,6 +12751,11 @@ namespace ShaderGraphMcp.Editor.Adapters
                 if (note.StartsWith("Serialization and redirect placeholder node types", StringComparison.Ordinal))
                 {
                     return "filtered:serialization-placeholder";
+                }
+
+                if (note.StartsWith("Package-specific specialized node types", StringComparison.Ordinal))
+                {
+                    return "filtered:package-specific-specialized";
                 }
 
                 if (note.StartsWith("Metadata-backed configurable node types", StringComparison.Ordinal))

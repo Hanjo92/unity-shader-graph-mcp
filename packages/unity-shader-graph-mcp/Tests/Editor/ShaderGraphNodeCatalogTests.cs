@@ -83,6 +83,25 @@ namespace ShaderGraphMcp.Editor.Tests
             "Keyword",
         };
 
+        private static readonly string[] SpecializedPortableDefaultNodeTypes =
+        {
+            "DefaultBitmapText",
+            "DefaultGradient",
+            "DefaultSDFText",
+            "DefaultSolid",
+            "DefaultTexture",
+        };
+
+        private static readonly string[] SpecializedPackageSpecificNodeTypes =
+        {
+            "ComputeDeform",
+            "CustomInterpolator",
+            "ElementTextureUV",
+            "LinearBlendSkinning",
+            "SampleElementTexture",
+            "SpriteSkinning",
+        };
+
         [Test]
         public void SupportedNodeCatalogReportLines_IncludeCurrentSmokeNodes()
         {
@@ -239,6 +258,44 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void SupportedNodeCanonicalNames_ClassifySpecializedNodes()
+        {
+            ShaderGraphTestAssets.RequirePackageReady();
+
+            var supportedNames = ShaderGraphPackageGraphInspector.GetSupportedNodeCanonicalNames();
+            var classification = ShaderGraphPackageGraphInspector.BuildNodeCatalogClassificationData();
+            var specializedClassification = ShaderGraphTestAssets.RequireDictionary(
+                classification,
+                "specializedNodeClassification");
+            var portableDefaultNodeTypes = ShaderGraphTestAssets.GetStringList(
+                specializedClassification,
+                "portableDefaultNodeTypes");
+            var packageSpecificUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
+                specializedClassification,
+                "packageSpecificUnsupportedNodeTypes");
+            var packageSpecificUnsupportedDiagnostics = ShaderGraphTestAssets.GetStringList(
+                specializedClassification,
+                "packageSpecificUnsupportedDiagnostics");
+
+            foreach (string nodeType in SpecializedPortableDefaultNodeTypes)
+            {
+                Assert.That(supportedNames, Has.Some.EqualTo(nodeType), nodeType);
+                Assert.That(portableDefaultNodeTypes, Has.Some.EqualTo(nodeType), nodeType);
+            }
+
+            foreach (string nodeType in SpecializedPackageSpecificNodeTypes)
+            {
+                Assert.That(supportedNames, Has.None.EqualTo(nodeType), nodeType);
+                Assert.That(packageSpecificUnsupportedNodeTypes, Has.Some.EqualTo(nodeType), nodeType);
+            }
+
+            AssertUnsupportedDiagnosticIfDiscovered(
+                packageSpecificUnsupportedDiagnostics,
+                "SampleElementTexture",
+                "Package-specific specialized");
+        }
+
+        [Test]
         public void SupportedNodeCatalogReportLines_ExposeCurrentAliases()
         {
             ShaderGraphTestAssets.RequirePackageReady();
@@ -345,6 +402,7 @@ namespace ShaderGraphMcp.Editor.Tests
         [TestCase("filtered", "Types that do not follow the public *Node shape stay discoverable-only until explicitly validated.", "filtered:non-public-node-shape")]
         [TestCase("filtered", "Preview, block-only, and output-only node types are excluded from the safe addable catalog.", "filtered:preview-block-output")]
         [TestCase("filtered", "Serialization and redirect placeholder node types are excluded from the safe addable catalog.", "filtered:serialization-placeholder")]
+        [TestCase("filtered", "Package-specific specialized node types require explicit package-context serialization before safe graph-addable support.", "filtered:package-specific-specialized")]
         [TestCase("filtered", "Metadata-backed configurable node types require explicit configuration serialization before safe graph-addable support.", "filtered:metadata-required")]
         [TestCase("filtered", "Externally asset-bound configurable node types require explicit asset binding before safe graph-addable support.", "filtered:external-asset-bound")]
         [TestCase("graph-addable", "Node initializer 'PropertyNode' applied. Activator -> AddNode -> ValidateGraph succeeded.", "supported:initializer-backed")]
