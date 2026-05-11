@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -673,6 +674,49 @@ class ShaderGraphAssetToolTests(unittest.TestCase):
         self.assertEqual(request.payload["propertyDisplayName"], "Base Tint")
         self.assertEqual(request.payload["referenceName"], "_BaseTint")
         self.assertEqual(request.payload["propertyType"], "Color")
+
+    def test_request_normalization_serializes_add_node_structured_node_config(self) -> None:
+        request = normalize_shadergraph_asset_request(
+            {
+                "action": "add_node",
+                "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                "nodeType": "Keyword",
+                "nodeConfig": {
+                    "kind": "Keyword",
+                    "version": 1,
+                    "keywordType": "Boolean",
+                    "displayName": "Use Detail",
+                    "referenceName": "_USE_DETAIL",
+                },
+            }
+        )
+
+        self.assertEqual(request.action, "add_node")
+        self.assertNotIn("nodeConfig", request.payload)
+        self.assertEqual(
+            json.loads(request.payload["nodeConfigJson"]),
+            {
+                "kind": "Keyword",
+                "version": 1,
+                "keywordType": "Boolean",
+                "displayName": "Use Detail",
+                "referenceName": "_USE_DETAIL",
+            },
+        )
+
+    def test_request_normalization_rejects_conflicting_add_node_config_shapes(self) -> None:
+        with self.assertRaises(ShaderGraphRequestError) as ctx:
+            normalize_shadergraph_asset_request(
+                {
+                    "action": "add_node",
+                    "assetPath": "Assets/ShaderGraphs/ExampleLitGraph.shadergraph",
+                    "nodeType": "Dropdown",
+                    "nodeConfig": {"kind": "Dropdown", "version": 1, "entries": ["Low", "High"]},
+                    "nodeConfigJson": "{\"kind\":\"Dropdown\",\"version\":1,\"entries\":[\"Low\",\"High\"]}",
+                }
+            )
+
+        self.assertIn("nodeConfig and nodeConfigJson are mutually exclusive", str(ctx.exception))
 
     def test_request_normalization_accepts_remove_connection_with_alias_fields(self) -> None:
         request = normalize_shadergraph_asset_request(

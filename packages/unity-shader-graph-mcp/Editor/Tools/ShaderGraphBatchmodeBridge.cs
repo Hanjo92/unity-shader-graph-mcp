@@ -1463,7 +1463,8 @@ namespace ShaderGraphMcp.Editor.Tools
                 FirstNonBlank(payload.propertyName),
                 FirstNonBlank(payload.propertyDisplayName),
                 FirstNonBlank(payload.referenceName, payload.propertyReferenceName),
-                FirstNonBlank(payload.propertyType));
+                FirstNonBlank(payload.propertyType),
+                FirstNonBlank(payload.nodeConfigJson));
             errorMessage = null;
             return true;
         }
@@ -2339,6 +2340,7 @@ namespace ShaderGraphMcp.Editor.Tools
             public string nodeType;
             public string displayName;
             public string newDisplayName;
+            public string nodeConfigJson;
             public string outputNodeId;
             public string outputPort;
             public string inputNodeId;

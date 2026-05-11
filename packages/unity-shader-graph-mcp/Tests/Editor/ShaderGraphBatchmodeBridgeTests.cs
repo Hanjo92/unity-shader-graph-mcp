@@ -1068,6 +1068,30 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
+        public void TryParseRequest_ReturnsAddNodeRequest_WithNodeConfigJson()
+        {
+            string json = "{"
+                + "\"tool\":\"shadergraph_asset\","
+                + "\"action\":\"add_node\","
+                + "\"assetPath\":\"Assets/ShaderGraphs/ExampleLitGraph.shadergraph\","
+                + "\"nodeType\":\"Keyword\","
+                + "\"nodeConfigJson\":\"{\\\"kind\\\":\\\"Keyword\\\",\\\"version\\\":1,\\\"keywordType\\\":\\\"Boolean\\\",\\\"displayName\\\":\\\"Use Detail\\\",\\\"referenceName\\\":\\\"_USE_DETAIL\\\"}\""
+                + "}";
+
+            Assert.That(
+                ShaderGraphBatchmodeBridge.TryParseRequest(json, out ShaderGraphRequest request, out string errorMessage),
+                Is.True,
+                errorMessage);
+
+            var addNodeRequest = request as AddNodeRequest;
+            Assert.That(addNodeRequest, Is.Not.Null);
+            Assert.That(addNodeRequest.AssetPath, Is.EqualTo("Assets/ShaderGraphs/ExampleLitGraph.shadergraph"));
+            Assert.That(addNodeRequest.NodeType, Is.EqualTo("Keyword"));
+            Assert.That(addNodeRequest.NodeConfigJson, Does.Contain("\"kind\":\"Keyword\""));
+            Assert.That(addNodeRequest.NodeConfigJson, Does.Contain("\"referenceName\":\"_USE_DETAIL\""));
+        }
+
+        [Test]
         public void TryParseRequest_ReturnsConnectPortsRequest_FromAliasFields()
         {
             string json = @"{

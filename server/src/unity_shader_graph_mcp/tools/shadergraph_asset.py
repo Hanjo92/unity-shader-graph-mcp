@@ -899,6 +899,20 @@ def _validate_shadergraph_asset_request(request: ShaderGraphAssetRequest) -> Non
         if property_type is not None:
             request.payload["propertyType"] = property_type
 
+        node_config = _pick_value(request.payload, "nodeConfig", "node_config")
+        node_config_json = optional_text(_pick_value(request.payload, "nodeConfigJson", "node_config_json"))
+        if node_config is not None and node_config_json is not None:
+            raise ShaderGraphRequestError("add_node nodeConfig and nodeConfigJson are mutually exclusive.")
+        if node_config is not None:
+            if not isinstance(node_config, Mapping):
+                raise ShaderGraphRequestError("add_node nodeConfig must be a JSON object.")
+            request.payload["nodeConfigJson"] = json.dumps(node_config, separators=(",", ":"))
+            request.payload.pop("nodeConfig", None)
+            request.payload.pop("node_config", None)
+        elif node_config_json is not None:
+            request.payload["nodeConfigJson"] = node_config_json
+            request.payload.pop("node_config_json", None)
+
         raw_x = _pick_value(request.payload, "x")
         raw_y = _pick_value(request.payload, "y")
         has_x = optional_text(raw_x) is not None
@@ -1151,6 +1165,7 @@ def _request_summary(request: ShaderGraphAssetRequest) -> dict[str, Any]:
         ("index", "newIndex", "new_index", "targetIndex", "target_index"),
         ("nodeType", "node_type"),
         ("displayName", "display_name", "newDisplayName", "new_display_name"),
+        ("nodeConfigJson", "node_config_json"),
         ("targetAssetPath", "target_asset_path", "newAssetPath", "new_asset_path", "targetPath", "target_path", "newPath", "new_path", "destinationPath", "destination_path"),
         ("nodeId", "node_id"),
         ("objectId", "object_id"),

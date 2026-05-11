@@ -124,11 +124,15 @@ namespace ShaderGraphMcp.Editor.Tests
             "RenderTypeBranch",
         };
 
-        private static readonly string[] ConfigurableMetadataRequiredNodeTypes =
+        private static readonly string[] ConfigurableMetadataBackedNodeTypes =
         {
-            "CustomFunction",
             "Dropdown",
             "Keyword",
+        };
+
+        private static readonly string[] ConfigurableDeferredNodeTypes =
+        {
+            "CustomFunction",
             "SubGraph",
         };
 
@@ -497,16 +501,16 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
-        public void BlankGraph_ConfigurableNodesWithoutMetadata_AreRejectedWithDiagnostics()
+        public void BlankGraph_ConfigurableDeferredNodes_AreRejectedWithDiagnostics()
         {
-            string assetPath = CreateBlankGraph("BlankGraphConfigurableNodesWithoutMetadata", out _);
+            string assetPath = CreateBlankGraph("BlankGraphConfigurableDeferredNodes", out _);
 
-            foreach (string nodeType in ConfigurableMetadataRequiredNodeTypes)
+            foreach (string nodeType in ConfigurableDeferredNodeTypes)
             {
                 ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
                     assetPath,
                     nodeType,
-                    $"{nodeType} Without Metadata");
+                    $"{nodeType} Without Configuration");
 
                 Assert.That(addNodeResponse.Success, Is.False, nodeType);
                 Assert.That(addNodeResponse.Message, Does.Contain($"Unsupported Shader Graph node type '{nodeType}'"));
@@ -517,6 +521,162 @@ namespace ShaderGraphMcp.Editor.Tests
             ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_ConfigurableMetadataBackedNodesWithoutMetadata_AreRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphConfigurableMetadataBackedNodesWithoutMetadata", out _);
+
+            foreach (string nodeType in ConfigurableMetadataBackedNodeTypes)
+            {
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                    assetPath,
+                    nodeType,
+                    $"{nodeType} Without Metadata");
+
+                Assert.That(addNodeResponse.Success, Is.False, nodeType);
+                Assert.That(addNodeResponse.Message, Does.Contain("missing required nodeConfigJson"));
+                Assert.That(ShaderGraphTestAssets.GetString(addNodeResponse.Data, "nodeCatalogSemantics"), Is.EqualTo("supported=graph-addable"));
+                Assert.That(ShaderGraphTestAssets.GetStringList(addNodeResponse.Data, "supportedNodeTypes"), Has.Some.Contains(nodeType));
+
+                var nodeInitializer = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeInitializer");
+                Assert.That(ShaderGraphTestAssets.GetString(nodeInitializer, "key"), Is.EqualTo(nodeType + "Node"));
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankSubGraph_DropdownWithStaticEntries_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphDropdownStaticEntries", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Dropdown\",\"version\":1,\"displayName\":\"Quality Mode\",\"referenceName\":\"_QUALITY_MODE\",\"entries\":[\"Low\",\"Medium\",\"High\"],\"defaultIndex\":1}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Dropdown",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo("Dropdown"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "displayName"), Is.EqualTo("Quality Mode"));
+
+            var nodeInitializer = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeInitializer");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeInitializer, "key"), Is.EqualTo("DropdownNode"));
+
+            var nodeConfiguration = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeConfiguration");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "kind"), Is.EqualTo("Dropdown"));
+            Assert.That(ShaderGraphTestAssets.GetStringList(nodeConfiguration, "entries"), Is.EquivalentTo(new[] { "Low", "Medium", "High" }));
+            Assert.That(ShaderGraphTestAssets.GetInt(nodeConfiguration, "defaultIndex"), Is.EqualTo(1));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(2));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_KeywordBooleanWithExplicitMetadata_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphKeywordBooleanMetadata", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Keyword\",\"version\":1,\"keywordType\":\"Boolean\",\"displayName\":\"Use Detail\",\"referenceName\":\"_USE_DETAIL\",\"definition\":\"ShaderFeature\",\"scope\":\"Local\",\"defaultValue\":1}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Keyword",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo("Keyword"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "displayName"), Is.EqualTo("Use Detail"));
+
+            var nodeInitializer = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeInitializer");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeInitializer, "key"), Is.EqualTo("KeywordNode"));
+
+            var nodeConfiguration = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeConfiguration");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "kind"), Is.EqualTo("Keyword"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "keywordType"), Is.EqualTo("Boolean"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "referenceName"), Is.EqualTo("_USE_DETAIL"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankSubGraph_DropdownWithInvalidMetadata_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphDropdownInvalidMetadata", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Dropdown\",\"version\":1,\"displayName\":\"Quality Mode\",\"referenceName\":\"_QUALITY_MODE\",\"entries\":[\"Only\"]}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Dropdown",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("requires at least 2 entries"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(1));
         }
 
         [Test]
@@ -4366,8 +4526,21 @@ namespace ShaderGraphMcp.Editor.Tests
                 configurableClassification,
                 "metadataRequiredUnsupportedNodeTypes");
             Assert.That(configurableMetadataUnsupportedNodeTypes, Has.Some.EqualTo("CustomFunction"));
-            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.Some.EqualTo("Dropdown"));
-            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.Some.EqualTo("Keyword"));
+            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.None.EqualTo("Dropdown"));
+            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.None.EqualTo("Keyword"));
+
+            var configurableMetadataNodeTypes = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "metadataRequiredNodeTypes");
+            Assert.That(configurableMetadataNodeTypes, Has.Some.EqualTo("Dropdown"));
+            Assert.That(configurableMetadataNodeTypes, Has.Some.EqualTo("Keyword"));
+
+            var configurableMetadataModeLabels = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "metadataRequiredSupportedModeLabels");
+            Assert.That(configurableMetadataModeLabels, Has.Some.EqualTo("Dropdown:static-string-entries"));
+            Assert.That(configurableMetadataModeLabels, Has.Some.EqualTo("Keyword:boolean"));
+            Assert.That(configurableMetadataModeLabels, Has.Some.EqualTo("Keyword:enum"));
 
             var configurableExternalUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
                 configurableClassification,
@@ -4403,8 +4576,8 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Color"));
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("SampleGradient"));
             Assert.That(supportedCanonicalNames, Has.None.EqualTo("CustomFunction"));
-            Assert.That(supportedCanonicalNames, Has.None.EqualTo("Dropdown"));
-            Assert.That(supportedCanonicalNames, Has.None.EqualTo("Keyword"));
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Dropdown"));
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Keyword"));
             Assert.That(supportedCanonicalNames, Has.None.EqualTo("SubGraph"));
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("DefaultTexture"));
             Assert.That(supportedCanonicalNames, Has.None.EqualTo("SampleElementTexture"));
