@@ -2,9 +2,9 @@
 
 ## Target
 
-- Current stable release: `1.3.0`
-- Candidate release: `1.4.0`
-- Final `1.4.0` release commit must align:
+- Current stable release: `1.4.0`
+- Released scope: explicit configurable and asset-bound node promotion
+- Final `1.4.0` release commit aligns:
   - Unity package version
   - Python package metadata version
   - MCP server handshake version
@@ -47,8 +47,8 @@
 - Confirm package versions:
   - [package.json](/Users/song/Projects/unity-shader-graph-mcp/packages/unity-shader-graph-mcp/package.json)
   - [pyproject.toml](/Users/song/Projects/unity-shader-graph-mcp/server/pyproject.toml)
-- For the final `1.4.0` release commit only, bump the Unity package version,
-  Python package metadata version, and MCP server handshake version together.
+- For final `1.4.0`, the Unity package version, Python package metadata
+  version, and MCP server handshake version were bumped together.
 - Confirm `server/tests/test_version_metadata.py` passes after the final version
   bump so the Unity package, Python package, and MCP server handshake versions
   remain aligned.

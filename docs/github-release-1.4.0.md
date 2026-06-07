@@ -1,7 +1,6 @@
 # unity-shader-graph-mcp 1.4.0
 
-Draft release notes. Publish only after the release commit is verified, pushed,
-tagged, and the GitHub release is created from that tag.
+Release notes for the `1.4.0` cut.
 
 ## Summary
 
@@ -42,14 +41,12 @@ This release keeps four contracts separate:
 
 ## Verification
 
-Fill in before publishing:
-
-- Unity EditMode full suite: pending
-- Unity targeted checks: pending
-- Python server tests: local preflight passed with 70 tests before final Unity verification
-- MCP subprocess smoke: local preflight passed with 2 tests before final Unity verification
-- Real Unity bridge smoke: pending
-- `git diff --check`: local preflight passed before final Unity verification
+- Unity EditMode full suite: passed, 480/480 tests.
+- Unity targeted checks: covered by the full EditMode suite.
+- Python server tests: passed, 70/70 tests.
+- MCP subprocess smoke: passed, 2/2 tests.
+- Real Unity bridge smoke: passed with `initialize -> tools/list -> create_graph -> read_graph_summary` against Unity 6000.3.6f1 using `PackageBacked` create/read responses.
+- `git diff --check`: passed before the release packaging commit.
 
 Targeted Unity checks for this release:
 
