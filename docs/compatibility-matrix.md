@@ -39,6 +39,13 @@ Catalog snapshots intentionally separate discovery from support:
 - `nodeCatalogClassification` groups supported, filtered, metadata-required, asset-bound, package-specific, and probe-rejected node families so follow-up work can be chosen from real diagnostics.
 - `supportedConnectionRules` is the current `connect_ports` allowlist. It remains separate from node addability because port compatibility, type coercion, and fan-out support are verified independently.
 
+The `1.4.0` candidate adds explicit initializer coverage for configurable and
+asset-bound families only where the required metadata is supplied. `Dropdown`,
+`Keyword`, string-body `CustomFunction`, and `.shadersubgraph`-bound
+`SubGraphNode` support does not promote arbitrary package-context nodes, file
+mode custom functions, arbitrary subgraph composition, asset-specific
+`SubGraphNode` port routing, or any other unlisted port routes.
+
 When the compatibility baseline changes, regenerate both reports from the panel:
 `Write Compatibility Report` for backend surface health and `Write Node Catalog
 Report` for node catalog classification.

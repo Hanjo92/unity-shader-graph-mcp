@@ -1177,6 +1177,7 @@ namespace ShaderGraphMcp.Editor.Models
         public string propertyDisplayName;
         public string referenceName;
         public string propertyType;
+        public string nodeConfigJson;
         public ImportedGraphContractPosition position;
     }
 

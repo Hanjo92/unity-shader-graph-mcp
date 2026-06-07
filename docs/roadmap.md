@@ -52,8 +52,12 @@ This milestone is shipped and closed.
 
 Move from foundation to explicit full-node completion:
 
-- configuration serialization for metadata-heavy nodes such as `CustomFunction`, `Dropdown`, and `Keyword`
-- asset binding fixtures for `SubGraphNode` and other externally asset-bound nodes
+- configuration serialization for metadata-heavy nodes such as `Dropdown`, `Keyword`, and string-body `CustomFunction`
+- explicit `.shadersubgraph` asset binding fixtures for `SubGraphNode`
 - package-context handling for UI, sprite, VFX, deformation, and custom-interpolator nodes where portable support is realistic
 - contract replay for each newly promoted configuration-heavy or asset-bound family
 - no universal port promise unless the route is represented in `supportedConnectionRules`
+
+The first `1.4.0` cut promotes the explicit metadata-backed families above and
+keeps package-context UI/sprite/VFX/deformation/custom-interpolator families as
+diagnostic follow-up scope unless they gain similarly explicit fixtures.

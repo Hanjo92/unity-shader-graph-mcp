@@ -480,6 +480,13 @@ namespace ShaderGraphMcp.Editor.Adapters
         private const string KeywordTypeTypeName = "UnityEditor.ShaderGraph.KeywordType";
         private const string KeywordDefinitionTypeName = "UnityEditor.ShaderGraph.KeywordDefinition";
         private const string KeywordScopeTypeName = "UnityEditor.ShaderGraph.KeywordScope";
+        private const string HlslSourceTypeTypeName = "UnityEditor.ShaderGraph.Drawing.HlslSourceType";
+        private const string MaterialSlotTypeName = "UnityEditor.ShaderGraph.MaterialSlot";
+        private const string SlotValueTypeTypeName = "UnityEditor.ShaderGraph.SlotValueType";
+        private const string SlotTypeTypeName = "UnityEditor.Graphing.SlotType";
+        private const string ShaderStageCapabilityTypeName = "UnityEditor.ShaderGraph.ShaderStageCapability";
+        private const string SubGraphAssetTypeName = "UnityEditor.ShaderGraph.SubGraphAsset";
+        private const string DefaultSubGraphProbeAssetPath = "Packages/com.song.shadergraph-mcp/Tests/Fixtures/ShaderSubGraphs/WorldSpaceUV.shadersubgraph";
         private const string FileUtilitiesTypeName = "UnityEditor.ShaderGraph.FileUtilities";
         private const string MultiJsonTypeName = "UnityEditor.ShaderGraph.Serialization.MultiJson";
         private const string MessageManagerTypeName = "UnityEditor.Graphing.Util.MessageManager";
@@ -590,6 +597,20 @@ namespace ShaderGraphMcp.Editor.Adapters
             public int defaultIndex;
             public int defaultValue;
             public string[] entries;
+            public string sourceType;
+            public string functionName;
+            public string functionBody;
+            public string subGraphAssetPath;
+            public ConfigurableNodePortPayload[] inputs;
+            public ConfigurableNodePortPayload[] outputs;
+        }
+
+        [Serializable]
+        private sealed class ConfigurableNodePortPayload
+        {
+            public string name;
+            public string shaderName;
+            public string type;
         }
 
         private static readonly Lazy<IReadOnlyList<ShaderGraphNodeDescriptor>> DiscoveredNodeCatalog =
@@ -4899,7 +4920,8 @@ namespace ShaderGraphMcp.Editor.Adapters
                         importedPropertyName,
                         importedPropertyDisplayName,
                         importedReferenceName,
-                        importedPropertyType),
+                        importedPropertyType,
+                        importedNode.nodeConfigJson),
                     compatibility,
                     executionKind);
                 if (!addNodeResponse.Success)
@@ -10488,6 +10510,22 @@ namespace ShaderGraphMcp.Editor.Adapters
                 }
             }
 
+            if (TryGetSubGraphNodeBindingContractData(node, out Dictionary<string, object> subGraphBindingData))
+            {
+                foreach (KeyValuePair<string, object> pair in subGraphBindingData)
+                {
+                    data[pair.Key] = pair.Value;
+                }
+            }
+
+            if (TryGetConfigurableNodeContractData(node, out Dictionary<string, object> configurableNodeData))
+            {
+                foreach (KeyValuePair<string, object> pair in configurableNodeData)
+                {
+                    data[pair.Key] = pair.Value;
+                }
+            }
+
             return data;
         }
 
@@ -10522,6 +10560,236 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["propertyDisplayName"] = propertyDisplayName,
                 ["referenceName"] = propertyReferenceName,
                 ["propertyType"] = propertyType,
+            };
+
+            return true;
+        }
+
+        private static bool TryGetConfigurableNodeContractData(
+            object node,
+            out Dictionary<string, object> bindingData)
+        {
+            bindingData = null;
+
+            if (TryGetDropdownNodeConfigJson(node, out string dropdownConfigJson))
+            {
+                bindingData = new Dictionary<string, object>
+                {
+                    ["nodeConfigJson"] = dropdownConfigJson,
+                };
+                return true;
+            }
+
+            if (TryGetKeywordNodeConfigJson(node, out string keywordConfigJson))
+            {
+                bindingData = new Dictionary<string, object>
+                {
+                    ["nodeConfigJson"] = keywordConfigJson,
+                };
+                return true;
+            }
+
+            if (TryGetCustomFunctionNodeConfigJson(node, out string customFunctionConfigJson))
+            {
+                bindingData = new Dictionary<string, object>
+                {
+                    ["nodeConfigJson"] = customFunctionConfigJson,
+                };
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetDropdownNodeConfigJson(object node, out string nodeConfigJson)
+        {
+            nodeConfigJson = string.Empty;
+            if (!IsSpecificNodeType(node, "UnityEditor.ShaderGraph.DropdownNode"))
+            {
+                return false;
+            }
+
+            object dropdown = GetMemberValue(node, "dropdown");
+            if (dropdown == null)
+            {
+                return false;
+            }
+
+            string displayName = GetStringProperty(dropdown, "displayName", "name");
+            string referenceName = GetPropertyReferenceName(dropdown);
+            string[] entries = GetEntryDisplayNames(dropdown);
+            if (string.IsNullOrWhiteSpace(displayName) ||
+                string.IsNullOrWhiteSpace(referenceName) ||
+                entries.Length < 2)
+            {
+                return false;
+            }
+
+            int defaultIndex = Mathf.Max(0, GetIntProperty(dropdown, "value"));
+            nodeConfigJson = BuildDropdownNodeConfigJson(displayName, referenceName, entries, defaultIndex);
+            return true;
+        }
+
+        private static bool TryGetKeywordNodeConfigJson(object node, out string nodeConfigJson)
+        {
+            nodeConfigJson = string.Empty;
+            if (!IsSpecificNodeType(node, "UnityEditor.ShaderGraph.KeywordNode"))
+            {
+                return false;
+            }
+
+            object keyword = GetMemberValue(node, "keyword");
+            if (keyword == null)
+            {
+                return false;
+            }
+
+            string displayName = GetStringProperty(keyword, "displayName", "name");
+            string referenceName = GetPropertyReferenceName(keyword);
+            string keywordType = GetStringProperty(keyword, "keywordType");
+            string definition = GetStringProperty(keyword, "keywordDefinition");
+            string scope = GetStringProperty(keyword, "keywordScope");
+            if (string.IsNullOrWhiteSpace(displayName) ||
+                string.IsNullOrWhiteSpace(referenceName) ||
+                string.IsNullOrWhiteSpace(keywordType))
+            {
+                return false;
+            }
+
+            int defaultValue = Mathf.Max(0, GetIntProperty(keyword, "value"));
+            string[] entries = string.Equals(keywordType, "Enum", StringComparison.Ordinal)
+                ? GetEntryDisplayNames(keyword)
+                : Array.Empty<string>();
+            nodeConfigJson = BuildKeywordNodeConfigJson(
+                displayName,
+                referenceName,
+                keywordType,
+                string.IsNullOrWhiteSpace(definition) ? "ShaderFeature" : definition,
+                string.IsNullOrWhiteSpace(scope) ? "Local" : scope,
+                entries,
+                defaultValue);
+            return true;
+        }
+
+        private static bool TryGetCustomFunctionNodeConfigJson(object node, out string nodeConfigJson)
+        {
+            nodeConfigJson = string.Empty;
+            if (!IsSpecificNodeType(node, "UnityEditor.ShaderGraph.CustomFunctionNode"))
+            {
+                return false;
+            }
+
+            string sourceType = GetStringProperty(node, "sourceType");
+            if (!string.Equals(sourceType, "String", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            string functionName = GetStringProperty(node, "functionName");
+            string functionBody = GetStringProperty(node, "functionBody");
+            if (string.IsNullOrWhiteSpace(functionName) || string.IsNullOrWhiteSpace(functionBody))
+            {
+                return false;
+            }
+
+            ConfigurableNodePortPayload[] inputs = GetCustomFunctionPortPayloads(node, true);
+            ConfigurableNodePortPayload[] outputs = GetCustomFunctionPortPayloads(node, false);
+            if (outputs.Length == 0)
+            {
+                return false;
+            }
+
+            nodeConfigJson = BuildCustomFunctionNodeConfigJson(functionName, functionBody, inputs, outputs);
+            return true;
+        }
+
+        private static bool IsSpecificNodeType(object node, string fullTypeName)
+        {
+            string nodeTypeName = node?.GetType().FullName ?? node?.GetType().Name ?? string.Empty;
+            return string.Equals(nodeTypeName, fullTypeName, StringComparison.Ordinal);
+        }
+
+        private static string[] GetEntryDisplayNames(object shaderInput)
+        {
+            object entries = GetMemberValue(shaderInput, "entries");
+            if (entries is not IEnumerable enumerable)
+            {
+                return Array.Empty<string>();
+            }
+
+            return enumerable
+                .Cast<object>()
+                .Select(entry => GetStringProperty(entry, "displayName", "name"))
+                .Where(entryName => !string.IsNullOrWhiteSpace(entryName))
+                .ToArray();
+        }
+
+        private static ConfigurableNodePortPayload[] GetCustomFunctionPortPayloads(object node, bool isInput)
+        {
+            if (!TryGetDirectionalNodeSlots(node, !isInput, out IReadOnlyList<object> slots))
+            {
+                return Array.Empty<ConfigurableNodePortPayload>();
+            }
+
+            return slots
+                .OrderBy(slot => GetIntProperty(slot, "id"))
+                .Select(slot => new ConfigurableNodePortPayload
+                {
+                    name = GetStringProperty(slot, "displayName", "name"),
+                    shaderName = GetStringProperty(slot, "shaderOutputName"),
+                    type = NormalizeCustomFunctionSlotValueType(GetStringProperty(slot, "concreteValueType", "valueType")),
+                })
+                .Where(port => !string.IsNullOrWhiteSpace(port.name) && !string.IsNullOrWhiteSpace(port.type))
+                .ToArray();
+        }
+
+        private static string NormalizeCustomFunctionSlotValueType(string valueType)
+        {
+            string normalized = valueType?.Trim() ?? string.Empty;
+            if (string.Equals(normalized, "Vector1", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "Float", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Vector1";
+            }
+
+            return string.Empty;
+        }
+
+        private static bool TryGetSubGraphNodeBindingContractData(
+            object node,
+            out Dictionary<string, object> bindingData)
+        {
+            bindingData = null;
+
+            if (!IsSubGraphNodeType(node?.GetType()))
+            {
+                return false;
+            }
+
+            string subGraphAssetGuid = GetStringProperty(node, "subGraphGuid");
+            string subGraphAssetPath = string.IsNullOrWhiteSpace(subGraphAssetGuid)
+                ? string.Empty
+                : AssetDatabase.GUIDToAssetPath(subGraphAssetGuid);
+            object subGraphAsset = GetMemberValue(node, "asset");
+            if (string.IsNullOrWhiteSpace(subGraphAssetPath) && subGraphAsset != null)
+            {
+                subGraphAssetGuid = GetStringProperty(subGraphAsset, "assetGuid");
+                if (!string.IsNullOrWhiteSpace(subGraphAssetGuid))
+                {
+                    subGraphAssetPath = AssetDatabase.GUIDToAssetPath(subGraphAssetGuid);
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(subGraphAssetPath))
+            {
+                return false;
+            }
+
+            bindingData = new Dictionary<string, object>
+            {
+                ["subGraphAssetPath"] = subGraphAssetPath,
+                ["subGraphAssetGuid"] = subGraphAssetGuid ?? string.Empty,
+                ["nodeConfigJson"] = BuildSubGraphNodeConfigJson(subGraphAssetPath),
             };
 
             return true;
@@ -10950,6 +11218,7 @@ namespace ShaderGraphMcp.Editor.Adapters
             "ColorNode output slot 0 / Out, CombineNode output slot 4 / RGBA, Vector4Node output slot 0 / Out, MultiplyNode output slot Out, BranchNode output slot Out, LerpNode output slot Out, AppendVectorNode output slot Out, and SampleTexture2DNode output slot RGBA are supported when the input node is SplitNode input slot 0 / In.",
             "Vector1Node output slot 0 / Out is also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
             "PropertyNode output slot Out is supported when the bound property resolves to Float/Vector1 or Integer anywhere scalar outputs are supported in the current release matrix, and when the bound property resolves to Color or Vector4 anywhere color/vector outputs are supported in the current release matrix.",
+            "DropdownNode, KeywordNode, and CustomFunctionNode output slot Out are supported anywhere scalar outputs are supported in the current release matrix.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are supported when the input node is a different Vector1Node input slot 1 / X.",
             "AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, and OneMinusNode output slot Out are also supported when the input node is AddNode, SubtractNode, MultiplyNode, DivideNode, PowerNode, MinimumNode, MaximumNode, ModuloNode, LerpNode, SmoothstepNode, ClampNode, StepNode, AbsoluteNode, FloorNode, CeilingNode, RoundNode, SignNode, SineNode, CosineNode, TangentNode, NegateNode, ReciprocalNode, SquareRootNode, FractionNode, TruncateNode, SaturateNode, or OneMinusNode on their current scalar ports.",
             "Vector1Node, scalar arithmetic output slot Out, and SampleTexture2DNode output slots R/G/B/A are supported when the input node is ComparisonNode input slot 0 / A or 1 / B.",
@@ -11947,6 +12216,16 @@ namespace ShaderGraphMcp.Editor.Adapters
                     "Binds explicit keyword metadata before AddNode/ValidateGraph.",
                     TryInitializeKeywordNodeProbe,
                     TryInitializeKeywordNodeForAdd),
+                ["UnityEditor.ShaderGraph.CustomFunctionNode"] = new ShaderGraphNodeInitializer(
+                    "CustomFunctionNode",
+                    "Applies explicit portable Custom Function string-body metadata before AddNode/ValidateGraph.",
+                    TryInitializeCustomFunctionNodeProbe,
+                    TryInitializeCustomFunctionNodeForAdd),
+                ["UnityEditor.ShaderGraph.SubGraphNode"] = new ShaderGraphNodeInitializer(
+                    "SubGraphNode",
+                    "Binds an explicit Shader Sub Graph asset before AddNode/ValidateGraph.",
+                    TryInitializeSubGraphNodeProbe,
+                    TryInitializeSubGraphNodeForAdd),
             };
         }
 
@@ -12068,7 +12347,7 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             return new Dictionary<string, object>
             {
-                ["semantics"] = "Configurable graph-authoring nodes are split by whether they can be safely recreated from explicit metadata. Property uses a node initializer and property binding metadata; promoted metadata-backed nodes require nodeConfigJson, while deferred metadata-backed and externally asset-bound nodes remain diagnostic-only until explicit configuration serialization or asset binding is implemented.",
+                ["semantics"] = "Configurable graph-authoring nodes are split by whether they can be safely recreated from explicit metadata. Property uses a node initializer and property binding metadata; promoted metadata-backed nodes require nodeConfigJson, promoted externally asset-bound nodes require explicit asset binding metadata, and deferred configurable modes remain diagnostic-only until serialization is implemented.",
                 ["metadataRequiredCandidateTypes"] = ConfigurableMetadataRequiredNodeTypes,
                 ["propertyBackedCandidateTypes"] = ConfigurablePropertyBackedNodeTypes,
                 ["externallyAssetBoundCandidateTypes"] = ConfigurableExternallyAssetBoundNodeTypes,
@@ -12076,6 +12355,7 @@ namespace ShaderGraphMcp.Editor.Adapters
                 ["metadataRequiredSupportedModeLabels"] = GetSupportedConfigurableMetadataModeLabels(),
                 ["propertyBackedNodeTypes"] = GetSupportedCatalogNodeTypes(ConfigurablePropertyBackedNodeTypes),
                 ["externallyAssetBoundNodeTypes"] = GetSupportedCatalogNodeTypes(ConfigurableExternallyAssetBoundNodeTypes),
+                ["externallyAssetBoundSupportedModeLabels"] = GetSupportedExternallyAssetBoundModeLabels(),
                 ["metadataRequiredUnsupportedNodeTypes"] = metadataRequiredUnsupportedNodeTypes,
                 ["metadataRequiredUnsupportedDiagnostics"] =
                     BuildUnsupportedCatalogNodeDiagnostics(metadataRequiredUnsupportedNodeTypes),
@@ -12101,6 +12381,28 @@ namespace ShaderGraphMcp.Editor.Adapters
             {
                 labels.Add("Keyword:boolean");
                 labels.Add("Keyword:enum");
+            }
+
+            if (supportedNames.Contains("CustomFunction"))
+            {
+                labels.Add("CustomFunction:string-body");
+            }
+
+            return labels
+                .OrderBy(label => label, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string[] GetSupportedExternallyAssetBoundModeLabels()
+        {
+            var supportedNames = new HashSet<string>(
+                GetGraphAddableNodeCatalog().Select(descriptor => descriptor.CanonicalName),
+                StringComparer.Ordinal);
+            var labels = new List<string>();
+
+            if (supportedNames.Contains("SubGraph"))
+            {
+                labels.Add("SubGraph:explicit-asset");
             }
 
             return labels
@@ -12508,18 +12810,6 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
-            if (string.Equals(shortTypeName, "CustomFunctionNode", StringComparison.Ordinal))
-            {
-                exclusionReason = "Metadata-backed configurable node types require explicit configuration serialization before safe graph-addable support.";
-                return true;
-            }
-
-            if (string.Equals(shortTypeName, "SubGraphNode", StringComparison.Ordinal))
-            {
-                exclusionReason = "Externally asset-bound configurable node types require explicit asset binding before safe graph-addable support.";
-                return true;
-            }
-
             if (string.Equals(shortTypeName, "RedirectNodeData", StringComparison.Ordinal) ||
                 string.Equals(shortTypeName, "UnknownNodeType", StringComparison.Ordinal) ||
                 fullTypeName.Contains("MultiJsonInternal+", StringComparison.Ordinal))
@@ -12627,6 +12917,12 @@ namespace ShaderGraphMcp.Editor.Adapters
         {
             string fullTypeName = nodeClassType?.FullName ?? nodeClassType?.Name ?? string.Empty;
             return string.Equals(fullTypeName, "UnityEditor.ShaderGraph.PropertyNode", StringComparison.Ordinal);
+        }
+
+        private static bool IsSubGraphNodeType(Type nodeClassType)
+        {
+            string fullTypeName = nodeClassType?.FullName ?? nodeClassType?.Name ?? string.Empty;
+            return string.Equals(fullTypeName, "UnityEditor.ShaderGraph.SubGraphNode", StringComparison.Ordinal);
         }
 
         private static bool IsPropertyNodeType(string nodeTypeName)
@@ -12764,6 +13060,114 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             notes?.Add($"Bound Keyword node to explicit metadata '{GetStringProperty(keywordInput, "displayName", "name")}'.");
+            return true;
+        }
+
+        private static bool TryInitializeCustomFunctionNodeProbe(
+            object graphData,
+            object shaderNode,
+            out string failureReason)
+        {
+            var config = new ConfigurableNodeConfigPayload
+            {
+                kind = "CustomFunction",
+                version = 1,
+                sourceType = "String",
+                functionName = "Mcp_CustomFunctionProbe",
+                functionBody = "Out = In;",
+                inputs = new[]
+                {
+                    new ConfigurableNodePortPayload { name = "In", type = "Vector1" },
+                },
+                outputs = new[]
+                {
+                    new ConfigurableNodePortPayload { name = "Out", type = "Vector1" },
+                },
+            };
+
+            return TryApplyCustomFunctionNodeConfig(shaderNode, config, out _, out failureReason);
+        }
+
+        private static bool TryInitializeCustomFunctionNodeForAdd(
+            object graphData,
+            object shaderNode,
+            AddNodeRequest request,
+            List<string> notes,
+            out Dictionary<string, object> nodeInitializerData,
+            out Dictionary<string, object> nodeConfigurationData,
+            out Dictionary<string, object> propertyBindingData,
+            out object boundProperty,
+            out string failureReason)
+        {
+            ShaderGraphNodeInitializer initializer = NodeInitializers.Value["UnityEditor.ShaderGraph.CustomFunctionNode"];
+            nodeInitializerData = BuildNodeInitializerData(initializer);
+            nodeConfigurationData = null;
+            propertyBindingData = null;
+            boundProperty = null;
+            failureReason = null;
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (!TryParseConfigurableNodeConfig(request, "CustomFunction", assetPath, out ConfigurableNodeConfigPayload config, out failureReason))
+            {
+                return false;
+            }
+
+            if (!TryApplyCustomFunctionNodeConfig(shaderNode, config, out nodeConfigurationData, out string applyFailure))
+            {
+                failureReason = $"Unable to configure CustomFunction node in '{assetPath}': {applyFailure}";
+                return false;
+            }
+
+            notes?.Add($"Configured CustomFunction node '{config.functionName.Trim()}' from portable string-body metadata.");
+            return true;
+        }
+
+        private static bool TryInitializeSubGraphNodeProbe(
+            object graphData,
+            object shaderNode,
+            out string failureReason)
+        {
+            var config = new ConfigurableNodeConfigPayload
+            {
+                kind = "SubGraph",
+                version = 1,
+                subGraphAssetPath = DefaultSubGraphProbeAssetPath,
+            };
+
+            return TryApplySubGraphNodeConfig(shaderNode, config, out _, out failureReason);
+        }
+
+        private static bool TryInitializeSubGraphNodeForAdd(
+            object graphData,
+            object shaderNode,
+            AddNodeRequest request,
+            List<string> notes,
+            out Dictionary<string, object> nodeInitializerData,
+            out Dictionary<string, object> nodeConfigurationData,
+            out Dictionary<string, object> propertyBindingData,
+            out object boundProperty,
+            out string failureReason)
+        {
+            ShaderGraphNodeInitializer initializer = NodeInitializers.Value["UnityEditor.ShaderGraph.SubGraphNode"];
+            nodeInitializerData = BuildNodeInitializerData(initializer);
+            nodeConfigurationData = null;
+            propertyBindingData = null;
+            boundProperty = null;
+            failureReason = null;
+
+            string assetPath = NormalizeAssetPath(request.AssetPath);
+            if (!TryParseConfigurableNodeConfig(request, "SubGraph", assetPath, out ConfigurableNodeConfigPayload config, out failureReason))
+            {
+                return false;
+            }
+
+            if (!TryApplySubGraphNodeConfig(shaderNode, config, out nodeConfigurationData, out string applyFailure))
+            {
+                failureReason = $"Unable to configure SubGraph node in '{assetPath}': {applyFailure}";
+                return false;
+            }
+
+            notes?.Add($"Bound SubGraph node to Shader Sub Graph asset '{config.subGraphAssetPath.Trim()}'.");
             return true;
         }
 
@@ -13023,6 +13427,432 @@ namespace ShaderGraphMcp.Editor.Adapters
             return true;
         }
 
+        private static bool TryApplyCustomFunctionNodeConfig(
+            object shaderNode,
+            ConfigurableNodeConfigPayload config,
+            out Dictionary<string, object> nodeConfigurationData,
+            out string failureReason)
+        {
+            nodeConfigurationData = null;
+            failureReason = null;
+
+            if (shaderNode == null)
+            {
+                failureReason = "target shader node is null.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(config.sourceType))
+            {
+                failureReason = "missing required nodeConfigJson field 'sourceType'. Supported value: String.";
+                return false;
+            }
+
+            if (!TryParseEnumValue(
+                    HlslSourceTypeTypeName,
+                    config.sourceType.Trim(),
+                    out object sourceType,
+                    out string canonicalSourceType,
+                    out string sourceTypeFailure))
+            {
+                failureReason = $"Unsupported nodeConfigJson field 'sourceType': {sourceTypeFailure}";
+                return false;
+            }
+
+            if (!string.Equals(canonicalSourceType, "String", StringComparison.Ordinal))
+            {
+                failureReason = $"Unsupported nodeConfigJson field 'sourceType' value '{canonicalSourceType}'. Supported value: String.";
+                return false;
+            }
+
+            string functionName = string.IsNullOrWhiteSpace(config.functionName) ? string.Empty : config.functionName.Trim();
+            if (string.IsNullOrWhiteSpace(functionName))
+            {
+                failureReason = "missing required nodeConfigJson field 'functionName'.";
+                return false;
+            }
+
+            if (!IsValidHlslIdentifier(functionName))
+            {
+                failureReason = "nodeConfigJson field 'functionName' must be a valid HLSL identifier.";
+                return false;
+            }
+
+            string functionBody = config.functionBody ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(functionBody))
+            {
+                failureReason = "missing required nodeConfigJson field 'functionBody'.";
+                return false;
+            }
+
+            if (!TryAddCustomFunctionSlots(
+                    shaderNode,
+                    config.inputs,
+                    config.outputs,
+                    out IReadOnlyList<Dictionary<string, object>> inputPortData,
+                    out IReadOnlyList<Dictionary<string, object>> outputPortData,
+                    out failureReason))
+            {
+                return false;
+            }
+
+            if (!TrySetMemberValue(shaderNode, "sourceType", sourceType, out string sourceSetFailure))
+            {
+                failureReason = $"Unable to set CustomFunction sourceType: {sourceSetFailure}";
+                return false;
+            }
+
+            if (!TrySetMemberValue(shaderNode, "functionName", functionName, out string nameSetFailure))
+            {
+                failureReason = $"Unable to set CustomFunction functionName: {nameSetFailure}";
+                return false;
+            }
+
+            if (!TrySetMemberValue(shaderNode, "functionBody", functionBody, out string bodySetFailure))
+            {
+                failureReason = $"Unable to set CustomFunction functionBody: {bodySetFailure}";
+                return false;
+            }
+
+            nodeConfigurationData = BuildCustomFunctionNodeConfigurationData(
+                canonicalSourceType,
+                functionName,
+                functionBody,
+                inputPortData,
+                outputPortData);
+            return true;
+        }
+
+        private static bool TryApplySubGraphNodeConfig(
+            object shaderNode,
+            ConfigurableNodeConfigPayload config,
+            out Dictionary<string, object> nodeConfigurationData,
+            out string failureReason)
+        {
+            nodeConfigurationData = null;
+            failureReason = null;
+
+            if (shaderNode == null)
+            {
+                failureReason = "target shader node is null.";
+                return false;
+            }
+
+            if (!TryResolveSubGraphAssetBinding(
+                    config?.subGraphAssetPath,
+                    out string subGraphAssetPath,
+                    out string subGraphAssetGuid,
+                    out object subGraphAsset,
+                    out failureReason))
+            {
+                return false;
+            }
+
+            if (!TrySetMemberValue(shaderNode, "asset", subGraphAsset, out string setAssetFailure))
+            {
+                failureReason = $"Unable to set SubGraph asset binding: {setAssetFailure}";
+                return false;
+            }
+
+            nodeConfigurationData = BuildSubGraphNodeConfigurationData(subGraphAssetPath, subGraphAssetGuid);
+            return true;
+        }
+
+        private static bool TryResolveSubGraphAssetBinding(
+            string requestedSubGraphAssetPath,
+            out string subGraphAssetPath,
+            out string subGraphAssetGuid,
+            out object subGraphAsset,
+            out string failureReason)
+        {
+            subGraphAssetPath = NormalizeAssetPath(requestedSubGraphAssetPath);
+            subGraphAssetGuid = string.Empty;
+            subGraphAsset = null;
+            failureReason = null;
+
+            if (string.IsNullOrWhiteSpace(subGraphAssetPath))
+            {
+                failureReason = "missing required nodeConfigJson field 'subGraphAssetPath'.";
+                return false;
+            }
+
+            if (!subGraphAssetPath.EndsWith(".shadersubgraph", StringComparison.OrdinalIgnoreCase))
+            {
+                failureReason = $"nodeConfigJson field 'subGraphAssetPath' must reference a Shader Sub Graph .shadersubgraph asset, got '{subGraphAssetPath}'.";
+                return false;
+            }
+
+            Type subGraphAssetType = ResolveType(SubGraphAssetTypeName);
+            if (subGraphAssetType == null)
+            {
+                failureReason = $"Could not resolve {SubGraphAssetTypeName}.";
+                return false;
+            }
+
+            subGraphAsset = AssetDatabase.LoadAssetAtPath(subGraphAssetPath, subGraphAssetType);
+            if (subGraphAsset == null)
+            {
+                failureReason = $"Shader Sub Graph asset not found or could not be loaded at '{subGraphAssetPath}'.";
+                return false;
+            }
+
+            subGraphAssetGuid = AssetDatabase.AssetPathToGUID(subGraphAssetPath);
+            if (string.IsNullOrWhiteSpace(subGraphAssetGuid))
+            {
+                failureReason = $"Could not resolve a stable GUID for Shader Sub Graph asset '{subGraphAssetPath}'.";
+                subGraphAsset = null;
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryAddCustomFunctionSlots(
+            object shaderNode,
+            IReadOnlyList<ConfigurableNodePortPayload> inputs,
+            IReadOnlyList<ConfigurableNodePortPayload> outputs,
+            out IReadOnlyList<Dictionary<string, object>> inputPortData,
+            out IReadOnlyList<Dictionary<string, object>> outputPortData,
+            out string failureReason)
+        {
+            inputPortData = Array.Empty<Dictionary<string, object>>();
+            outputPortData = Array.Empty<Dictionary<string, object>>();
+            failureReason = null;
+
+            if (outputs == null || outputs.Count == 0)
+            {
+                failureReason = "missing required nodeConfigJson field 'outputs'; CustomFunction string-body mode requires at least one output port.";
+                return false;
+            }
+
+            Type materialSlotType = ResolveType(MaterialSlotTypeName);
+            Type slotValueType = ResolveType(SlotValueTypeTypeName);
+            Type slotTypeType = ResolveType(SlotTypeTypeName);
+            Type shaderStageCapabilityType = ResolveType(ShaderStageCapabilityTypeName);
+            if (materialSlotType == null || slotValueType == null || slotTypeType == null || shaderStageCapabilityType == null)
+            {
+                failureReason = $"Could not resolve CustomFunction slot types: {MaterialSlotTypeName}, {SlotValueTypeTypeName}, {SlotTypeTypeName}, or {ShaderStageCapabilityTypeName}.";
+                return false;
+            }
+
+            MethodInfo createMaterialSlotMethod = materialSlotType.GetMethod(
+                "CreateMaterialSlot",
+                StaticFlags,
+                null,
+                new[]
+                {
+                    slotValueType,
+                    typeof(int),
+                    typeof(string),
+                    typeof(string),
+                    slotTypeType,
+                    typeof(Vector4),
+                    shaderStageCapabilityType,
+                    typeof(bool),
+                },
+                null);
+            MethodInfo addSlotMethod = shaderNode.GetType().GetMethod(
+                "AddSlot",
+                InstanceFlags,
+                null,
+                new[] { materialSlotType, typeof(bool) },
+                null);
+            if (createMaterialSlotMethod == null || addSlotMethod == null)
+            {
+                failureReason = "Could not resolve CustomFunction MaterialSlot.CreateMaterialSlot(...) or AddSlot(...).";
+                return false;
+            }
+
+            var usedShaderNames = new HashSet<string>(StringComparer.Ordinal);
+            var inputData = new List<Dictionary<string, object>>();
+            var outputData = new List<Dictionary<string, object>>();
+            int nextSlotId = 0;
+
+            if (!TryAddCustomFunctionPortSlots(
+                    shaderNode,
+                    inputs ?? Array.Empty<ConfigurableNodePortPayload>(),
+                    true,
+                    ref nextSlotId,
+                    usedShaderNames,
+                    createMaterialSlotMethod,
+                    addSlotMethod,
+                    slotValueType,
+                    slotTypeType,
+                    shaderStageCapabilityType,
+                    inputData,
+                    out failureReason))
+            {
+                return false;
+            }
+
+            if (!TryAddCustomFunctionPortSlots(
+                    shaderNode,
+                    outputs,
+                    false,
+                    ref nextSlotId,
+                    usedShaderNames,
+                    createMaterialSlotMethod,
+                    addSlotMethod,
+                    slotValueType,
+                    slotTypeType,
+                    shaderStageCapabilityType,
+                    outputData,
+                    out failureReason))
+            {
+                return false;
+            }
+
+            inputPortData = inputData;
+            outputPortData = outputData;
+            return true;
+        }
+
+        private static bool TryAddCustomFunctionPortSlots(
+            object shaderNode,
+            IReadOnlyList<ConfigurableNodePortPayload> ports,
+            bool isInput,
+            ref int nextSlotId,
+            ISet<string> usedShaderNames,
+            MethodInfo createMaterialSlotMethod,
+            MethodInfo addSlotMethod,
+            Type slotValueType,
+            Type slotTypeType,
+            Type shaderStageCapabilityType,
+            List<Dictionary<string, object>> portData,
+            out string failureReason)
+        {
+            failureReason = null;
+            string direction = isInput ? "inputs" : "outputs";
+            object parsedSlotType = Enum.Parse(slotTypeType, isInput ? "Input" : "Output", true);
+            object parsedStageCapability = Enum.Parse(shaderStageCapabilityType, "All", true);
+
+            foreach (ConfigurableNodePortPayload port in ports)
+            {
+                string displayName = port?.name?.Trim() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(displayName))
+                {
+                    failureReason = $"nodeConfigJson field '{direction}' contains a port with missing field 'name'.";
+                    return false;
+                }
+
+                string shaderName = string.IsNullOrWhiteSpace(port.shaderName) ? displayName : port.shaderName.Trim();
+                if (!IsValidHlslIdentifier(shaderName))
+                {
+                    failureReason = $"nodeConfigJson field '{direction}' port '{displayName}' has invalid shaderName '{shaderName}'.";
+                    return false;
+                }
+
+                if (!usedShaderNames.Add(shaderName))
+                {
+                    failureReason = $"nodeConfigJson field '{direction}' port shaderName '{shaderName}' must be unique across CustomFunction inputs and outputs.";
+                    return false;
+                }
+
+                if (!TryNormalizeCustomFunctionPortType(port.type, out string canonicalPortType, out failureReason))
+                {
+                    failureReason = $"nodeConfigJson field '{direction}' port '{displayName}' {failureReason}";
+                    return false;
+                }
+
+                object parsedSlotValueType = Enum.Parse(slotValueType, canonicalPortType, true);
+                int slotId = nextSlotId++;
+                object materialSlot;
+                try
+                {
+                    materialSlot = createMaterialSlotMethod.Invoke(
+                        null,
+                        new[]
+                        {
+                            parsedSlotValueType,
+                            slotId,
+                            displayName,
+                            shaderName,
+                            parsedSlotType,
+                            Vector4.zero,
+                            parsedStageCapability,
+                            false,
+                        });
+                }
+                catch (Exception ex)
+                {
+                    failureReason = $"unable to create CustomFunction port '{displayName}': {GetRootMessage(ex)}";
+                    return false;
+                }
+
+                try
+                {
+                    addSlotMethod.Invoke(shaderNode, new[] { materialSlot, true });
+                }
+                catch (Exception ex)
+                {
+                    failureReason = $"unable to add CustomFunction port '{displayName}': {GetRootMessage(ex)}";
+                    return false;
+                }
+
+                portData.Add(new Dictionary<string, object>
+                {
+                    ["slotId"] = slotId,
+                    ["name"] = displayName,
+                    ["shaderName"] = shaderName,
+                    ["type"] = canonicalPortType,
+                    ["direction"] = isInput ? "Input" : "Output",
+                });
+            }
+
+            return true;
+        }
+
+        private static bool TryNormalizeCustomFunctionPortType(
+            string rawPortType,
+            out string canonicalPortType,
+            out string failureReason)
+        {
+            canonicalPortType = string.Empty;
+            failureReason = null;
+
+            string portType = string.IsNullOrWhiteSpace(rawPortType) ? string.Empty : rawPortType.Trim();
+            if (string.IsNullOrWhiteSpace(portType))
+            {
+                failureReason = "is missing required field 'type'. Supported value: Vector1.";
+                return false;
+            }
+
+            if (string.Equals(portType, "Float", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(portType, "Vector1", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalPortType = "Vector1";
+                return true;
+            }
+
+            failureReason = $"has unsupported type '{portType}'. Supported value: Vector1.";
+            return false;
+        }
+
+        private static bool IsValidHlslIdentifier(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            char first = value[0];
+            if (!char.IsLetter(first) && first != '_')
+            {
+                return false;
+            }
+
+            for (int i = 1; i < value.Length; i++)
+            {
+                char character = value[i];
+                if (!char.IsLetterOrDigit(character) && character != '_')
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static bool TryNormalizeConfigEntries(
             IReadOnlyList<string> rawEntries,
             int minimumCount,
@@ -13201,6 +14031,179 @@ namespace ShaderGraphMcp.Editor.Adapters
             }
 
             return data;
+        }
+
+        private static Dictionary<string, object> BuildCustomFunctionNodeConfigurationData(
+            string sourceType,
+            string functionName,
+            string functionBody,
+            IReadOnlyList<Dictionary<string, object>> inputPorts,
+            IReadOnlyList<Dictionary<string, object>> outputPorts)
+        {
+            return new Dictionary<string, object>
+            {
+                ["kind"] = "CustomFunction",
+                ["version"] = 1,
+                ["mode"] = "string-body",
+                ["sourceType"] = sourceType ?? string.Empty,
+                ["functionName"] = functionName ?? string.Empty,
+                ["functionBody"] = functionBody ?? string.Empty,
+                ["inputPorts"] = inputPorts == null ? Array.Empty<Dictionary<string, object>>() : inputPorts.ToArray(),
+                ["outputPorts"] = outputPorts == null ? Array.Empty<Dictionary<string, object>>() : outputPorts.ToArray(),
+            };
+        }
+
+        private static Dictionary<string, object> BuildSubGraphNodeConfigurationData(
+            string subGraphAssetPath,
+            string subGraphAssetGuid)
+        {
+            return new Dictionary<string, object>
+            {
+                ["kind"] = "SubGraph",
+                ["version"] = 1,
+                ["mode"] = "explicit-asset",
+                ["subGraphAssetPath"] = subGraphAssetPath ?? string.Empty,
+                ["subGraphAssetGuid"] = subGraphAssetGuid ?? string.Empty,
+                ["nodeConfigJson"] = BuildSubGraphNodeConfigJson(subGraphAssetPath),
+            };
+        }
+
+        private static string BuildSubGraphNodeConfigJson(string subGraphAssetPath)
+        {
+            return "{\"kind\":\"SubGraph\",\"version\":1,\"subGraphAssetPath\":\"" +
+                   EscapeJsonString(subGraphAssetPath ?? string.Empty) +
+                   "\"}";
+        }
+
+        private static string BuildDropdownNodeConfigJson(
+            string displayName,
+            string referenceName,
+            IReadOnlyList<string> entries,
+            int defaultIndex)
+        {
+            return "{\"kind\":\"Dropdown\",\"version\":1,\"displayName\":\"" +
+                   EscapeJsonString(displayName ?? string.Empty) +
+                   "\",\"referenceName\":\"" +
+                   EscapeJsonString(referenceName ?? string.Empty) +
+                   "\",\"entries\":" +
+                   BuildJsonStringArray(entries) +
+                   ",\"defaultIndex\":" +
+                   defaultIndex.ToString(CultureInfo.InvariantCulture) +
+                   "}";
+        }
+
+        private static string BuildKeywordNodeConfigJson(
+            string displayName,
+            string referenceName,
+            string keywordType,
+            string definition,
+            string scope,
+            IReadOnlyList<string> entries,
+            int defaultValue)
+        {
+            var builder = new StringBuilder();
+            builder.Append("{\"kind\":\"Keyword\",\"version\":1,\"keywordType\":\"");
+            builder.Append(EscapeJsonString(keywordType ?? string.Empty));
+            builder.Append("\",\"displayName\":\"");
+            builder.Append(EscapeJsonString(displayName ?? string.Empty));
+            builder.Append("\",\"referenceName\":\"");
+            builder.Append(EscapeJsonString(referenceName ?? string.Empty));
+            builder.Append("\",\"definition\":\"");
+            builder.Append(EscapeJsonString(definition ?? string.Empty));
+            builder.Append("\",\"scope\":\"");
+            builder.Append(EscapeJsonString(scope ?? string.Empty));
+            builder.Append('"');
+
+            if (entries != null && entries.Count > 0)
+            {
+                builder.Append(",\"entries\":");
+                builder.Append(BuildJsonStringArray(entries));
+            }
+
+            builder.Append(",\"defaultValue\":");
+            builder.Append(defaultValue.ToString(CultureInfo.InvariantCulture));
+            builder.Append('}');
+            return builder.ToString();
+        }
+
+        private static string BuildCustomFunctionNodeConfigJson(
+            string functionName,
+            string functionBody,
+            IReadOnlyList<ConfigurableNodePortPayload> inputs,
+            IReadOnlyList<ConfigurableNodePortPayload> outputs)
+        {
+            return "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"String\",\"functionName\":\"" +
+                   EscapeJsonString(functionName ?? string.Empty) +
+                   "\",\"functionBody\":\"" +
+                   EscapeJsonString(functionBody ?? string.Empty) +
+                   "\",\"inputs\":" +
+                   BuildCustomFunctionPortJsonArray(inputs) +
+                   ",\"outputs\":" +
+                   BuildCustomFunctionPortJsonArray(outputs) +
+                   "}";
+        }
+
+        private static string BuildJsonStringArray(IReadOnlyList<string> values)
+        {
+            return "[" +
+                   string.Join(
+                       ",",
+                       (values ?? Array.Empty<string>()).Select(value => "\"" + EscapeJsonString(value ?? string.Empty) + "\"")) +
+                   "]";
+        }
+
+        private static string BuildCustomFunctionPortJsonArray(IReadOnlyList<ConfigurableNodePortPayload> ports)
+        {
+            return "[" +
+                   string.Join(
+                       ",",
+                       (ports ?? Array.Empty<ConfigurableNodePortPayload>())
+                       .Where(port => port != null)
+                       .Select(port =>
+                           "{\"name\":\"" +
+                           EscapeJsonString(port.name ?? string.Empty) +
+                           "\",\"shaderName\":\"" +
+                           EscapeJsonString(port.shaderName ?? string.Empty) +
+                           "\",\"type\":\"" +
+                           EscapeJsonString(port.type ?? string.Empty) +
+                           "\"}")) +
+                   "]";
+        }
+
+        private static string EscapeJsonString(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            var builder = new StringBuilder(value.Length + 8);
+            foreach (char character in value)
+            {
+                switch (character)
+                {
+                    case '\\':
+                        builder.Append("\\\\");
+                        break;
+                    case '"':
+                        builder.Append("\\\"");
+                        break;
+                    case '\n':
+                        builder.Append("\\n");
+                        break;
+                    case '\r':
+                        builder.Append("\\r");
+                        break;
+                    case '\t':
+                        builder.Append("\\t");
+                        break;
+                    default:
+                        builder.Append(character);
+                        break;
+                }
+            }
+
+            return builder.ToString();
         }
 
         private static bool TryInitializePropertyNodeProbe(
@@ -13908,6 +14911,28 @@ namespace ShaderGraphMcp.Editor.Adapters
                     return false;
                 }
 
+                if (IsPromotedConfigurableScalarNodeType(nodeTypeName))
+                {
+                    if (TryResolveDynamicPortAlias(
+                            node,
+                            normalizedPort,
+                            true,
+                            out slotId,
+                            out canonicalPort,
+                            ("Out", new[] { "Out" })))
+                    {
+                        return true;
+                    }
+
+                    failureReason = BuildConnectionPortFailure(
+                        node,
+                        isOutput,
+                        normalizedPort,
+                        "Supported output ports: Out on DropdownNode, KeywordNode, and CustomFunctionNode."
+                    );
+                    return false;
+                }
+
                 if (TryResolveTextureUvConnectionPort(
                         nodeTypeName,
                         node,
@@ -13994,6 +15019,9 @@ namespace ShaderGraphMcp.Editor.Adapters
                     "UnityEditor.ShaderGraph.OneMinusNode",
                     "UnityEditor.ShaderGraph.ComparisonNode",
                     "UnityEditor.ShaderGraph.BranchNode",
+                    "UnityEditor.ShaderGraph.DropdownNode",
+                    "UnityEditor.ShaderGraph.KeywordNode",
+                    "UnityEditor.ShaderGraph.CustomFunctionNode",
                     "UnityEditor.ShaderGraph.UVNode",
                     "UnityEditor.ShaderGraph.TilingAndOffsetNode",
                     "UnityEditor.ShaderGraph.SampleTexture2DNode",
@@ -15050,6 +16078,17 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return false;
             }
 
+            if (TryGetDirectionalNodeSlots(node, isOutput, out IReadOnlyList<object> directionalSlots) &&
+                directionalSlots.Count > 0)
+            {
+                return TryResolveDynamicPortAliasFromSlots(
+                    directionalSlots,
+                    requestedPort,
+                    aliases,
+                    out slotId,
+                    out canonicalPort);
+            }
+
             IReadOnlyList<object> slots = EnumerateNodeSlots(node);
             if (slots.Count == 0)
             {
@@ -15115,18 +16154,6 @@ namespace ShaderGraphMcp.Editor.Adapters
                         }
                     }
                 }
-            }
-
-            if (TryGetDirectionalNodeSlots(node, isOutput, out IReadOnlyList<object> directionalSlots) &&
-                directionalSlots.Count > 0 &&
-                TryResolveDynamicPortAliasFromSlots(
-                    directionalSlots,
-                    requestedPort,
-                    aliases,
-                    out slotId,
-                    out canonicalPort))
-            {
-                return true;
             }
 
             return false;
@@ -15626,7 +16653,7 @@ namespace ShaderGraphMcp.Editor.Adapters
 
             failureReason =
                 $"Unsupported connection pair '{outputNodeTypeName}.{canonicalOutputPort}' -> '{inputNodeTypeName}.{canonicalInputPort}'. " +
-                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D/NormalStrength/Property(Color|Vector4) -> Split, Vector4.Out/Property(Vector4).Out -> SubGraphOutput.Out, Vector2.Out/Property(Vector2).Out -> NormalReconstructZ.In, scalar outputs including Split and SampleTexture2D channels plus Property(Float|Integer) -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1/Property(Float|Integer) -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out or Property(Boolean).Out -> one or more Branch Predicate inputs, scalar outputs -> Branch.True/False, Branch.Out -> one or more Vector1/arithmetic inputs, Color.Out -> Split plus Multiply inputs within one graph, Append.Out -> Split plus Multiply inputs within one graph, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA/Property(Color|Vector4) -> Multiply A/B, Branch.True/False, Lerp A/B/T, or NormalBlend A/B, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA/Property(Color|Vector4) plus Vector1/Split/scalar arithmetic/SampleTexture2D channels/Property(Float|Integer) -> Append A/B, Vector1/scalar arithmetic/Property(Float|Integer) -> NormalStrength.Strength or NormalFromTexture.Offset/Strength, SampleTexture2D.RGBA -> NormalStrength.In/NormalUnpack.In, UV -> TilingAndOffset/SampleTexture2D/NormalFromTexture UV, TilingAndOffset.Out -> SampleTexture2D/NormalFromTexture UV, and Texture2DAsset.Out/Property(Texture2D).Out -> SampleTexture2D/NormalFromTexture Texture.";
+                "Current package-backed path supports Vector1 -> Vector1, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D/NormalStrength/Property(Color|Vector4) -> Split, Vector4.Out/Property(Vector4).Out -> SubGraphOutput.Out, Vector2.Out/Property(Vector2).Out -> NormalReconstructZ.In, scalar outputs including Split and SampleTexture2D channels plus Property(Float|Integer), Dropdown.Out, Keyword.Out, and CustomFunction.Out -> Vector1, scalar component outputs -> Combine or Vector2/Vector3/Vector4 inputs, Vector1/Property(Float|Integer) -> arithmetic inputs, arithmetic outputs -> Vector1, arithmetic outputs -> arithmetic inputs, scalar outputs -> Comparison A/B, Comparison Out or Property(Boolean).Out -> one or more Branch Predicate inputs, scalar outputs -> Branch.True/False, Branch.Out -> one or more Vector1/arithmetic inputs, Color.Out -> Split plus Multiply inputs within one graph, Append.Out -> Split plus Multiply inputs within one graph, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA/Property(Color|Vector4) -> Multiply A/B, Branch.True/False, Lerp A/B/T, or NormalBlend A/B, Color/Combine RGBA/Vector4/Multiply/Branch/Lerp/Append/SampleTexture2D.RGBA/Property(Color|Vector4) plus Vector1/Split/scalar arithmetic/SampleTexture2D channels/Property(Float|Integer)/Dropdown.Out/Keyword.Out/CustomFunction.Out -> Append A/B, Vector1/scalar arithmetic/Property(Float|Integer)/Dropdown.Out/Keyword.Out/CustomFunction.Out -> NormalStrength.Strength or NormalFromTexture.Offset/Strength, SampleTexture2D.RGBA -> NormalStrength.In/NormalUnpack.In, UV -> TilingAndOffset/SampleTexture2D/NormalFromTexture UV, TilingAndOffset.Out -> SampleTexture2D/NormalFromTexture UV, and Texture2DAsset.Out/Property(Texture2D).Out -> SampleTexture2D/NormalFromTexture Texture.";
             return false;
         }
 
@@ -15717,6 +16744,11 @@ namespace ShaderGraphMcp.Editor.Adapters
                 return true;
             }
 
+            if (IsPromotedConfigurableScalarOutput(nodeTypeName, canonicalOutputPort))
+            {
+                return true;
+            }
+
             if (string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.SplitNode", StringComparison.Ordinal))
             {
                 return string.Equals(canonicalOutputPort, "R", StringComparison.Ordinal) ||
@@ -15730,6 +16762,23 @@ namespace ShaderGraphMcp.Editor.Adapters
                     string.Equals(canonicalOutputPort, "G", StringComparison.Ordinal) ||
                     string.Equals(canonicalOutputPort, "B", StringComparison.Ordinal) ||
                     string.Equals(canonicalOutputPort, "A", StringComparison.Ordinal));
+        }
+
+        private static bool IsPromotedConfigurableScalarOutput(string nodeTypeName, string canonicalOutputPort)
+        {
+            if (!string.Equals(canonicalOutputPort, "Out", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return IsPromotedConfigurableScalarNodeType(nodeTypeName);
+        }
+
+        private static bool IsPromotedConfigurableScalarNodeType(string nodeTypeName)
+        {
+            return string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.DropdownNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.KeywordNode", StringComparison.Ordinal) ||
+                   string.Equals(nodeTypeName, "UnityEditor.ShaderGraph.CustomFunctionNode", StringComparison.Ordinal);
         }
 
         private static bool IsSupportedScalarBuilderSourceOutput(string nodeTypeName, string canonicalOutputPort)

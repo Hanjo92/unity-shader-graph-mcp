@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.0 - Unreleased
+
+Candidate release for explicit configurable and asset-bound node promotion. This
+cut keeps the full-node boundary exact: promoted nodes require explicit metadata
+or asset binding, and connection support remains governed by
+`supportedConnectionRules`.
+
+### Added
+
+- Metadata-backed `Dropdown` node creation for static string entries.
+- Metadata-backed `Keyword` node creation for boolean and enum keyword modes.
+- String-body `CustomFunction` node creation with declared scalar ports.
+- Explicit `.shadersubgraph` asset binding for `SubGraphNode`.
+- Export/import contract replay for `Dropdown`, `Keyword`, `CustomFunction`,
+  and asset-bound `SubGraphNode` configuration metadata.
+- Minimal scalar connection routes for promoted `Dropdown`, `Keyword`, and
+  `CustomFunction` `Out` ports through the existing scalar matrix.
+
+### Known Limits
+
+- File-mode `CustomFunction`, arbitrary `SubGraphNode` composition,
+  asset-specific `SubGraphNode` port routing, package-context
+  UI/sprite/VFX/deformation/custom-interpolator nodes, universal all-node
+  support, and universal all-port coercion remain out of scope.
+- Final package/server version bumps, tag creation, and GitHub release
+  publication are intentionally pending until Unity EditMode, Python, MCP
+  subprocess, and release smoke verification are recorded.
+
 ## 1.3.0 - 2026-05-10
 
 Focused full-node-support foundation release. This cut expands the verified
