@@ -11,19 +11,18 @@ and then prints a compact summary plus the parsed tool payload.
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import sys
+from argparse import ArgumentParser
 from pathlib import Path
-from typing import Any
 
 from .mcp_smoke import McpStdioSmokeClient
 from .unity_bridge import UNITY_EXE_ENV, UNITY_PROJECT_ENV
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = ArgumentParser(
         prog="python -m unity_shader_graph_mcp.real_mcp_smoke",
         description="Run a one-shot live MCP smoke against a real Unity batchmode bridge.",
     )
