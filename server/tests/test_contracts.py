@@ -80,6 +80,66 @@ class ContractsTests(unittest.TestCase):
             },
         )
 
+class TestContracts(unittest.TestCase):
+    def test_optional_text(self) -> None:
+        """Test optional_text with various inputs."""
+        self.assertIsNone(optional_text(None))
+        self.assertIsNone(optional_text(""))
+        self.assertIsNone(optional_text(" "))
+        self.assertIsNone(optional_text("\n"))
+        self.assertIsNone(optional_text("\t  "))
+        self.assertEqual(optional_text("  hello  "), "hello")
+        self.assertEqual(optional_text(123), "123")
+        self.assertEqual(optional_text(0), "0")
+        self.assertEqual(optional_text(False), "False")
+        self.assertEqual(optional_text([]), "[]")
+
+    def test_require_text_valid(self) -> None:
+        """Test require_text with valid input."""
+        self.assertEqual(require_text("  hello  ", "field"), "hello")
+        self.assertEqual(require_text(123, "field"), "123")
+
+    def test_require_text_invalid(self) -> None:
+        """Test require_text with invalid input."""
+        with self.assertRaises(ShaderGraphRequestError) as ctx:
+            require_text(None, "my_field")
+        self.assertIn("'my_field'", str(ctx.exception))
+
+        with self.assertRaises(ShaderGraphRequestError) as ctx:
+            require_text("", "my_field")
+        self.assertIn("'my_field'", str(ctx.exception))
+
+        with self.assertRaises(ShaderGraphRequestError) as ctx:
+            require_text("  ", "my_field")
+        self.assertIn("'my_field'", str(ctx.exception))
+
+    def test_coerce_mapping(self) -> None:
+        """Test coerce_mapping with various inputs."""
+        self.assertEqual(coerce_mapping(None), {})
+
+        data = {"key": "value"}
+        result = coerce_mapping(data)
+        self.assertEqual(result, data)
+        self.assertIsNot(result, data)  # Ensure it's a copy
+
+    def test_as_response(self) -> None:
+        """Test as_response construction."""
+        # Test with data
+        data = {"foo": "bar"}
+        resp = as_response(True, "Success", data)
+        self.assertEqual(resp, {
+            "success": True,
+            "message": "Success",
+            "data": data,
+        })
+
+        # Test without data
+        resp = as_response(False, "Failure")
+        self.assertEqual(resp, {
+            "success": False,
+            "message": "Failure",
+            "data": {},
+        })
 
 if __name__ == "__main__":
     unittest.main()

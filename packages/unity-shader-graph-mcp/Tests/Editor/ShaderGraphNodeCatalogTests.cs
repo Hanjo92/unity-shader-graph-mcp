@@ -78,9 +78,6 @@ namespace ShaderGraphMcp.Editor.Tests
 
         private static readonly string[] ConfigurableMetadataRequiredNodeTypes =
         {
-            "CustomFunction",
-            "Dropdown",
-            "Keyword",
         };
 
         private static readonly string[] SpecializedPortableDefaultNodeTypes =
@@ -225,6 +222,12 @@ namespace ShaderGraphMcp.Editor.Tests
                 classification,
                 "configurableNodeClassification");
             var propertyBackedNodeTypes = ShaderGraphTestAssets.GetStringList(configurableClassification, "propertyBackedNodeTypes");
+            var metadataRequiredNodeTypes = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "metadataRequiredNodeTypes");
+            var supportedModeLabels = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "metadataRequiredSupportedModeLabels");
             var metadataRequiredUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
                 configurableClassification,
                 "metadataRequiredUnsupportedNodeTypes");
@@ -237,6 +240,9 @@ namespace ShaderGraphMcp.Editor.Tests
             var externallyAssetBoundUnsupportedDiagnostics = ShaderGraphTestAssets.GetStringList(
                 configurableClassification,
                 "externallyAssetBoundUnsupportedDiagnostics");
+            var externallyAssetBoundModeLabels = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "externallyAssetBoundSupportedModeLabels");
 
             foreach (string nodeType in ConfigurableMetadataRequiredNodeTypes)
             {
@@ -244,17 +250,27 @@ namespace ShaderGraphMcp.Editor.Tests
                 Assert.That(metadataRequiredUnsupportedNodeTypes, Has.Some.EqualTo(nodeType), nodeType);
             }
 
+            Assert.That(supportedNames, Has.Some.EqualTo("CustomFunction"));
+            Assert.That(supportedNames, Has.Some.EqualTo("Dropdown"));
+            Assert.That(supportedNames, Has.Some.EqualTo("Keyword"));
+            Assert.That(metadataRequiredNodeTypes, Has.Some.EqualTo("CustomFunction"));
+            Assert.That(metadataRequiredNodeTypes, Has.Some.EqualTo("Dropdown"));
+            Assert.That(metadataRequiredNodeTypes, Has.Some.EqualTo("Keyword"));
+            Assert.That(supportedModeLabels, Has.Some.EqualTo("CustomFunction:string-body"));
+            Assert.That(supportedModeLabels, Has.Some.EqualTo("Dropdown:static-string-entries"));
+            Assert.That(supportedModeLabels, Has.Some.EqualTo("Keyword:boolean"));
+            Assert.That(supportedModeLabels, Has.Some.EqualTo("Keyword:enum"));
             Assert.That(propertyBackedNodeTypes, Has.Some.EqualTo("Property"));
-            Assert.That(supportedNames, Has.None.EqualTo("SubGraph"));
-            AssertUnsupportedDiagnosticIfDiscovered(
-                metadataRequiredUnsupportedDiagnostics,
-                "CustomFunction",
-                "configuration serialization");
-            Assert.That(externallyAssetBoundUnsupportedNodeTypes, Has.Some.EqualTo("SubGraph"));
-            AssertUnsupportedDiagnosticIfDiscovered(
-                externallyAssetBoundUnsupportedDiagnostics,
-                "SubGraph",
-                "Externally asset-bound");
+            Assert.That(supportedNames, Has.Some.EqualTo("SubGraph"));
+            Assert.That(metadataRequiredUnsupportedNodeTypes, Has.None.EqualTo("CustomFunction"));
+            Assert.That(
+                metadataRequiredUnsupportedDiagnostics.Any(diagnostic => diagnostic.StartsWith("CustomFunction |", System.StringComparison.Ordinal)),
+                Is.False);
+            Assert.That(externallyAssetBoundUnsupportedNodeTypes, Has.None.EqualTo("SubGraph"));
+            Assert.That(externallyAssetBoundModeLabels, Has.Some.EqualTo("SubGraph:explicit-asset"));
+            Assert.That(
+                externallyAssetBoundUnsupportedDiagnostics.Any(diagnostic => diagnostic.StartsWith("SubGraph |", System.StringComparison.Ordinal)),
+                Is.False);
         }
 
         [Test]
@@ -395,6 +411,10 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var initializerBackedNodeTypes = ShaderGraphTestAssets.GetStringList(classification, "initializerBackedNodeTypes");
             Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("Property"));
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("Dropdown"));
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("Keyword"));
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("CustomFunction"));
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("SubGraph"));
         }
 
         [TestCase("filtered", "Nested internal node types are excluded from the initial graph-addable catalog.", "filtered:nested-internal")]

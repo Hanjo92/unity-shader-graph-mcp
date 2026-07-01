@@ -5,7 +5,8 @@ This is the shortest path from a fresh checkout to the current supported Shader 
 ## Prerequisites
 
 - Unity 2022.3 with Shader Graph installed.
-- Python 3.11+ available on the command line.
+- Python 3.11+ available on the command line. The release checklist uses
+  `python3.12` explicitly to avoid older macOS `python3` shims.
 
 ## Unity Package Import
 
@@ -29,7 +30,7 @@ The server currently supports two startup styles:
 For the existing JSON request CLI smoke, run:
 
 ```bash
-python3 server/src/unity_shader_graph_mcp/__main__.py --request '{
+python3.12 server/src/unity_shader_graph_mcp/__main__.py --request '{
   "tool": "shadergraph_asset",
   "action": "create_graph",
   "name": "ExampleLitGraph",
@@ -43,7 +44,7 @@ You can also pipe JSON to stdin if you prefer to automate the call flow.
 For the live MCP transport smoke, run:
 
 ```bash
-python3 server/src/unity_shader_graph_mcp/__main__.py --mcp
+python3.12 server/src/unity_shader_graph_mcp/__main__.py --mcp
 ```
 
 That is enough to verify transport-only behavior. To route live MCP calls into
@@ -100,6 +101,13 @@ Read `supportedNodeTypes` as the graph-addable subset. Treat `discoveredNodeType
 as diagnostics only, and use `nodeCatalogClassification` to understand filtered
 or deferred nodes.
 
+For metadata-heavy promoted nodes, pass an explicit `nodeConfigJson` payload:
+`Dropdown` needs static entries and a default index, `Keyword` needs boolean or
+enum metadata, and string-body `CustomFunction` needs a function name, body,
+and declared ports. For asset-bound promoted nodes, pass the required asset path
+inside `nodeConfigJson`; `SubGraphNode` currently requires an explicit
+`.shadersubgraph` path.
+
 Before connecting ports, call:
 
 ```json
@@ -111,7 +119,9 @@ Before connecting ports, call:
 
 Read `supportedConnectionRules` as the enforced runtime connection matrix.
 Addable nodes do not imply universal port compatibility, implicit type coercion,
-or arbitrary fan-out.
+or arbitrary fan-out. In particular, explicit-asset `SubGraphNode` add/replay
+support does not imply asset-specific subgraph port routing unless that route is
+listed by `supportedConnectionRules`.
 
 The supported boundary is intentionally narrow. Template-backed graph creation,
 universal node coverage, and universal port coverage are not part of the current

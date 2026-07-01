@@ -124,12 +124,15 @@ namespace ShaderGraphMcp.Editor.Tests
             "RenderTypeBranch",
         };
 
-        private static readonly string[] ConfigurableMetadataRequiredNodeTypes =
+        private static readonly string[] ConfigurableMetadataBackedNodeTypes =
         {
             "CustomFunction",
             "Dropdown",
             "Keyword",
-            "SubGraph",
+        };
+
+        private static readonly string[] ConfigurableDeferredNodeTypes =
+        {
         };
 
         private static readonly string[] SpecializedPortableDefaultNodeTypes =
@@ -150,6 +153,32 @@ namespace ShaderGraphMcp.Editor.Tests
             "SampleElementTexture",
             "SpriteSkinning",
         };
+
+        private static ShaderGraphResponse HandleAddNodeWithConfig(
+            string assetPath,
+            string nodeType,
+            string displayName,
+            string nodeConfigJson)
+        {
+            return ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    nodeType,
+                    displayName,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+        }
 
         private static IEnumerable<TestCaseData> PromotedNodeBatchContractReplayCases()
         {
@@ -497,16 +526,16 @@ namespace ShaderGraphMcp.Editor.Tests
         }
 
         [Test]
-        public void BlankGraph_ConfigurableNodesWithoutMetadata_AreRejectedWithDiagnostics()
+        public void BlankGraph_ConfigurableDeferredNodes_AreRejectedWithDiagnostics()
         {
-            string assetPath = CreateBlankGraph("BlankGraphConfigurableNodesWithoutMetadata", out _);
+            string assetPath = CreateBlankGraph("BlankGraphConfigurableDeferredNodes", out _);
 
-            foreach (string nodeType in ConfigurableMetadataRequiredNodeTypes)
+            foreach (string nodeType in ConfigurableDeferredNodeTypes)
             {
                 ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
                     assetPath,
                     nodeType,
-                    $"{nodeType} Without Metadata");
+                    $"{nodeType} Without Configuration");
 
                 Assert.That(addNodeResponse.Success, Is.False, nodeType);
                 Assert.That(addNodeResponse.Message, Does.Contain($"Unsupported Shader Graph node type '{nodeType}'"));
@@ -517,6 +546,667 @@ namespace ShaderGraphMcp.Editor.Tests
             ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
             ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_ConfigurableMetadataBackedNodesWithoutMetadata_AreRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphConfigurableMetadataBackedNodesWithoutMetadata", out _);
+
+            foreach (string nodeType in ConfigurableMetadataBackedNodeTypes)
+            {
+                ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                    assetPath,
+                    nodeType,
+                    $"{nodeType} Without Metadata");
+
+                Assert.That(addNodeResponse.Success, Is.False, nodeType);
+                Assert.That(addNodeResponse.Message, Does.Contain("missing required nodeConfigJson"));
+                Assert.That(ShaderGraphTestAssets.GetString(addNodeResponse.Data, "nodeCatalogSemantics"), Is.EqualTo("supported=graph-addable"));
+                Assert.That(ShaderGraphTestAssets.GetStringList(addNodeResponse.Data, "supportedNodeTypes"), Has.Some.Contains(nodeType));
+
+                var nodeInitializer = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeInitializer");
+                Assert.That(ShaderGraphTestAssets.GetString(nodeInitializer, "key"), Is.EqualTo(nodeType + "Node"));
+            }
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankSubGraph_DropdownWithStaticEntries_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphDropdownStaticEntries", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Dropdown\",\"version\":1,\"displayName\":\"Quality Mode\",\"referenceName\":\"_QUALITY_MODE\",\"entries\":[\"Low\",\"Medium\",\"High\"],\"defaultIndex\":1}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Dropdown",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo("Dropdown"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "displayName"), Is.EqualTo("Quality Mode"));
+
+            var nodeInitializer = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeInitializer");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeInitializer, "key"), Is.EqualTo("DropdownNode"));
+
+            var nodeConfiguration = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeConfiguration");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "kind"), Is.EqualTo("Dropdown"));
+            Assert.That(ShaderGraphTestAssets.GetStringList(nodeConfiguration, "entries"), Is.EquivalentTo(new[] { "Low", "Medium", "High" }));
+            Assert.That(ShaderGraphTestAssets.GetInt(nodeConfiguration, "defaultIndex"), Is.EqualTo(1));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(2));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_KeywordBooleanWithExplicitMetadata_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphKeywordBooleanMetadata", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Keyword\",\"version\":1,\"keywordType\":\"Boolean\",\"displayName\":\"Use Detail\",\"referenceName\":\"_USE_DETAIL\",\"definition\":\"ShaderFeature\",\"scope\":\"Local\",\"defaultValue\":1}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Keyword",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo("Keyword"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "displayName"), Is.EqualTo("Use Detail"));
+
+            var nodeInitializer = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeInitializer");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeInitializer, "key"), Is.EqualTo("KeywordNode"));
+
+            var nodeConfiguration = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeConfiguration");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "kind"), Is.EqualTo("Keyword"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "keywordType"), Is.EqualTo("Boolean"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "referenceName"), Is.EqualTo("_USE_DETAIL"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_CustomFunctionStringBodyWithExplicitMetadata_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCustomFunctionStringBodyMetadata", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"String\",\"functionName\":\"Mcp_Double\",\"functionBody\":\"Out = In * 2;\",\"inputs\":[{\"name\":\"In\",\"type\":\"Vector1\"}],\"outputs\":[{\"name\":\"Out\",\"type\":\"Vector1\"}]}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "CustomFunction",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo("CustomFunction"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "displayName"), Is.EqualTo("Mcp_Double (Custom Function)"));
+
+            var nodeInitializer = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeInitializer");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeInitializer, "key"), Is.EqualTo("CustomFunctionNode"));
+
+            var nodeConfiguration = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeConfiguration");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "kind"), Is.EqualTo("CustomFunction"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "mode"), Is.EqualTo("string-body"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "sourceType"), Is.EqualTo("String"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "functionName"), Is.EqualTo("Mcp_Double"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "functionBody"), Is.EqualTo("Out = In * 2;"));
+            Assert.That(ShaderGraphTestAssets.GetStringList(nodeConfiguration, "inputPorts"), Has.Count.EqualTo(1));
+            Assert.That(ShaderGraphTestAssets.GetStringList(nodeConfiguration, "outputPorts"), Has.Count.EqualTo(1));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_CustomFunctionFileMode_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCustomFunctionFileModeRejected", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"File\",\"functionName\":\"Mcp_External\",\"functionBody\":\"Out = In;\",\"inputs\":[{\"name\":\"In\",\"type\":\"Vector1\"}],\"outputs\":[{\"name\":\"Out\",\"type\":\"Vector1\"}]}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "CustomFunction",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("sourceType"));
+            Assert.That(addNodeResponse.Message, Does.Contain("String"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_CustomFunctionStringBodyMissingBody_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCustomFunctionMissingBodyRejected", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"String\",\"functionName\":\"Mcp_MissingBody\",\"inputs\":[{\"name\":\"In\",\"type\":\"Vector1\"}],\"outputs\":[{\"name\":\"Out\",\"type\":\"Vector1\"}]}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "CustomFunction",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("functionBody"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_CustomFunctionStringBodyMissingFunctionName_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCustomFunctionMissingFunctionNameRejected", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"String\",\"functionBody\":\"Out = In;\",\"inputs\":[{\"name\":\"In\",\"type\":\"Vector1\"}],\"outputs\":[{\"name\":\"Out\",\"type\":\"Vector1\"}]}";
+
+            ShaderGraphResponse addNodeResponse = HandleAddNodeWithConfig(
+                assetPath,
+                "CustomFunction",
+                null,
+                nodeConfigJson);
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("functionName"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_CustomFunctionStringBodyMissingOutputs_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCustomFunctionMissingOutputsRejected", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"String\",\"functionName\":\"Mcp_MissingOutputs\",\"functionBody\":\"Out = In;\",\"inputs\":[{\"name\":\"In\",\"type\":\"Vector1\"}],\"outputs\":[]}";
+
+            ShaderGraphResponse addNodeResponse = HandleAddNodeWithConfig(
+                assetPath,
+                "CustomFunction",
+                null,
+                nodeConfigJson);
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("outputs"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_CustomFunctionStringBodyUnsupportedPortType_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCustomFunctionUnsupportedPortTypeRejected", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"String\",\"functionName\":\"Mcp_BadPortType\",\"functionBody\":\"Out = In;\",\"inputs\":[{\"name\":\"In\",\"type\":\"Vector2\"}],\"outputs\":[{\"name\":\"Out\",\"type\":\"Vector1\"}]}";
+
+            ShaderGraphResponse addNodeResponse = HandleAddNodeWithConfig(
+                assetPath,
+                "CustomFunction",
+                null,
+                nodeConfigJson);
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("unsupported type"));
+            Assert.That(addNodeResponse.Message, Does.Contain("Vector2"));
+            Assert.That(addNodeResponse.Message, Does.Contain("Vector1"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_SubGraphNodeWithExplicitAssetBinding_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphSubGraphExplicitAssetBinding", out _);
+            string subGraphAssetPath = ShaderGraphTestAssets.GetFixtureAssetPath("ShaderSubGraphs/WorldSpaceUV.shadersubgraph");
+            string nodeConfigJson =
+                "{\"kind\":\"SubGraph\",\"version\":1,\"subGraphAssetPath\":\"" + subGraphAssetPath + "\"}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "SubGraph",
+                    "World Space UV",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addNodeResponse);
+
+            var addedNode = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "addedNode");
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "resolvedNodeType"), Is.EqualTo("SubGraph"));
+            Assert.That(ShaderGraphTestAssets.GetString(addedNode, "displayName"), Is.EqualTo("World Space UV"));
+
+            var nodeInitializer = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeInitializer");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeInitializer, "key"), Is.EqualTo("SubGraphNode"));
+
+            var nodeConfiguration = ShaderGraphTestAssets.RequireDictionary(addNodeResponse.Data, "nodeConfiguration");
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "kind"), Is.EqualTo("SubGraph"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "mode"), Is.EqualTo("explicit-asset"));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "subGraphAssetPath"), Is.EqualTo(subGraphAssetPath));
+            Assert.That(ShaderGraphTestAssets.GetString(nodeConfiguration, "subGraphAssetGuid"), Is.Not.Empty);
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(1));
+
+            ShaderGraphResponse saveResponse = ShaderGraphAssetTool.HandleSaveGraph(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(saveResponse);
+            Assert.That(ShaderGraphTestAssets.GetString(saveResponse.Data, "operation"), Is.EqualTo("save_graph"));
+        }
+
+        [Test]
+        public void BlankGraph_SubGraphNodeMissingNodeConfig_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphSubGraphMissingNodeConfigRejected", out _);
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.HandleAddNode(
+                assetPath,
+                "SubGraph",
+                "SubGraph Without Config");
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("missing required nodeConfigJson"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_SubGraphNodeMissingAssetPath_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphSubGraphMissingAssetPathRejected", out _);
+            string nodeConfigJson = "{\"kind\":\"SubGraph\",\"version\":1}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "SubGraph",
+                    "Missing SubGraph",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("subGraphAssetPath"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_SubGraphNodeWithShaderGraphAssetPath_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphSubGraphWrongAssetTypeRejected", out _);
+            string shaderGraphAssetPath = ShaderGraphTestAssets.GetFixtureAssetPath("ShaderGraphs/TMP_SDF-URP Lit.shadergraph");
+            string nodeConfigJson =
+                "{\"kind\":\"SubGraph\",\"version\":1,\"subGraphAssetPath\":\"" + shaderGraphAssetPath + "\"}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "SubGraph",
+                    "Wrong Asset Type",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("Shader Sub Graph"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_CustomFunctionScalarToVector1_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCustomFunctionScalarToVector1", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"String\",\"functionName\":\"Mcp_Double\",\"functionBody\":\"Out = In * 2;\",\"inputs\":[{\"name\":\"In\",\"type\":\"Vector1\"}],\"outputs\":[{\"name\":\"Out\",\"type\":\"Vector1\"}]}";
+
+            ShaderGraphResponse addCustomFunctionResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "CustomFunction",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addCustomFunctionResponse);
+            string customFunctionNodeId = ShaderGraphTestAssets.GetAddedNodeId(addCustomFunctionResponse);
+
+            ShaderGraphResponse addSinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Float/Vector1", "Custom Function Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addSinkResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSinkResponse);
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                customFunctionNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            var resolvedConnection = ShaderGraphTestAssets.RequireDictionary(connectResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedConnection, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.CustomFunctionNode"));
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedConnection, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.Vector1Node"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BlankGraph_CustomFunctionScalarToSplit_IsRejectedWithConnectionRules()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphCustomFunctionScalarToSplitRejected", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"String\",\"functionName\":\"Mcp_Double\",\"functionBody\":\"Out = In * 2;\",\"inputs\":[{\"name\":\"In\",\"type\":\"Vector1\"}],\"outputs\":[{\"name\":\"Out\",\"type\":\"Vector1\"}]}";
+
+            ShaderGraphResponse addCustomFunctionResponse = HandleAddNodeWithConfig(
+                assetPath,
+                "CustomFunction",
+                null,
+                nodeConfigJson);
+            ShaderGraphTestAssets.RequirePackageReady(addCustomFunctionResponse);
+            string customFunctionNodeId = ShaderGraphTestAssets.GetAddedNodeId(addCustomFunctionResponse);
+
+            ShaderGraphResponse addSplitResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Split", "Unsupported Split Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addSplitResponse);
+            string splitNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSplitResponse);
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                customFunctionNodeId,
+                "Out",
+                splitNodeId,
+                "In");
+
+            Assert.That(connectResponse.Success, Is.False);
+            Assert.That(connectResponse.Message, Does.Contain("Unsupported connection pair"));
+            Assert.That(connectResponse.Message, Does.Contain("CustomFunction"));
+            Assert.That(ShaderGraphTestAssets.GetStringList(connectResponse.Data, "supportedConnectionRules"), Is.Not.Empty);
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_KeywordScalarToVector1_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankGraph("BlankGraphKeywordScalarToVector1", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Keyword\",\"version\":1,\"keywordType\":\"Enum\",\"displayName\":\"Quality Tier\",\"referenceName\":\"_QUALITY_TIER\",\"definition\":\"ShaderFeature\",\"scope\":\"Local\",\"entries\":[\"Low\",\"Medium\",\"High\"],\"defaultValue\":1}";
+
+            ShaderGraphResponse addKeywordResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Keyword",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addKeywordResponse);
+            string keywordNodeId = ShaderGraphTestAssets.GetAddedNodeId(addKeywordResponse);
+
+            ShaderGraphResponse addSinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Float/Vector1", "Keyword Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addSinkResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSinkResponse);
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                keywordNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            var resolvedConnection = ShaderGraphTestAssets.RequireDictionary(connectResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedConnection, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.KeywordNode"));
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedConnection, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.Vector1Node"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BlankSubGraph_DropdownScalarToVector1_StaysPackageBacked()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphDropdownScalarToVector1", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Dropdown\",\"version\":1,\"displayName\":\"Quality Mode\",\"referenceName\":\"_QUALITY_MODE\",\"entries\":[\"Low\",\"Medium\",\"High\"],\"defaultIndex\":1}";
+
+            ShaderGraphResponse addDropdownResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Dropdown",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addDropdownResponse);
+            string dropdownNodeId = ShaderGraphTestAssets.GetAddedNodeId(addDropdownResponse);
+
+            ShaderGraphResponse addSinkResponse = ShaderGraphAssetTool.HandleAddNode(assetPath, "Float/Vector1", "Dropdown Sink");
+            ShaderGraphTestAssets.RequirePackageReady(addSinkResponse);
+            string sinkNodeId = ShaderGraphTestAssets.GetAddedNodeId(addSinkResponse);
+
+            ShaderGraphResponse connectResponse = ShaderGraphAssetTool.HandleConnectPorts(
+                assetPath,
+                dropdownNodeId,
+                "Out",
+                sinkNodeId,
+                "X");
+            ShaderGraphTestAssets.RequirePackageReady(connectResponse);
+
+            var resolvedConnection = ShaderGraphTestAssets.RequireDictionary(connectResponse.Data, "resolvedConnection");
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedConnection, "outputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.DropdownNode"));
+            Assert.That(ShaderGraphTestAssets.GetString(resolvedConnection, "inputNodeType"), Is.EqualTo("UnityEditor.ShaderGraph.Vector1Node"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BlankSubGraph_DropdownWithInvalidMetadata_IsRejectedBeforeMutation()
+        {
+            string assetPath = CreateBlankSubGraph("BlankSubGraphDropdownInvalidMetadata", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Dropdown\",\"version\":1,\"displayName\":\"Quality Mode\",\"referenceName\":\"_QUALITY_MODE\",\"entries\":[\"Only\"]}";
+
+            ShaderGraphResponse addNodeResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    assetPath,
+                    "Dropdown",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+
+            Assert.That(addNodeResponse.Success, Is.False);
+            Assert.That(addNodeResponse.Message, Does.Contain("requires at least 2 entries"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadSubGraphSummary(assetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(1));
         }
 
         [Test]
@@ -1299,6 +1989,288 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "propertyCount"), Is.EqualTo(1));
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(2));
             Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "connectionCount"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BlankGraph_ImportGraphContract_ReplaysSubGraphAssetBinding_StaysPackageBacked()
+        {
+            string sourceAssetPath = CreateBlankGraph("BlankGraphImportSubGraphBindingContractSource", out _);
+            string subGraphAssetPath = ShaderGraphTestAssets.GetFixtureAssetPath("ShaderSubGraphs/WorldSpaceUV.shadersubgraph");
+            string nodeConfigJson =
+                "{\"kind\":\"SubGraph\",\"version\":1,\"subGraphAssetPath\":\"" + subGraphAssetPath + "\"}";
+
+            ShaderGraphResponse addSubGraphResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    sourceAssetPath,
+                    "SubGraph",
+                    "World Space UV",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addSubGraphResponse);
+
+            ShaderGraphResponse exportResponse = ShaderGraphAssetTool.HandleExportGraphContract(sourceAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(exportResponse);
+            IReadOnlyDictionary<string, object> exportedGraphContract = ShaderGraphTestAssets.RequireDictionary(exportResponse.Data, "exportedGraphContract");
+            IReadOnlyList<object> exportedNodes = (IReadOnlyList<object>)exportedGraphContract["nodes"];
+            var exportedSubGraphNode = (IReadOnlyDictionary<string, object>)exportedNodes.Single(node =>
+                ShaderGraphTestAssets.GetString((IReadOnlyDictionary<string, object>)node, "nodeType") == "SubGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(exportedSubGraphNode, "nodeConfigJson"), Does.Contain(subGraphAssetPath));
+
+            string targetAssetPath = CreateBlankGraph("BlankGraphImportSubGraphBindingContractTarget", out _);
+            ShaderGraphResponse importResponse = ShaderGraphAssetTool.HandleImportGraphContract(
+                targetAssetPath,
+                ShaderGraphTestAssets.SerializeToJson(exportedGraphContract));
+            ShaderGraphTestAssets.RequirePackageReady(importResponse);
+
+            var importedCounts = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedCounts");
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "nodeCount"), Is.EqualTo(1));
+
+            var importedGraphContract = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedGraphContract");
+            IReadOnlyList<object> importedNodes = (IReadOnlyList<object>)importedGraphContract["nodes"];
+            var importedSubGraphNode = (IReadOnlyDictionary<string, object>)importedNodes.Single(node =>
+                ShaderGraphTestAssets.GetString((IReadOnlyDictionary<string, object>)node, "nodeType") == "SubGraph");
+            Assert.That(ShaderGraphTestAssets.GetString(importedSubGraphNode, "nodeConfigJson"), Does.Contain(subGraphAssetPath));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(targetAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BlankGraph_ImportGraphContract_MissingConfigurableNodeConfig_IsRejectedBeforeMutation()
+        {
+            string targetAssetPath = CreateBlankGraph("BlankGraphImportMissingConfigurableNodeConfigRejected", out _);
+            string graphContractJson = ShaderGraphTestAssets.SerializeToJson(
+                new Dictionary<string, object>
+                {
+                    ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                    ["isSubGraph"] = false,
+                    ["nodes"] = new object[]
+                    {
+                        new Dictionary<string, object>
+                        {
+                            ["objectId"] = "source-custom-function",
+                            ["nodeType"] = "CustomFunction",
+                            ["displayName"] = "Missing Config Custom Function",
+                        },
+                    },
+                    ["connections"] = Array.Empty<object>(),
+                });
+
+            ShaderGraphResponse importResponse = ShaderGraphAssetTool.HandleImportGraphContract(
+                targetAssetPath,
+                graphContractJson);
+
+            Assert.That(importResponse.Success, Is.False);
+            Assert.That(importResponse.Message, Does.Contain("missing required nodeConfigJson"));
+            Assert.That(ShaderGraphTestAssets.GetString(importResponse.Data, "importGraphContractStep"), Is.EqualTo("add_node"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(targetAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankGraph_ImportGraphContract_InvalidSubGraphAssetBinding_IsRejectedBeforeMutation()
+        {
+            string targetAssetPath = CreateBlankGraph("BlankGraphImportInvalidSubGraphAssetBindingRejected", out _);
+            string shaderGraphAssetPath = ShaderGraphTestAssets.GetFixtureAssetPath("ShaderGraphs/TMP_SDF-URP Lit.shadergraph");
+            string graphContractJson = ShaderGraphTestAssets.SerializeToJson(
+                new Dictionary<string, object>
+                {
+                    ["contractVersion"] = "unity-shader-graph-mcp/export-graph-contract-v1",
+                    ["isSubGraph"] = false,
+                    ["nodes"] = new object[]
+                    {
+                        new Dictionary<string, object>
+                        {
+                            ["objectId"] = "source-sub-graph",
+                            ["nodeType"] = "SubGraph",
+                            ["displayName"] = "Invalid Asset SubGraph",
+                            ["nodeConfigJson"] = "{\"kind\":\"SubGraph\",\"version\":1,\"subGraphAssetPath\":\"" + shaderGraphAssetPath + "\"}",
+                        },
+                    },
+                    ["connections"] = Array.Empty<object>(),
+                });
+
+            ShaderGraphResponse importResponse = ShaderGraphAssetTool.HandleImportGraphContract(
+                targetAssetPath,
+                graphContractJson);
+
+            Assert.That(importResponse.Success, Is.False);
+            Assert.That(importResponse.Message, Does.Contain("Shader Sub Graph"));
+            Assert.That(ShaderGraphTestAssets.GetString(importResponse.Data, "importGraphContractStep"), Is.EqualTo("add_node"));
+
+            ShaderGraphResponse summaryResponse = ShaderGraphAssetTool.HandleReadGraphSummary(targetAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(summaryResponse);
+            Assert.That(ShaderGraphTestAssets.GetInt(summaryResponse.Data, "nodeCount"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void BlankSubGraph_ImportGraphContract_ReplaysDropdownMetadata_StaysPackageBacked()
+        {
+            string sourceAssetPath = CreateBlankSubGraph("BlankSubGraphImportDropdownContractSource", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Dropdown\",\"version\":1,\"displayName\":\"Quality Mode\",\"referenceName\":\"_QUALITY_MODE\",\"entries\":[\"Low\",\"Medium\",\"High\"],\"defaultIndex\":2}";
+
+            ShaderGraphResponse addDropdownResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    sourceAssetPath,
+                    "Dropdown",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addDropdownResponse);
+
+            ShaderGraphResponse exportResponse = ShaderGraphAssetTool.HandleExportGraphContract(sourceAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(exportResponse);
+            IReadOnlyDictionary<string, object> exportedGraphContract = ShaderGraphTestAssets.RequireDictionary(exportResponse.Data, "exportedGraphContract");
+            IReadOnlyList<object> exportedNodes = (IReadOnlyList<object>)exportedGraphContract["nodes"];
+            var exportedDropdownNode = (IReadOnlyDictionary<string, object>)exportedNodes.Single(node =>
+                ShaderGraphTestAssets.GetString((IReadOnlyDictionary<string, object>)node, "nodeType") == "Dropdown");
+            Assert.That(ShaderGraphTestAssets.GetString(exportedDropdownNode, "nodeConfigJson"), Does.Contain("\"kind\":\"Dropdown\""));
+            Assert.That(ShaderGraphTestAssets.GetString(exportedDropdownNode, "nodeConfigJson"), Does.Contain("\"High\""));
+
+            string targetAssetPath = CreateBlankSubGraph("BlankSubGraphImportDropdownContractTarget", out _);
+            ShaderGraphResponse importResponse = ShaderGraphAssetTool.HandleImportGraphContract(
+                targetAssetPath,
+                ShaderGraphTestAssets.SerializeToJson(exportedGraphContract));
+            ShaderGraphTestAssets.RequirePackageReady(importResponse);
+
+            var importedCounts = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedCounts");
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "nodeCount"), Is.EqualTo(2));
+
+            var importedGraphContract = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedGraphContract");
+            IReadOnlyList<object> importedNodes = (IReadOnlyList<object>)importedGraphContract["nodes"];
+            var importedDropdownNode = (IReadOnlyDictionary<string, object>)importedNodes.Single(node =>
+                ShaderGraphTestAssets.GetString((IReadOnlyDictionary<string, object>)node, "nodeType") == "Dropdown");
+            Assert.That(ShaderGraphTestAssets.GetString(importedDropdownNode, "nodeConfigJson"), Does.Contain("\"defaultIndex\":2"));
+        }
+
+        [Test]
+        public void BlankGraph_ImportGraphContract_ReplaysKeywordMetadata_StaysPackageBacked()
+        {
+            string sourceAssetPath = CreateBlankGraph("BlankGraphImportKeywordContractSource", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"Keyword\",\"version\":1,\"keywordType\":\"Enum\",\"displayName\":\"Quality Tier\",\"referenceName\":\"_QUALITY_TIER\",\"definition\":\"ShaderFeature\",\"scope\":\"Local\",\"entries\":[\"Low\",\"Medium\",\"High\"],\"defaultValue\":1}";
+
+            ShaderGraphResponse addKeywordResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    sourceAssetPath,
+                    "Keyword",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addKeywordResponse);
+
+            ShaderGraphResponse exportResponse = ShaderGraphAssetTool.HandleExportGraphContract(sourceAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(exportResponse);
+            IReadOnlyDictionary<string, object> exportedGraphContract = ShaderGraphTestAssets.RequireDictionary(exportResponse.Data, "exportedGraphContract");
+            IReadOnlyList<object> exportedNodes = (IReadOnlyList<object>)exportedGraphContract["nodes"];
+            var exportedKeywordNode = (IReadOnlyDictionary<string, object>)exportedNodes.Single(node =>
+                ShaderGraphTestAssets.GetString((IReadOnlyDictionary<string, object>)node, "nodeType") == "Keyword");
+            Assert.That(ShaderGraphTestAssets.GetString(exportedKeywordNode, "nodeConfigJson"), Does.Contain("\"kind\":\"Keyword\""));
+            Assert.That(ShaderGraphTestAssets.GetString(exportedKeywordNode, "nodeConfigJson"), Does.Contain("\"keywordType\":\"Enum\""));
+
+            string targetAssetPath = CreateBlankGraph("BlankGraphImportKeywordContractTarget", out _);
+            ShaderGraphResponse importResponse = ShaderGraphAssetTool.HandleImportGraphContract(
+                targetAssetPath,
+                ShaderGraphTestAssets.SerializeToJson(exportedGraphContract));
+            ShaderGraphTestAssets.RequirePackageReady(importResponse);
+
+            var importedCounts = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedCounts");
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "nodeCount"), Is.EqualTo(1));
+
+            var importedGraphContract = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedGraphContract");
+            IReadOnlyList<object> importedNodes = (IReadOnlyList<object>)importedGraphContract["nodes"];
+            var importedKeywordNode = (IReadOnlyDictionary<string, object>)importedNodes.Single(node =>
+                ShaderGraphTestAssets.GetString((IReadOnlyDictionary<string, object>)node, "nodeType") == "Keyword");
+            Assert.That(ShaderGraphTestAssets.GetString(importedKeywordNode, "nodeConfigJson"), Does.Contain("\"defaultValue\":1"));
+        }
+
+        [Test]
+        public void BlankGraph_ImportGraphContract_ReplaysCustomFunctionMetadata_StaysPackageBacked()
+        {
+            string sourceAssetPath = CreateBlankGraph("BlankGraphImportCustomFunctionContractSource", out _);
+            string nodeConfigJson =
+                "{\"kind\":\"CustomFunction\",\"version\":1,\"sourceType\":\"String\",\"functionName\":\"Mcp_Triple\",\"functionBody\":\"Out = In * 3;\",\"inputs\":[{\"name\":\"In\",\"type\":\"Vector1\"}],\"outputs\":[{\"name\":\"Out\",\"type\":\"Vector1\"}]}";
+
+            ShaderGraphResponse addCustomFunctionResponse = ShaderGraphAssetTool.Handle(
+                new AddNodeRequest(
+                    sourceAssetPath,
+                    "CustomFunction",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    nodeConfigJson));
+            ShaderGraphTestAssets.RequirePackageReady(addCustomFunctionResponse);
+
+            ShaderGraphResponse exportResponse = ShaderGraphAssetTool.HandleExportGraphContract(sourceAssetPath);
+            ShaderGraphTestAssets.RequirePackageReady(exportResponse);
+            IReadOnlyDictionary<string, object> exportedGraphContract = ShaderGraphTestAssets.RequireDictionary(exportResponse.Data, "exportedGraphContract");
+            IReadOnlyList<object> exportedNodes = (IReadOnlyList<object>)exportedGraphContract["nodes"];
+            var exportedCustomFunctionNode = (IReadOnlyDictionary<string, object>)exportedNodes.Single(node =>
+                ShaderGraphTestAssets.GetString((IReadOnlyDictionary<string, object>)node, "nodeType") == "CustomFunction");
+            Assert.That(ShaderGraphTestAssets.GetString(exportedCustomFunctionNode, "nodeConfigJson"), Does.Contain("\"functionName\":\"Mcp_Triple\""));
+            Assert.That(ShaderGraphTestAssets.GetString(exportedCustomFunctionNode, "nodeConfigJson"), Does.Contain("\"functionBody\":\"Out = In * 3;\""));
+
+            string targetAssetPath = CreateBlankGraph("BlankGraphImportCustomFunctionContractTarget", out _);
+            ShaderGraphResponse importResponse = ShaderGraphAssetTool.HandleImportGraphContract(
+                targetAssetPath,
+                ShaderGraphTestAssets.SerializeToJson(exportedGraphContract));
+            ShaderGraphTestAssets.RequirePackageReady(importResponse);
+
+            var importedCounts = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedCounts");
+            Assert.That(ShaderGraphTestAssets.GetInt(importedCounts, "nodeCount"), Is.EqualTo(1));
+
+            var importedGraphContract = ShaderGraphTestAssets.RequireDictionary(importResponse.Data, "importedGraphContract");
+            IReadOnlyList<object> importedNodes = (IReadOnlyList<object>)importedGraphContract["nodes"];
+            var importedCustomFunctionNode = (IReadOnlyDictionary<string, object>)importedNodes.Single(node =>
+                ShaderGraphTestAssets.GetString((IReadOnlyDictionary<string, object>)node, "nodeType") == "CustomFunction");
+            Assert.That(ShaderGraphTestAssets.GetString(importedCustomFunctionNode, "nodeConfigJson"), Does.Contain("\"functionName\":\"Mcp_Triple\""));
         }
 
         [TestCaseSource(nameof(PromotedNodeBatchContractReplayCases))]
@@ -4299,6 +5271,10 @@ namespace ShaderGraphMcp.Editor.Tests
 
             var initializerBackedNodeTypes = ShaderGraphTestAssets.GetStringList(classification, "initializerBackedNodeTypes");
             Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("Property"));
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("Dropdown"));
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("Keyword"));
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("CustomFunction"));
+            Assert.That(initializerBackedNodeTypes, Has.Some.EqualTo("SubGraph"));
 
             var textureSampleClassification = ShaderGraphTestAssets.RequireDictionary(
                 classification,
@@ -4365,14 +5341,39 @@ namespace ShaderGraphMcp.Editor.Tests
             var configurableMetadataUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
                 configurableClassification,
                 "metadataRequiredUnsupportedNodeTypes");
-            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.Some.EqualTo("CustomFunction"));
-            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.Some.EqualTo("Dropdown"));
-            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.Some.EqualTo("Keyword"));
+            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.None.EqualTo("CustomFunction"));
+            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.None.EqualTo("Dropdown"));
+            Assert.That(configurableMetadataUnsupportedNodeTypes, Has.None.EqualTo("Keyword"));
+
+            var configurableMetadataNodeTypes = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "metadataRequiredNodeTypes");
+            Assert.That(configurableMetadataNodeTypes, Has.Some.EqualTo("CustomFunction"));
+            Assert.That(configurableMetadataNodeTypes, Has.Some.EqualTo("Dropdown"));
+            Assert.That(configurableMetadataNodeTypes, Has.Some.EqualTo("Keyword"));
+
+            var configurableMetadataModeLabels = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "metadataRequiredSupportedModeLabels");
+            Assert.That(configurableMetadataModeLabels, Has.Some.EqualTo("CustomFunction:string-body"));
+            Assert.That(configurableMetadataModeLabels, Has.Some.EqualTo("Dropdown:static-string-entries"));
+            Assert.That(configurableMetadataModeLabels, Has.Some.EqualTo("Keyword:boolean"));
+            Assert.That(configurableMetadataModeLabels, Has.Some.EqualTo("Keyword:enum"));
 
             var configurableExternalUnsupportedNodeTypes = ShaderGraphTestAssets.GetStringList(
                 configurableClassification,
                 "externallyAssetBoundUnsupportedNodeTypes");
-            Assert.That(configurableExternalUnsupportedNodeTypes, Has.Some.EqualTo("SubGraph"));
+            Assert.That(configurableExternalUnsupportedNodeTypes, Has.None.EqualTo("SubGraph"));
+
+            var configurableExternalNodeTypes = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "externallyAssetBoundNodeTypes");
+            Assert.That(configurableExternalNodeTypes, Has.Some.EqualTo("SubGraph"));
+
+            var configurableExternalModeLabels = ShaderGraphTestAssets.GetStringList(
+                configurableClassification,
+                "externallyAssetBoundSupportedModeLabels");
+            Assert.That(configurableExternalModeLabels, Has.Some.EqualTo("SubGraph:explicit-asset"));
 
             var specializedClassification = ShaderGraphTestAssets.RequireDictionary(
                 classification,
@@ -4402,10 +5403,10 @@ namespace ShaderGraphMcp.Editor.Tests
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Float/Vector1"));
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Color"));
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("SampleGradient"));
-            Assert.That(supportedCanonicalNames, Has.None.EqualTo("CustomFunction"));
-            Assert.That(supportedCanonicalNames, Has.None.EqualTo("Dropdown"));
-            Assert.That(supportedCanonicalNames, Has.None.EqualTo("Keyword"));
-            Assert.That(supportedCanonicalNames, Has.None.EqualTo("SubGraph"));
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("CustomFunction"));
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Dropdown"));
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("Keyword"));
+            Assert.That(supportedCanonicalNames, Has.Some.EqualTo("SubGraph"));
             Assert.That(supportedCanonicalNames, Has.Some.EqualTo("DefaultTexture"));
             Assert.That(supportedCanonicalNames, Has.None.EqualTo("SampleElementTexture"));
         }

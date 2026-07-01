@@ -13,7 +13,7 @@ Important:
 Transport-only smoke:
 
 ```bash
-python3 server/src/unity_shader_graph_mcp/__main__.py --mcp
+python3.12 server/src/unity_shader_graph_mcp/__main__.py --mcp
 ```
 
 Real Unity bridge smoke:
@@ -21,7 +21,7 @@ Real Unity bridge smoke:
 ```bash
 export UNITY_SHADER_GRAPH_MCP_UNITY_EXE="/Applications/Unity/Hub/Editor/2022.3.xf1/Unity.app/Contents/MacOS/Unity"
 export UNITY_SHADER_GRAPH_MCP_UNITY_PROJECT="/absolute/path/to/YourUnityProject"
-python3 server/src/unity_shader_graph_mcp/__main__.py --mcp
+python3.12 server/src/unity_shader_graph_mcp/__main__.py --mcp
 ```
 
 ## Initialize

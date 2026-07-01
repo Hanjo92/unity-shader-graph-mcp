@@ -975,9 +975,10 @@ namespace ShaderGraphMcp.Editor.Models
         public string PropertyDisplayName { get; }
         public string ReferenceName { get; }
         public string PropertyType { get; }
+        public string NodeConfigJson { get; }
 
         public AddNodeRequest(string assetPath, string nodeType, string displayName)
-            : this(assetPath, nodeType, displayName, null, null, null, null, null, null, null, null, null, null, null, null)
+            : this(assetPath, nodeType, displayName, null, null, null, null, null, null, null, null, null, null, null, null, null)
         {
         }
 
@@ -996,7 +997,8 @@ namespace ShaderGraphMcp.Editor.Models
             string propertyName = null,
             string propertyDisplayName = null,
             string referenceName = null,
-            string propertyType = null)
+            string propertyType = null,
+            string nodeConfigJson = null)
             : base(ShaderGraphAction.AddNode, assetPath)
         {
             NodeType = string.IsNullOrWhiteSpace(nodeType) ? string.Empty : nodeType.Trim();
@@ -1014,6 +1016,7 @@ namespace ShaderGraphMcp.Editor.Models
             PropertyDisplayName = string.IsNullOrWhiteSpace(propertyDisplayName) ? string.Empty : propertyDisplayName.Trim();
             ReferenceName = string.IsNullOrWhiteSpace(referenceName) ? string.Empty : referenceName.Trim();
             PropertyType = string.IsNullOrWhiteSpace(propertyType) ? string.Empty : propertyType.Trim();
+            NodeConfigJson = string.IsNullOrWhiteSpace(nodeConfigJson) ? string.Empty : nodeConfigJson.Trim();
         }
     }
 
@@ -1174,6 +1177,7 @@ namespace ShaderGraphMcp.Editor.Models
         public string propertyDisplayName;
         public string referenceName;
         public string propertyType;
+        public string nodeConfigJson;
         public ImportedGraphContractPosition position;
     }
 

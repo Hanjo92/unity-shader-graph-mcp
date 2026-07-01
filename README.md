@@ -2,11 +2,11 @@
 
 Shader Graph focused MCP for Unity.
 
-Current stable release: `1.3.0`
+Current stable release: `1.4.0`
 
-Next milestone target: `1.4.0` full-node completion planning
+Next milestone target: post-`1.4.0` follow-up node promotion and routing slices
 
-`1.3.0` closes the full-node-support foundation slice while keeping the
+`1.4.0` closes the explicit configurable and asset-bound node promotion slice while keeping the
 package-backed editing loop explicit, promotion-based, and verification-driven:
 
 - `create_graph` for blank graphs
@@ -22,11 +22,13 @@ package-backed editing loop explicit, promotion-based, and verification-driven:
 - promoted graph-addable node families for math/value/vector, texture/sample, coordinate/utility, normal/lighting/rendering, and portable default specialized nodes
 - contract replay coverage for promoted node families
 - graph and subgraph export/import contract path parity
+- metadata-backed `Dropdown`, `Keyword`, and string-body `CustomFunction` node workflows
+- explicit `.shadersubgraph` asset-bound `SubGraphNode` add/replay workflows
 - `save_graph`
 
-The Unity-side package-backed engine and Unity batchmode MCP bridge are now stable enough for the focused `1.3.0` cut.
+The Unity-side package-backed engine and Unity batchmode MCP bridge are now stable enough for the focused `1.4.0` cut.
 The server now supports a live stdio MCP transport and an optional Unity batchmode bridge for real external tool calls.
-The `1.3.0` milestone is now closed; remaining universal node completion work should be tracked as `1.4.0` follow-up scope.
+The `1.4.0` milestone promotes explicit metadata-backed `Dropdown`, `Keyword`, string-body `CustomFunction`, and `.shadersubgraph` asset-bound `SubGraphNode` paths without claiming universal node or port coverage.
 
 This repository is intentionally split into independent work areas so multiple sub-agents can work in parallel with minimal merge risk.
 
@@ -38,6 +40,7 @@ Full Shader Graph type discovery is not the same as full runtime support.
 - `discoveredNodeTypes` is broader diagnostic data from the loaded Shader Graph assemblies. It can include internal, legacy, output-only, metadata-required, asset-bound, or probe-rejected types.
 - `nodeCatalogClassification` explains why discovered nodes are supported, filtered, or deferred.
 - `supportedConnectionRules` is the enforced `connect_ports` matrix. A node being addable does not imply arbitrary ports or type coercions can connect.
+- Metadata-heavy nodes use `nodeConfigJson`; asset-bound nodes require explicit asset paths. If a node is not listed in `supportedNodeTypes` and represented by matching `nodeCatalogClassification` / `supportedConnectionRules`, treat it as diagnostic-only.
 
 For Unity-side discovery, open `Tools > Shader Graph MCP > Open Panel`, then use `List Supported Nodes`, `Write Node Catalog Report`, and `Write Compatibility Report`.
 For external MCP clients, call `list_supported_nodes` and `list_supported_connections` before issuing `add_node` or `connect_ports`.
@@ -59,7 +62,8 @@ See `docs/parallel-work-split.md` for the current task split.
 
 - Changelog: [CHANGELOG.md](/Users/song/Projects/unity-shader-graph-mcp/CHANGELOG.md)
 - Release checklist: [release-checklist.md](/Users/song/Projects/unity-shader-graph-mcp/docs/release-checklist.md)
-- GitHub release draft: [github-release-1.3.0.md](/Users/song/Projects/unity-shader-graph-mcp/docs/github-release-1.3.0.md)
+- GitHub release draft: [github-release-1.4.0.md](/Users/song/Projects/unity-shader-graph-mcp/docs/github-release-1.4.0.md)
+- Previous release draft: [github-release-1.3.0.md](/Users/song/Projects/unity-shader-graph-mcp/docs/github-release-1.3.0.md)
 - Final 1.0 checklist: [1.0.0-checklist.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.0.0-checklist.md)
 - Final 1.0 work split: [1.0.0-work-split.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.0.0-work-split.md)
 - Completed 1.1 plan: [1.1.0-plan.md](/Users/song/Projects/unity-shader-graph-mcp/docs/1.1.0-plan.md)
